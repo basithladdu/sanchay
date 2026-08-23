@@ -1,60 +1,86 @@
 # SANCHAY
 
-**Regret-aware storage intelligence for Linux.** Ranks cleanup candidates by what
-it costs to be wrong, not by how big they are.
+Tells you what's safe to delete on your Linux machine — and shuts up about
+everything that isn't.
 
-Built for C-DAC / MeitY *AI Enabled Operating System Hackathon 2026* —
-Track: AI at Application Level — Problem Statement:
-*AI-Powered Intelligent Storage Optimizer for Linux OS*.
+Built for the C-DAC / MeitY AI Enabled Operating System Hackathon 2026.
+Track: AI at Application Level.
+Problem: *AI-Powered Intelligent Storage Optimizer for Linux OS*.
 
----
+## Why we built it
 
-## The idea
+Every disk cleaner sorts your files by size. Biggest first. That's the wrong
+question.
 
-Every disk cleanup tool ranks by bytes freed. That is the wrong objective.
-Freeing 2 GB of package cache and freeing 2 GB containing someone's only copy of
-their thesis score identically — and only one of them is recoverable.
+Say you've got a 2 GB build cache and a 2 GB folder with the only copy of your
+final year project. Both are 2 GB. Both show up the same shade of big on a
+treemap. But one comes back if you run `npm install`, and the other is gone
+forever.
 
-SANCHAY ranks by **regret** instead:
+Sorting by size treats those as the same problem. They are not the same problem.
 
-```
-priority = bytes × staleness × (1 − regret)
-```
+So we sort by a different question: **if we're wrong about this, how bad is it?**
 
-Regret is estimated from **reproducibility**, not content:
+## How it decides
 
-| kind | meaning | regret |
+For every file we ask — if this disappears, can you get it back?
+
+| Where it lives | Get it back? | We call it |
 |---|---|---|
-| `disposable` | a build or package tool regenerates it | 0.02 |
-| `duplicate` | an identical copy survives the delete | 0.10 |
-| `tracked` | committed to a git repo | 0.20 |
-| `unique` | nothing gets it back | **excluded entirely** |
+| build cache, `node_modules`, `__pycache__`, `.venv` | yeah, one command | `disposable` |
+| there's an identical copy elsewhere on disk | yeah, the copy survives | `duplicate` |
+| committed inside a git repo | mostly, yeah | `tracked` |
+| none of the above | **no** | `unique` |
 
-A file that is unique, untracked and uncached is never recommended, however
-large and however stale. That is the safety guarantee the problem statement asks
-for, and it is enforced structurally rather than by asking a model to be careful.
+Anything that lands in `unique` we never suggest deleting. Doesn't matter if
+it's 40 GB. Doesn't matter if you haven't opened it in three years. We just
+don't bring it up.
 
-## Forecasting without history
+Everything else gets ranked by:
 
-Predicting future storage normally needs a series of snapshots. It doesn't:
-every file already records the day it was written, so the mtime distribution
-*is* the history. One walk of the tree yields bytes-created-per-day, and that
-projects forward against current free space.
+```
+how big  ×  how long since you touched it  ×  how safe it is to lose
+```
 
-## Where the model sits
+That's the whole idea. It's not clever, it's just the right question.
 
-Ranking is decided by the regret model from file metadata. The LLM only narrates
-a list that already exists — so a hallucination cannot promote an irreplaceable
-file into the recommendations. Explainability is earned by construction.
+## Guessing when you'll run out of space
 
-## Usage
+Normally you'd need to track disk usage over weeks to predict this. You don't.
+
+Every file already knows the day it was written. So one scan of the disk gives
+you the whole history for free — how many bytes a day you've been adding.
+Compare that to your free space and you get a date.
+
+```
+growth:     91.2MB/day, full in 137 days
+```
+
+## The picture
+
+Everyone draws the same treemap. Ours is coloured by whether the file is safe to
+delete, not by how big it is:
+
+- **green** — build junk, delete it, nothing happens
+- **yellow-green** — there's another copy
+- **yellow** — it's in a repo
+- **red** — irreplaceable, leave it alone
+
+So you can look at your disk and immediately see where the free money is.
+
+```bash
+python -m sanchay.cli ~/ --viz storage.html
+```
+
+## Try it
 
 ```bash
 python -m sanchay.cli ~/                 # scan and rank
-python -m sanchay.cli ~/ --explain       # add narrative advice
+python -m sanchay.cli ~/ --viz out.html  # add the treemap
+python -m sanchay.cli ~/ --explain       # have Claude write it up
 ```
 
-Output:
+Looks like this:
 
 ```
 48,213 files, 61.4GB
@@ -62,36 +88,59 @@ Output:
 duplicates: 214 groups, 3.1GB reclaimable
 growth:     91.2MB/day, full in 137 days
 candidates: 20 safe, 9,847 irreplaceable files excluded
+
+      size  kind          unused  path
+------------------------------------------------------------------------------
+    73.5MB  disposable      5.8d  ~/proj/.next/cache/webpack/server-production/0.pack
+    39.1MB  disposable      5.8d  ~/proj/.next/cache/webpack/client-production/0.pack
 ```
 
-## Performance
+That "9,847 irreplaceable files excluded" line is the point. Those are the files
+a normal cleaner would have happily offered up.
 
-Duplicate detection is size-bucketed, then head-hashed (64 KB), then fully
-hashed — only for buckets that still collide. Hardlinks sharing an inode are not
-counted as duplicates because they already share their bytes. Naive tools hash
-every file; this reads a small fraction of the tree.
+## About the AI bit
 
-## Requirements
+Claude writes the summary at the end. It does **not** pick what to delete — the
+ranking is already done before it sees anything, and it only gets the list of
+files we already decided are safe.
 
-Python 3.9+, no mandatory third-party dependencies.
-`ANTHROPIC_API_KEY` only for `--explain`.
+We did it that way on purpose. If the model picks, then one bad answer means
+someone loses a file. If the model only narrates, the worst it can do is
+describe things awkwardly.
 
-## Third-party components
+## Making it fast
 
-| Component | Licence | Use |
+Hashing every file on a big disk takes forever, so we don't. Group by size
+first, then hash the first 64 KB of anything that collides, then fully hash only
+what still collides after that. Most files never get read at all.
+
+Hardlinks pointing at the same inode aren't counted as duplicates, since they're
+already sharing the same bytes — deleting one frees nothing.
+
+## What you need
+
+Python 3.9+. That's basically it — the core runs on the standard library.
+`plotly` and `pandas` for the treemap, `ANTHROPIC_API_KEY` only if you want the
+written summary.
+
+## What we used vs what we wrote
+
+Ours: the scanner, the duplicate finder, the regret model, the forecaster.
+
+Borrowed:
+
+| Thing | Licence | What for |
 |---|---|---|
-| anthropic | MIT | narration layer (optional) |
+| plotly | MIT | the treemap |
+| pandas | BSD-3 | shaping data for the treemap |
+| anthropic | MIT | writing the summary |
 
-Scanner, duplicate detector, regret model and forecaster are original to this
-project.
+## Data
 
-## Datasets
-
-No external dataset. The tool operates on the user's own filesystem metadata
-(paths, sizes, timestamps, inodes) and reads file contents only to confirm
-duplicate candidates. Nothing is transmitted anywhere unless `--explain` is
-passed, which sends only the ranked path list.
+No outside dataset. It reads your own filesystem — paths, sizes, timestamps —
+and only opens files to confirm duplicates. Nothing leaves your machine unless
+you pass `--explain`, and even then it only sends the list of paths.
 
 ## Licence
 
-MIT — see [LICENSE](LICENSE).
+MIT. See [LICENSE](LICENSE).
