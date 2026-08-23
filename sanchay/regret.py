@@ -15,6 +15,7 @@ A file that is none of those is irreplaceable and is never recommended,
 regardless of size.
 """
 import os
+import subprocess
 import time
 
 # Directories whose contents a build or package tool will regenerate on demand.
@@ -36,16 +37,38 @@ def _norm(path):
     return path.replace("\\", "/")
 
 
-def in_repo(path):
-    """Walk up looking for a .git directory."""
+_repo_cache = {}
+
+
+def _repo_root(path):
     d = os.path.dirname(path)
     while True:
         if os.path.isdir(os.path.join(d, ".git")):
-            return True
+            return d
         parent = os.path.dirname(d)
         if parent == d:
-            return False
+            return None
         d = parent
+
+
+def _tracked_set(root):
+    """Files git actually knows about. Untracked and ignored files are not
+    recoverable from a repo, so being inside one proves nothing on its own."""
+    if root not in _repo_cache:
+        try:
+            out = subprocess.run(["git", "-C", root, "ls-files", "-z"],
+                                 capture_output=True, timeout=30)
+            _repo_cache[root] = {
+                _norm(os.path.join(root, p))
+                for p in out.stdout.decode("utf-8", "replace").split(chr(0)) if p}
+        except (OSError, subprocess.SubprocessError):
+            _repo_cache[root] = set()
+    return _repo_cache[root]
+
+
+def in_repo(path):
+    root = _repo_root(path)
+    return bool(root) and _norm(path) in _tracked_set(root)
 
 
 def classify(info, duplicated):

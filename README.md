@@ -84,6 +84,21 @@ pip install -e ".[all]"     # plus the treemap and the AI summary
 The core runs on the standard library alone. `plotly` and `pandas` only load if
 you ask for a treemap, `anthropic` only if you ask for a summary.
 
+## The interface
+
+It's a terminal app, built on [Textual](https://github.com/Textualize/textual).
+A disk tool belongs in the terminal — that's where the disks are, and it's the
+only thing that works over ssh on a box with no desktop. `ncdu` got that right.
+
+```bash
+sanchay-ui ~/
+```
+
+![the terminal UI](docs/tui.png)
+
+Rows are coloured by whether you can get the file back. `s` sorts by size, `p`
+sorts by priority, `r` rescans, `q` quits.
+
 ## Try it
 
 ```bash
@@ -91,6 +106,7 @@ sanchay ~/                               # scan and rank
 python -m sanchay.cli ~/                 # scan and rank
 python -m sanchay.cli ~/ --viz out.html  # add the treemap
 python -m sanchay.cli ~/ --explain       # have Claude write it up
+sanchay ~/ --report out.html             # shareable HTML report
 ```
 
 Looks like this:

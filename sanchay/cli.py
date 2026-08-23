@@ -19,7 +19,13 @@ def main(argv=None):
     ap.add_argument("--limit", type=int, default=20)
     ap.add_argument("--explain", action="store_true", help="narrate with an LLM")
     ap.add_argument("--viz", metavar="OUT.html", help="write a regret treemap")
+    ap.add_argument("--report", metavar="OUT.html", help="write a shareable HTML report")
+    ap.add_argument("--tui", action="store_true", help="open the terminal UI")
     args = ap.parse_args(argv)
+
+    if args.tui:
+        from . import tui
+        return tui.run(args.root)
 
     files = scan.scan(args.root)
     total = sum(f.size for f in files)
@@ -43,6 +49,10 @@ def main(argv=None):
     for r in rows:
         print(f"{human(r['size']):>10}  {r['kind']:<11} "
               f"{r['staleness'] * 365:>6.1f}d  {r['path']}")
+
+    if args.report:
+        from . import report
+        print("report -> " + report.build(files, args.root, free, args.report))
 
     if args.viz:
         from . import viz

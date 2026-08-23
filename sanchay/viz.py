@@ -20,7 +20,7 @@ COLOURS = {
 DEPTH = 4
 
 
-def treemap(files, dup_paths=frozenset(), out="storage.html", limit=4000):
+def figure(files, dup_paths=frozenset(), limit=4000):
     top = sorted(files, key=lambda f: f.size, reverse=True)[:limit]
     rows = []
     for f in top:
@@ -37,5 +37,13 @@ def treemap(files, dup_paths=frozenset(), out="storage.html", limit=4000):
                      color="kind", color_discrete_map=COLOURS,
                      title="Disk usage by deletion regret")
     fig.update_traces(marker_line_width=0.5, marker_line_color="white")
-    fig.write_html(out)
+    fig.update_layout(margin=dict(t=10, l=0, r=0, b=0),
+                      paper_bgcolor="rgba(0,0,0,0)",
+                      plot_bgcolor="rgba(0,0,0,0)",
+                      font_color="#94a3b8", title=None)
+    return fig
+
+
+def treemap(files, dup_paths=frozenset(), out="storage.html", limit=4000):
+    figure(files, dup_paths, limit).write_html(out)
     return out
