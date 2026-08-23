@@ -2,7 +2,7 @@
 import argparse
 import shutil
 
-from . import dedup, explain, forecast, regret, scan
+from . import dedup, explain, forecast, regret, scan, viz
 
 
 def human(n):
@@ -18,6 +18,7 @@ def main(argv=None):
     ap.add_argument("root")
     ap.add_argument("--limit", type=int, default=20)
     ap.add_argument("--explain", action="store_true", help="narrate with an LLM")
+    ap.add_argument("--viz", metavar="OUT.html", help="write a regret treemap")
     args = ap.parse_args(argv)
 
     files = scan.scan(args.root)
@@ -42,6 +43,9 @@ def main(argv=None):
     for r in rows:
         print(f"{human(r['size']):>10}  {r['kind']:<11} "
               f"{r['staleness'] * 365:>6.1f}d  {r['path']}")
+
+    if args.viz:
+        print(f"\ntreemap -> {viz.treemap(files, dup_paths, args.viz)}")
 
     if args.explain:
         print("\n" + explain.explain(rows))
