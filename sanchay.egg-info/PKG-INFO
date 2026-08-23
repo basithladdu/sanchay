@@ -1,3 +1,22 @@
+Metadata-Version: 2.4
+Name: sanchay
+Version: 0.1.0
+Summary: Regret-aware storage intelligence for Linux
+License: MIT
+Requires-Python: >=3.9
+Description-Content-Type: text/markdown
+License-File: LICENSE
+Provides-Extra: viz
+Requires-Dist: plotly>=5.20; extra == "viz"
+Requires-Dist: pandas>=2.0; extra == "viz"
+Provides-Extra: ai
+Requires-Dist: anthropic>=0.40; extra == "ai"
+Provides-Extra: all
+Requires-Dist: plotly>=5.20; extra == "all"
+Requires-Dist: pandas>=2.0; extra == "all"
+Requires-Dist: anthropic>=0.40; extra == "all"
+Dynamic: license-file
+
 # SANCHAY
 
 Tells you what's safe to delete on your Linux machine — and shuts up about

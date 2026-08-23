@@ -2,7 +2,7 @@
 import argparse
 import shutil
 
-from . import dedup, explain, forecast, regret, scan, viz
+from . import dedup, explain, forecast, regret, scan
 
 
 def human(n):
@@ -45,6 +45,7 @@ def main(argv=None):
               f"{r['staleness'] * 365:>6.1f}d  {r['path']}")
 
     if args.viz:
+        from . import viz
         print(f"\ntreemap -> {viz.treemap(files, dup_paths, args.viz)}")
 
     if args.explain:
