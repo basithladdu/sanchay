@@ -1,7 +1,12 @@
 # SANCHAY
 
-Tells you what's safe to delete on your Linux machine — and shuts up about
-everything that isn't.
+[![CI](https://github.com/basithladdu/sanchay/actions/workflows/ci.yml/badge.svg)](https://github.com/basithladdu/sanchay/actions)
+[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](https://opensource.org/licenses/MIT)
+[![Python: 3.9+](https://img.shields.io/badge/Python-3.9%2B-blue.svg)](https://www.python.org/)
+[![Safety: Zero-Deletion Guarantee](https://img.shields.io/badge/Safety-Zero--Deletion%20Guarantee-10b981.svg)](https://github.com/basithladdu/sanchay)
+[![Compliance: DPDP Act 2023](https://img.shields.io/badge/Compliance-DPDP%20Act%202023-green.svg)](https://www.meity.gov.in/)
+
+Tells you what's safe to delete on your Linux machine — and shuts up about everything that isn't.
 
 Built for the C-DAC / MeitY AI Enabled Operating System Hackathon 2026.
 Track: AI at Application Level.
