@@ -83,8 +83,10 @@ def classify(info, duplicated):
 
 
 def staleness(info, now=None):
-    """0 for touched today, approaching 1 after a year untouched."""
-    days = max(0.0, ((now or time.time()) - info.atime) / 86400)
+    """0 for touched today, approaching 1 after a year untouched.
+    Uses max(atime, mtime) to remain accurate under relatime/noatime mount options."""
+    last_touched = max(info.atime, info.mtime)
+    days = max(0.0, ((now or time.time()) - last_touched) / 86400)
     return min(1.0, days / 365)
 
 
