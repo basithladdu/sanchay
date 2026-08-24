@@ -96,8 +96,17 @@ sanchay-ui ~/
 
 ![the terminal UI](docs/tui.png)
 
-Rows are coloured by whether you can get the file back. `s` sorts by size, `p`
-sorts by priority, `r` rescans, `q` quits.
+Rows are color-coded by whether you can get the file back.
+
+### Interactive TUI Controls
+* `d` → Filter to **Disposable** build/cache files
+* `u` → Filter to **Duplicate** content groups
+* `t` → Filter to **Tracked Git** repositories
+* `a` → Show **All Safe Candidates**
+* `s` → Sort by **File Size**
+* `p` → Sort by **Regret Priority**
+* `r` → **Rescan** filesystem
+* `q` → **Quit**
 
 ## Try it
 
@@ -106,7 +115,7 @@ sanchay ~/                               # scan and rank
 python -m sanchay.cli ~/                 # scan and rank
 python -m sanchay.cli ~/ --viz out.html  # add the treemap
 python -m sanchay.cli ~/ --explain       # have Claude write it up
-sanchay ~/ --report out.html             # shareable HTML report
+sanchay ~/ --report sanchay-report.html  # shareable interactive HTML report
 ```
 
 Looks like this:
