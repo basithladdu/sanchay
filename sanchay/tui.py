@@ -10,7 +10,7 @@ Built on Textual.
 from rich.text import Text
 from textual import work
 from textual.app import App, ComposeResult
-from textual.containers import Horizontal, Vertical
+from textual.containers import Horizontal
 from textual.widgets import DataTable, Footer, Header, Static
 
 from . import dedup, forecast, regret, scan
@@ -61,23 +61,29 @@ class Sanchay(App):
         width: 1fr; height: 7; padding: 1 2; margin-right: 1;
         border: round $primary 40%;
     }
+    #status { margin: 0 2; color: $accent; text-style: italic; }
     #table { margin: 1 2; height: 1fr; border: round $primary 30%; }
     #guard { margin: 0 2 1 2; color: $text-muted; }
-    #status { margin: 0 2; color: $text-muted; }
     """
     BINDINGS = [
         ("q", "quit", "Quit"),
         ("r", "rescan", "Rescan"),
         ("s", "sort_size", "Sort by size"),
         ("p", "sort_priority", "Sort by priority"),
+        ("a", "filter_all", "All safe"),
+        ("d", "filter_disposable", "Disposable"),
+        ("u", "filter_duplicate", "Duplicates"),
+        ("t", "filter_tracked", "Tracked"),
     ]
     TITLE = "SANCHAY"
-    SUB_TITLE = " what is safe to delete"
+    SUB_TITLE = " Regret-Aware Storage Intelligence for Linux"
 
     def __init__(self, root="."):
         super().__init__()
         self.root = root
+        self.all_rows = []
         self.rows = []
+        self.active_filter = "all"
 
     def compose(self) -> ComposeResult:
         yield Header()
@@ -86,7 +92,7 @@ class Sanchay(App):
             yield Stat("duplicated")
             yield Stat("safe to reclaim")
             yield Stat("disk fills in")
-        yield Static("scanning…", id="status")
+        yield Static("Scanning filesystem...", id="status")
         yield DataTable(id="table", zebra_stripes=True, cursor_type="row")
         yield Static("", id="guard")
         yield Footer()
@@ -94,7 +100,7 @@ class Sanchay(App):
     def on_mount(self):
         table = self.query_one(DataTable)
         table.add_column("Size", width=11)
-        table.add_column("Kind", width=13)
+        table.add_column("Kind", width=14)
         table.add_column("Unused", width=9)
         table.add_column("Path")
         self.scan_disk()
@@ -104,13 +110,14 @@ class Sanchay(App):
         files = scan.scan(self.root)
         groups = dedup.duplicates(files)
         dups = {f.path for g in groups for f in g[1:]}
-        rows = regret.rank(files, dups, limit=400)
+        rows = regret.rank(files, dups, limit=500)
         protected = sum(1 for f in files
                         if regret.classify(f, f.path in dups) == "unique")
         self.call_from_thread(self.show, files, groups, rows, protected)
 
     def show(self, files, groups, rows, protected):
-        self.rows = rows
+        self.all_rows = rows
+        self.rows = list(rows)
         stats = self.query(Stat)
         stats[0].set(human(sum(f.size for f in files)), f"{len(files):,} files")
         stats[1].set(human(dedup.reclaimable(groups)), f"{len(groups):,} groups")
@@ -123,13 +130,19 @@ class Sanchay(App):
         stats[3].set(f"{days:.0f} days" if days else "—",
                      f"{human(forecast.rate(files))}/day")
 
-        self.query_one("#status", Static).update(
-            Text(f"{self.root}", style="dim"))
+        self.update_status_bar()
         self.query_one("#guard", Static).update(Text.assemble(
             (f"{protected:,} files held back. ", "bold red"),
             ("Unique, untracked, uncached — nothing here could rebuild them, "
              "so they are never recommended, whatever their size.", "dim")))
         self.fill()
+
+    def update_status_bar(self):
+        self.query_one("#status", Static).update(Text.assemble(
+            ("Target: ", "dim"), (f"{self.root}  ", "bold"),
+            ("Filter: ", "dim"), (f"[{self.active_filter.upper()}]  ", "bold cyan"),
+            ("Keys: [s]ize [p]riority [a]ll [d]isposable d[u]plicate [t]racked [r]escan", "dim italic")
+        ))
 
     def fill(self):
         table = self.query_one(DataTable)
@@ -137,12 +150,12 @@ class Sanchay(App):
         for r in self.rows:
             table.add_row(
                 Text(human(r["size"]), justify="right"),
-                Text(r["kind"], style=KIND_STYLE[r["kind"]]),
+                Text(r["kind"].upper(), style=KIND_STYLE[r["kind"]]),
                 Text(f"{r['staleness'] * 365:.0f} d", justify="right", style="dim"),
                 Text(tail(r["path"]), style="dim"))
 
     def action_rescan(self):
-        self.query_one("#status", Static).update("scanning…")
+        self.query_one("#status", Static).update("Scanning filesystem...")
         self.scan_disk()
 
     def action_sort_size(self):
@@ -153,6 +166,31 @@ class Sanchay(App):
         self.rows.sort(key=lambda r: r["priority"], reverse=True)
         self.fill()
 
+    def action_filter_all(self):
+        self.active_filter = "all"
+        self.rows = list(self.all_rows)
+        self.update_status_bar()
+        self.fill()
+
+    def action_filter_disposable(self):
+        self.active_filter = "disposable"
+        self.rows = [r for r in self.all_rows if r["kind"] == "disposable"]
+        self.update_status_bar()
+        self.fill()
+
+    def action_filter_duplicate(self):
+        self.active_filter = "duplicate"
+        self.rows = [r for r in self.all_rows if r["kind"] == "duplicate"]
+        self.update_status_bar()
+        self.fill()
+
+    def action_filter_tracked(self):
+        self.active_filter = "tracked"
+        self.rows = [r for r in self.all_rows if r["kind"] == "tracked"]
+        self.update_status_bar()
+        self.fill()
+
 
 def run(root="."):
     Sanchay(root).run()
+

@@ -14,38 +14,41 @@ from pathlib import Path
 from . import dedup, forecast, regret
 
 CSS = """
-:root{--bg:#fbfbfd;--panel:#fff;--ink:#0f172a;--mute:#64748b;--line:#e2e8f0;
---green:#16a34a;--lime:#65a30d;--amber:#ca8a04;--red:#dc2626;--accent:#2563eb}
-@media(prefers-color-scheme:dark){:root{--bg:#0b1120;--panel:#111827;--ink:#e6edf7;
---mute:#94a3b8;--line:#1f2937;--accent:#60a5fa}}
+:root{--bg:#090d16;--panel:#111827;--panel-sub:#1a2333;--ink:#f3f4f6;--mute:#9ca3af;--line:#1f293d;
+--green:#10b981;--lime:#84cc16;--amber:#f59e0b;--red:#ef4444;--accent:#3b82f6}
 *{box-sizing:border-box}
 body{margin:0;background:var(--bg);color:var(--ink);
-font:15px/1.55 ui-sans-serif,system-ui,-apple-system,"Segoe UI",Roboto,sans-serif}
-.wrap{max-width:1180px;margin:0 auto;padding:40px 24px 72px}
-h1{font-size:26px;margin:0 0 4px;letter-spacing:-.02em}
-.sub{color:var(--mute);margin:0 0 28px;font-size:14px}
-.cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));gap:14px;margin-bottom:28px}
+font:14px/1.5 ui-sans-serif,system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;padding:36px 20px}
+.wrap{max-width:1200px;margin:0 auto}
+header{display:flex;justify-content:space-between;align-items:center;border-bottom:1px solid var(--line);padding-bottom:18px;margin-bottom:28px}
+h1{font-size:24px;margin:0 0 4px;letter-spacing:-.02em;display:flex;align-items:center;gap:10px}
+.badge-regret{background:linear-gradient(135deg,var(--green),var(--accent));color:#fff;font-size:11px;font-weight:600;padding:3px 9px;border-radius:99px;letter-spacing:.05em;text-transform:uppercase}
+.sub{color:var(--mute);font-size:13px}
+.cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:16px;margin-bottom:28px}
 .card{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:18px 20px}
-.card .k{color:var(--mute);font-size:12px;text-transform:uppercase;letter-spacing:.07em}
-.card .v{font-size:26px;font-weight:650;margin-top:6px;letter-spacing:-.02em}
-.card .n{color:var(--mute);font-size:12.5px;margin-top:3px}
-.panel{background:var(--panel);border:1px solid var(--line);border-radius:12px;
-padding:22px;margin-bottom:22px;overflow-x:auto}
-.panel h2{font-size:15px;margin:0 0 4px;letter-spacing:-.01em}
-.panel .h{color:var(--mute);font-size:13px;margin:0 0 18px}
-table{width:100%;border-collapse:collapse;font-size:13.5px;min-width:640px}
-th{text-align:left;color:var(--mute);font-weight:500;font-size:11.5px;
-text-transform:uppercase;letter-spacing:.06em;padding:0 12px 10px;border-bottom:1px solid var(--line)}
-td{padding:11px 12px;border-bottom:1px solid var(--line)}
+.card .k{color:var(--mute);font-size:12px;text-transform:uppercase;letter-spacing:.06em;font-weight:600}
+.card .v{font-size:26px;font-weight:700;margin:6px 0 2px;letter-spacing:-.02em}
+.card .n{color:var(--mute);font-size:12px}
+.panel{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:22px;margin-bottom:24px;overflow-x:auto}
+.panel h2{font-size:16px;font-weight:600;margin:0 0 4px;letter-spacing:-.01em}
+.panel .h{color:var(--mute);font-size:13px;margin:0 0 16px}
+.formula-box{background:var(--panel-sub);border:1px solid #2d3b55;border-radius:8px;padding:12px 16px;font-size:13px;margin-bottom:18px;display:flex;align-items:center;gap:12px}
+.formula-tag{font-weight:700;color:var(--accent);font-family:ui-monospace,SFMono-Regular,Menlo,monospace}
+.controls{display:flex;gap:12px;margin-bottom:16px;flex-wrap:wrap;align-items:center}
+.search-box{background:var(--panel-sub);border:1px solid var(--line);color:#fff;padding:8px 14px;border-radius:6px;font-size:13px;flex:1;min-width:240px}
+.filter-btn{background:var(--panel-sub);border:1px solid var(--line);color:var(--mute);padding:6px 14px;border-radius:6px;font-size:12px;font-weight:600;cursor:pointer;transition:all .15s}
+.filter-btn:hover, .filter-btn.active{background:var(--accent);color:#fff;border-color:var(--accent)}
+table{width:100%;border-collapse:collapse;font-size:13px;min-width:640px}
+th{text-align:left;color:var(--mute);font-weight:600;font-size:11px;text-transform:uppercase;letter-spacing:.06em;padding:10px 12px;border-bottom:1px solid var(--line)}
+td{padding:10px 12px;border-bottom:1px solid var(--line)}
 tr:last-child td{border-bottom:0}
 td.num{text-align:right;font-variant-numeric:tabular-nums;white-space:nowrap}
-td.p{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:12.5px;
-color:var(--mute);word-break:break-all}
-.tag{display:inline-block;padding:2px 9px;border-radius:99px;font-size:11.5px;font-weight:550}
-.disposable{background:color-mix(in srgb,var(--green) 15%,transparent);color:var(--green)}
-.duplicate{background:color-mix(in srgb,var(--lime) 15%,transparent);color:var(--lime)}
-.tracked{background:color-mix(in srgb,var(--amber) 15%,transparent);color:var(--amber)}
-.guard{border-left:3px solid var(--red);padding-left:16px;margin-top:4px}
+td.p{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:12px;color:var(--mute);word-break:break-all}
+.tag{display:inline-block;padding:2px 8px;border-radius:99px;font-size:11px;font-weight:600;text-transform:uppercase}
+.disposable{background:rgba(16,185,129,.18);color:#34d399}
+.duplicate{background:rgba(132,204,22,.18);color:#a3e635}
+.tracked{background:rgba(245,158,11,.18);color:#fcd34d}
+.guard{background:rgba(239,68,68,.1);border-left:3px solid var(--red);border-radius:0 8px 8px 0;padding:14px 18px;margin-top:16px}
 .guard b{color:var(--red)}
 """
 
@@ -58,13 +61,14 @@ def human(n):
     return f"{n:.1f} PB"
 
 
-def _card(k, v, note=""):
-    return (f'<div class="card"><div class="k">{k}</div><div class="v">{v}</div>'
+def _card(k, v, note="", color=""):
+    color_attr = f' style="color: {color};"' if color else ""
+    return (f'<div class="card"><div class="k">{k}</div><div class="v"{color_attr}>{v}</div>'
             f'<div class="n">{note}</div></div>')
 
 
-def build(files, root, free_bytes, out="sanchay-report.html", limit=30):
-    from . import viz  # pulls plotly; only needed for the report
+def build(files, root, free_bytes, out="sanchay-report.html", limit=50):
+    from . import viz
 
     groups = dedup.duplicates(files)
     dup_paths = {f.path for g in groups for f in g[1:]}
@@ -78,46 +82,111 @@ def build(files, root, free_bytes, out="sanchay-report.html", limit=30):
 
     fig = viz.figure(files, dup_paths)
     chart = fig.to_html(full_html=False, include_plotlyjs=True,
-                        default_height="520px", config={"displayModeBar": False})
+                        default_height="500px", config={"displayModeBar": False})
 
-    body = "".join(
-        f'<tr><td class="num">{human(r["size"])}</td>'
-        f'<td><span class="tag {r["kind"]}">{r["kind"]}</span></td>'
-        f'<td class="num">{r["staleness"] * 365:.0f} d</td>'
-        f'<td class="p">{html.escape(r["path"])}</td></tr>' for r in rows)
+    table_rows = []
+    for r in rows:
+        table_rows.append(
+            f'<tr data-kind="{r["kind"]}"><td class="num font-bold">{human(r["size"])}</td>'
+            f'<td><span class="tag {r["kind"]}">{r["kind"]}</span></td>'
+            f'<td class="num">{r["staleness"] * 365:.0f} d</td>'
+            f'<td class="p">{html.escape(r["path"])}</td></tr>'
+        )
 
-    page = f"""<!doctype html><meta charset="utf-8">
+    page = f"""<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>SANCHAY — {html.escape(str(root))}</title><style>{CSS}</style>
+<title>SANCHAY — Regret-Aware Storage Dashboard</title>
+<style>{CSS}</style>
+</head>
+<body>
 <div class="wrap">
-<h1>Storage report</h1>
-<p class="sub">{html.escape(str(root))} &middot; {time.strftime('%d %b %Y, %H:%M')}</p>
+  <header>
+    <div>
+      <h1>💾 SANCHAY <span class="badge-regret">Regret-Aware Storage</span></h1>
+      <div class="sub">Directory: {html.escape(str(root))} &middot; Generated {time.strftime('%d %b %Y, %H:%M')}</div>
+    </div>
+  </header>
 
-<div class="cards">
-{_card("On disk", human(total), f"{len(files):,} files")}
-{_card("Duplicated", human(dedup.reclaimable(groups)), f"{len(groups):,} groups")}
-{_card("Safe to reclaim", human(safe), f"top {len(rows)} candidates")}
-{_card("Disk fills in", f"{days:.0f} days" if days else "—",
-       f"{human(forecast.rate(files))}/day")}
+  <div class="cards">
+    {_card("Scanned on disk", human(total), f"{len(files):,} total files")}
+    {_card("Duplicate groups", human(dedup.reclaimable(groups)), f"{len(groups):,} groups reclaimable", "#84cc16")}
+    {_card("Safe to reclaim", human(safe), f"top {len(rows)} verified candidates", "#10b981")}
+    {_card("Disk runway", f"{days:.0f} days" if days else "—", f"{human(forecast.rate(files))}/day growth rate", "#3b82f6")}
+  </div>
+
+  <div class="panel">
+    <h2>Storage Recoverability Treemap</h2>
+    <p class="h">Treemap blocks are coloured strictly by recoverability: Green is safe/regenerable, Red is irreplaceable.</p>
+    {chart}
+  </div>
+
+  <div class="panel">
+    <h2>Recommended Cleanup Candidates</h2>
+    <p class="h">Ranked by the Regret Objective Function. Unique irreplaceable files are mathematically omitted.</p>
+    
+    <div class="formula-box">
+      <span class="formula-tag">Objective:</span>
+      <span>Priority = Size &times; Staleness &times; (1 &minus; Regret) &nbsp;|&nbsp; Regret Weights: 0.02 (Disposable), 0.10 (Duplicate), 0.20 (Tracked Git)</span>
+    </div>
+
+    <div class="controls">
+      <input type="text" id="searchInput" class="search-box" placeholder="Filter candidates by path or name..." onkeyup="filterCandidates()">
+      <button class="filter-btn active" onclick="setKindFilter('all', this)">All ({len(rows)})</button>
+      <button class="filter-btn" onclick="setKindFilter('disposable', this)">Disposable</button>
+      <button class="filter-btn" onclick="setKindFilter('duplicate', this)">Duplicates</button>
+      <button class="filter-btn" onclick="setKindFilter('tracked', this)">Tracked Git</button>
+    </div>
+
+    <table id="candidateTable">
+      <thead>
+        <tr>
+          <th style="width: 110px;">Size</th>
+          <th style="width: 120px;">Category</th>
+          <th class="num" style="width: 90px;">Unused</th>
+          <th>Relative Path</th>
+        </tr>
+      </thead>
+      <tbody>
+        {"".join(table_rows)}
+      </tbody>
+    </table>
+
+    <div class="guard">
+      <b>{len(protected):,} irreplaceable files permanently protected.</b><br>
+      These files are unique, untracked, and uncached. Nothing on this system could rebuild them, so SANCHAY provides a hard structural guarantee that they will never appear in deletion suggestions.
+    </div>
+  </div>
 </div>
 
-<div class="panel">
-<h2>Where the space went</h2>
-<p class="h">Coloured by whether you can get the file back, not by size.
-Green is free money. Red is irreplaceable.</p>
-{chart}
-</div>
+<script>
+let currentKind = 'all';
 
-<div class="panel">
-<h2>Safe to delete</h2>
-<p class="h">Ranked by size &times; how long untouched &times; how safe it is to lose.</p>
-<table><thead><tr><th>Size</th><th>Kind</th><th class="num">Unused</th><th>Path</th></tr></thead>
-<tbody>{body}</tbody></table>
-<div class="guard"><b>{len(protected):,} files were held back.</b>
-They are unique, untracked and uncached &mdash; nothing on this machine could
-reproduce them, so they are never recommended, whatever their size.</div>
-</div>
-</div>"""
+function setKindFilter(kind, btn) {{
+  currentKind = kind;
+  document.querySelectorAll('.filter-btn').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+  filterCandidates();
+}}
+
+function filterCandidates() {{
+  const query = document.getElementById('searchInput').value.toLowerCase();
+  const rows = document.querySelectorAll('#candidateTable tbody tr');
+  rows.forEach(r => {{
+    const kind = r.getAttribute('data-kind');
+    const text = r.textContent.toLowerCase();
+    const matchesKind = (currentKind === 'all' || kind === currentKind);
+    const matchesQuery = text.indexOf(query) > -1;
+    r.style.display = (matchesKind && matchesQuery) ? '' : 'none';
+  }});
+}}
+</script>
+</body>
+</html>
+"""
 
     Path(out).write_text(page, encoding="utf-8")
     return out
+
