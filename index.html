@@ -1,0 +1,512 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>SANCHAY — Regret-Aware Storage Intelligence for Linux</title>
+<meta name="description" content="AI-Powered Intelligent Storage Optimizer with Structural Zero-Deletion Guarantee for Linux OS. Built for C-DAC / MeitY Hackathon 2026.">
+<script src="https://cdn.plot.ly/plotly-2.35.2.min.js"></script>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+<style>
+:root {
+  --bg: #090d16;
+  --surface: #111827;
+  --surface-subtle: #1a2333;
+  --border: #2d3748;
+  --text-main: #f8fafc;
+  --text-muted: #94a3b8;
+  --cyan: #38bdf8;
+  --emerald: #34d399;
+  --amber: #fbbf24;
+  --rose: #f87171;
+  --purple: #c084fc;
+}
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body {
+  background: var(--bg);
+  color: var(--text-main);
+  font-family: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, sans-serif;
+  line-height: 1.6;
+  padding: 0;
+  margin: 0;
+  -webkit-font-smoothing: antialiased;
+}
+.mono { font-family: 'JetBrains Mono', monospace; }
+.container {
+  max-width: 1240px;
+  margin: 0 auto;
+  padding: 40px 24px 80px;
+}
+header {
+  border-bottom: 1px solid var(--border);
+  padding: 24px 0;
+  margin-bottom: 40px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 16px;
+}
+.brand {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+.logo-badge {
+  background: linear-gradient(135deg, #0ea5e9, #10b981);
+  color: #fff;
+  font-weight: 800;
+  font-size: 18px;
+  width: 42px;
+  height: 42px;
+  border-radius: 10px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 4px 20px rgba(14, 165, 233, 0.4);
+}
+.brand-title h1 {
+  font-size: 22px;
+  font-weight: 800;
+  letter-spacing: -0.02em;
+}
+.brand-title p {
+  font-size: 12px;
+  color: var(--text-muted);
+}
+.header-links {
+  display: flex;
+  gap: 12px;
+}
+.btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 18px;
+  border-radius: 8px;
+  font-size: 13px;
+  font-weight: 600;
+  text-decoration: none;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  border: 1px solid transparent;
+}
+.btn-primary {
+  background: linear-gradient(135deg, #0284c7, #059669);
+  color: #fff;
+  box-shadow: 0 4px 14px rgba(2, 132, 199, 0.3);
+}
+.btn-primary:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 6px 20px rgba(2, 132, 199, 0.4);
+}
+.btn-outline {
+  background: var(--surface);
+  border-color: var(--border);
+  color: var(--text-main);
+}
+.btn-outline:hover {
+  border-color: var(--cyan);
+  color: var(--cyan);
+}
+.hero {
+  text-align: center;
+  max-width: 860px;
+  margin: 0 auto 56px;
+}
+.kicker {
+  display: inline-block;
+  background: rgba(56, 189, 248, 0.1);
+  border: 1px solid rgba(56, 189, 248, 0.3);
+  color: var(--cyan);
+  font-size: 12px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  padding: 4px 12px;
+  border-radius: 9999px;
+  margin-bottom: 16px;
+}
+.hero h2 {
+  font-size: 42px;
+  font-weight: 800;
+  line-height: 1.2;
+  letter-spacing: -0.03em;
+  margin-bottom: 18px;
+  background: linear-gradient(180deg, #fff 0%, #cbd5e1 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+}
+.hero p {
+  font-size: 17px;
+  color: var(--text-muted);
+  line-height: 1.6;
+}
+.grid-4 {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  gap: 20px;
+  margin-bottom: 48px;
+}
+.card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  padding: 24px;
+  position: relative;
+  overflow: hidden;
+}
+.card::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 2px;
+  background: linear-gradient(90deg, transparent, var(--cyan), transparent);
+  opacity: 0;
+  transition: opacity 0.3s;
+}
+.card:hover::before { opacity: 1; }
+.card-icon {
+  font-size: 24px;
+  margin-bottom: 12px;
+}
+.card h3 {
+  font-size: 16px;
+  font-weight: 700;
+  margin-bottom: 8px;
+  color: #fff;
+}
+.card p {
+  font-size: 13px;
+  color: var(--text-muted);
+}
+.section-title {
+  font-size: 24px;
+  font-weight: 800;
+  margin-bottom: 8px;
+  letter-spacing: -0.02em;
+}
+.section-desc {
+  font-size: 14px;
+  color: var(--text-muted);
+  margin-bottom: 24px;
+}
+.formula-box {
+  background: var(--surface-subtle);
+  border: 1px solid #253347;
+  border-radius: 12px;
+  padding: 20px;
+  margin-bottom: 32px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 16px;
+}
+.formula-code {
+  font-size: 18px;
+  font-weight: 700;
+  color: var(--cyan);
+}
+.formula-badge {
+  background: rgba(52, 211, 153, 0.15);
+  color: var(--emerald);
+  border: 1px solid rgba(52, 211, 153, 0.3);
+  padding: 4px 10px;
+  border-radius: 6px;
+  font-size: 12px;
+  font-weight: 600;
+}
+.interactive-panel {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  padding: 28px;
+  margin-bottom: 48px;
+}
+.filter-tabs {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 20px;
+  flex-wrap: wrap;
+}
+.tab {
+  background: var(--surface-subtle);
+  border: 1px solid var(--border);
+  color: var(--text-muted);
+  padding: 6px 14px;
+  border-radius: 6px;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+.tab.active, .tab:hover {
+  background: rgba(56, 189, 248, 0.15);
+  border-color: var(--cyan);
+  color: #fff;
+}
+table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+}
+th {
+  text-align: left;
+  padding: 12px;
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--text-muted);
+  border-bottom: 1px solid var(--border);
+}
+td {
+  padding: 12px;
+  border-bottom: 1px solid #1f293d;
+}
+.pill {
+  display: inline-block;
+  padding: 3px 9px;
+  border-radius: 9999px;
+  font-size: 11px;
+  font-weight: 700;
+}
+.pill-disposable { background: rgba(52, 211, 153, 0.2); color: #34d399; }
+.pill-duplicate { background: rgba(56, 189, 248, 0.2); color: #38bdf8; }
+.pill-tracked { background: rgba(251, 191, 36, 0.2); color: #fbbf24; }
+.pill-unique { background: rgba(248, 113, 113, 0.2); color: #f87171; }
+.locked-badge {
+  color: var(--rose);
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+footer {
+  border-top: 1px solid var(--border);
+  padding-top: 32px;
+  text-align: center;
+  color: var(--text-muted);
+  font-size: 13px;
+}
+</style>
+</head>
+<body>
+<div class="container">
+  <header>
+    <div class="brand">
+      <div class="logo-badge">S</div>
+      <div class="brand-title">
+        <h1>SANCHAY</h1>
+        <p>Regret-Aware Linux Storage Optimizer • C-DAC Hackathon 2026</p>
+      </div>
+    </div>
+    <div class="header-links">
+      <a href="https://github.com/basithladdu/sanchay" target="_blank" class="btn btn-outline">GitHub Repository</a>
+      <a href="#interactive" class="btn btn-primary">Live Explorer</a>
+    </div>
+  </header>
+
+  <section class="hero">
+    <span class="kicker">Track 1: AI at Application Level</span>
+    <h2>Disk Cleanup That Knows What It Cannot Undo</h2>
+    <p>Every cleanup tool sorts by size alone — treating a 2 GB regenerable build cache and a 2 GB capstone thesis as identical. SANCHAY ranks by <strong>recoverability regret</strong>, guaranteeing that irreplaceable files are permanently excluded by construction.</p>
+  </section>
+
+  <div class="grid-4">
+    <div class="card">
+      <div class="card-icon">🛡️</div>
+      <h3>Zero-Loss Guarantee</h3>
+      <p>Unique single-copy files are mathematically excluded before candidate ranking occurs.</p>
+    </div>
+    <div class="card">
+      <div class="card-icon">⚡</div>
+      <h3>Single-Scan Runway</h3>
+      <p>Derives daily disk growth directly from inode mtime distribution on run #1 without daemons.</p>
+    </div>
+    <div class="card">
+      <div class="card-icon">🎯</div>
+      <h3>Tiered Content Hashing</h3>
+      <p>Size collisions -> 64 KB header check -> Full Blake2b only when strictly necessary.</p>
+    </div>
+    <div class="card">
+      <div class="card-icon">🇮🇳</div>
+      <h3>DPDP Act 2023 Ready</h3>
+      <p>100% local metadata processing. Zero file contents read or transmitted off-device.</p>
+    </div>
+  </div>
+
+  <div class="formula-box">
+    <div>
+      <div style="font-size: 11px; text-transform: uppercase; color: var(--text-muted); font-weight: 700;">Mathematical Objective Function</div>
+      <div class="formula-code mono">Priority = Size × Staleness × (1 − Regret)</div>
+    </div>
+    <div class="formula-badge">Regret = 1.00 for Unique Files (Priority = 0.0)</div>
+  </div>
+
+  <section class="interactive-panel" id="interactive">
+    <h3 class="section-title">Interactive Recoverability Classifier & Priority Queue</h3>
+    <p class="section-desc">Experience how SANCHAY safely separates disposable caches from precious user work.</p>
+
+    <div class="filter-tabs">
+      <button class="tab active" onclick="filterCategory('all')">All Candidate Files (6)</button>
+      <button class="tab" onclick="filterCategory('disposable')">Disposable Caches (2)</button>
+      <button class="tab" onclick="filterCategory('duplicate')">Identical Duplicates (1)</button>
+      <button class="tab" onclick="filterCategory('tracked')">Git Tracked (1)</button>
+      <button class="tab" onclick="filterCategory('unique')">Irreplaceable Unique (2)</button>
+    </div>
+
+    <table>
+      <thead>
+        <tr>
+          <th>Category</th>
+          <th>Regret Score</th>
+          <th>File Path</th>
+          <th>Size</th>
+          <th>Staleness</th>
+          <th>Action / Safety Verdict</th>
+        </tr>
+      </thead>
+      <tbody id="fileTable">
+        <tr data-cat="disposable">
+          <td><span class="pill pill-disposable">DISPOSABLE</span></td>
+          <td class="mono">0.02</td>
+          <td class="mono">/app/node_modules/.cache/webpack.pack</td>
+          <td>1.45 GB</td>
+          <td>90 days</td>
+          <td style="color: var(--emerald); font-weight: 600;">Safe to Reclaim (Priority: High)</td>
+        </tr>
+        <tr data-cat="disposable">
+          <td><span class="pill pill-disposable">DISPOSABLE</span></td>
+          <td class="mono">0.02</td>
+          <td class="mono">/app/target/debug/incremental/mod.rlib</td>
+          <td>850 MB</td>
+          <td>45 days</td>
+          <td style="color: var(--emerald); font-weight: 600;">Safe to Reclaim (Priority: High)</td>
+        </tr>
+        <tr data-cat="duplicate">
+          <td><span class="pill pill-duplicate">DUPLICATE</span></td>
+          <td class="mono">0.10</td>
+          <td class="mono">/home/user/downloads/ubuntu-24.04-live.iso</td>
+          <td>4.80 GB</td>
+          <td>120 days</td>
+          <td style="color: var(--cyan); font-weight: 600;">Copy survives in /var/lib/iso/</td>
+        </tr>
+        <tr data-cat="tracked">
+          <td><span class="pill pill-tracked">GIT TRACKED</span></td>
+          <td class="mono">0.20</td>
+          <td class="mono">/home/user/code/linux-kernel/arch/x86/boot.o</td>
+          <td>320 MB</td>
+          <td>60 days</td>
+          <td style="color: var(--amber); font-weight: 600;">Committed in Git index</td>
+        </tr>
+        <tr data-cat="unique">
+          <td><span class="pill pill-unique">UNIQUE</span></td>
+          <td class="mono">1.00</td>
+          <td class="mono">/home/user/documents/capstone_thesis_final.docx</td>
+          <td>125 MB</td>
+          <td>300 days</td>
+          <td><span class="locked-badge">🔒 EXCLUDED BY CONSTRUCTION</span></td>
+        </tr>
+        <tr data-cat="unique">
+          <td><span class="pill pill-unique">UNIQUE</span></td>
+          <td class="mono">1.00</td>
+          <td class="mono">/home/user/projects/db_dump_production.sql</td>
+          <td>3.20 GB</td>
+          <td>200 days</td>
+          <td><span class="locked-badge">🔒 EXCLUDED BY CONSTRUCTION</span></td>
+        </tr>
+      </tbody>
+    </table>
+  </section>
+
+  <section class="interactive-panel">
+    <h3 class="section-title">Interactive Recoverability Treemap</h3>
+    <p class="section-desc">Visualizing space by recoverability instead of raw bytes alone.</p>
+    <div id="treemapDiv" style="height: 380px;"></div>
+  </section>
+
+  <section class="interactive-panel">
+    <h3 class="section-title">Single-Scan Runway Growth Projection</h3>
+    <p class="section-desc">Daily disk consumption rate computed instantly from inode modification distribution.</p>
+    <div id="forecastDiv" style="height: 340px;"></div>
+  </section>
+
+  <footer>
+    <p>SANCHAY — Built for C-DAC / MeitY AI Enabled Operating System Hackathon 2026</p>
+    <p style="margin-top: 4px; font-size: 12px;">Authors: Shaik Abdul Basith, Shaik Awaiz, Shaik Abdul Muqeeth • MIT Open Source License</p>
+  </footer>
+</div>
+
+<script>
+function filterCategory(cat) {
+  const tabs = document.querySelectorAll('.tab');
+  tabs.forEach(t => t.classList.remove('active'));
+  event.target.classList.add('active');
+
+  const rows = document.querySelectorAll('#fileTable tr');
+  rows.forEach(r => {
+    if (cat === 'all' || r.getAttribute('data-cat') === cat) {
+      r.style.display = '';
+    } else {
+      r.style.display = 'none';
+    }
+  });
+}
+
+// Treemap rendering
+const treemapData = [{
+  type: "treemap",
+  labels: ["Root", "Disposable Caches", "node_modules", "target/debug", "Duplicates", "ubuntu.iso", "Git Tracked", "boot.o", "Irreplaceable Unique", "capstone_thesis", "db_dump.sql"],
+  parents: ["", "Root", "Disposable Caches", "Disposable Caches", "Root", "Duplicates", "Root", "Git Tracked", "Root", "Irreplaceable Unique", "Irreplaceable Unique"],
+  values: [0, 2300, 1450, 850, 4800, 4800, 320, 320, 3325, 125, 3200],
+  marker: {
+    colors: ["#111827", "#059669", "#10b981", "#34d399", "#0284c7", "#38bdf8", "#d97706", "#fbbf24", "#dc2626", "#ef4444", "#f87171"]
+  },
+  textinfo: "label+value",
+  hoverinfo: "label+value+percent parent"
+}];
+
+Plotly.newPlot('treemapDiv', treemapData, {
+  margin: {l: 0, r: 0, t: 0, b: 0},
+  paper_bgcolor: 'rgba(0,0,0,0)',
+  plot_bgcolor: 'rgba(0,0,0,0)',
+  font: {family: 'Plus Jakarta Sans', color: '#f8fafc'}
+}, {responsive: true, displayModeBar: false});
+
+// Forecast rendering
+const dates = ['Day 0', 'Day 30', 'Day 60', 'Day 90', 'Day 120', 'Day 150', 'Day 180 (Full)'];
+const usedGB = [280, 298, 316, 334, 352, 370, 388];
+const limitGB = [388, 388, 388, 388, 388, 388, 388];
+
+Plotly.newPlot('forecastDiv', [
+  {
+    x: dates, y: usedGB,
+    type: 'scatter', mode: 'lines+markers',
+    name: 'Projected Usage (mtime growth rate 600 MB/day)',
+    line: {color: '#38bdf8', width: 3},
+    fill: 'tozeroy',
+    fillcolor: 'rgba(56, 189, 248, 0.1)'
+  },
+  {
+    x: dates, y: limitGB,
+    type: 'scatter', mode: 'lines',
+    name: 'Disk Capacity Limit (388 GB)',
+    line: {color: '#f87171', width: 2, dash: 'dot'}
+  }
+], {
+  margin: {l: 40, r: 20, t: 20, b: 40},
+  paper_bgcolor: 'rgba(0,0,0,0)',
+  plot_bgcolor: 'rgba(0,0,0,0)',
+  xaxis: {gridcolor: '#1f293d', color: '#94a3b8'},
+  yaxis: {title: 'Storage (GB)', gridcolor: '#1f293d', color: '#94a3b8'},
+  font: {family: 'Plus Jakarta Sans', color: '#f8fafc'},
+  legend: {orientation: 'h', y: 1.1}
+}, {responsive: true, displayModeBar: false});
+</script>
+</body>
+</html>

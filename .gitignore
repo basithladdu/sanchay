@@ -5,3 +5,5 @@ boot.html
 *.egg-info/
 build/
 dist/
+
+.vercel
