@@ -1329,6 +1329,10 @@ class TestSanchay(unittest.TestCase):
         self.assertIn('Offline visual summary', source_page)
         self.assertIn("treemapContainer.textContent = ''", source_page)
         self.assertIn("forecastContainer.textContent = ''", source_page)
+        self.assertIn('aria-pressed="true"', source_page)
+        self.assertIn("setAttribute('aria-pressed', 'true')", source_page)
+        self.assertIn('/home/user/archive/ubuntu-24.04-live.iso', source_page)
+        self.assertNotIn('/var/lib/iso/ubuntu-24.04-live.iso', source_page)
 
     def test_cli_history_uses_the_local_linear_trend(self):
         with tempfile.TemporaryDirectory() as tmp:

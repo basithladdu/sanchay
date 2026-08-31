@@ -618,12 +618,12 @@ button:focus-visible, a:focus-visible, input:focus-visible { outline: 3px solid 
       <output id="manifestStatus" class="manifest-status" aria-live="polite">Set a seeded target, then generate a review-only plan.</output>
     </div>
 
-    <div class="filter-tabs">
-      <button class="tab active" onclick="filterCategory('all', this)">All reviewed files (6)</button>
-      <button class="tab" onclick="filterCategory('disposable', this)">Regenerable output (2)</button>
-      <button class="tab" onclick="filterCategory('duplicate', this)">Verified duplicates (1)</button>
-      <button class="tab" onclick="filterCategory('tracked', this)">Clean Git HEAD (1)</button>
-      <button class="tab" onclick="filterCategory('unique', this)">Blocked from plan (2)</button>
+    <div class="filter-tabs" role="group" aria-label="Filter seeded review evidence">
+      <button type="button" class="tab active" aria-controls="fileTable" aria-pressed="true" onclick="filterCategory('all', this)">All reviewed files (6)</button>
+      <button type="button" class="tab" aria-controls="fileTable" aria-pressed="false" onclick="filterCategory('disposable', this)">Regenerable output (2)</button>
+      <button type="button" class="tab" aria-controls="fileTable" aria-pressed="false" onclick="filterCategory('duplicate', this)">Verified duplicates (1)</button>
+      <button type="button" class="tab" aria-controls="fileTable" aria-pressed="false" onclick="filterCategory('tracked', this)">Clean Git HEAD (1)</button>
+      <button type="button" class="tab" aria-controls="fileTable" aria-pressed="false" onclick="filterCategory('unique', this)">Blocked from plan (2)</button>
     </div>
 
     <div class="table-scroll"><table>
@@ -660,7 +660,7 @@ button:focus-visible, a:focus-visible, input:focus-visible { outline: 3px solid 
           <td class="mono">/home/user/downloads/ubuntu-24.04-live.iso</td>
           <td>4.80 GB</td>
           <td>120 days</td>
-          <td style="color: var(--cyan); font-weight: 600;">Byte-for-byte match; recheck retained survivor: /var/lib/iso/</td>
+          <td style="color: var(--cyan); font-weight: 600;">Byte-for-byte match; recheck retained survivor: /home/user/archive/</td>
         </tr>
         <tr data-cat="tracked">
           <td><span class="pill pill-tracked">GIT TRACKED</span></td>
@@ -711,8 +711,12 @@ button:focus-visible, a:focus-visible, input:focus-visible { outline: 3px solid 
 <script>
 function filterCategory(cat, button) {
   const tabs = document.querySelectorAll('.tab');
-  tabs.forEach(t => t.classList.remove('active'));
+  tabs.forEach(t => {
+    t.classList.remove('active');
+    t.setAttribute('aria-pressed', 'false');
+  });
   button.classList.add('active');
+  button.setAttribute('aria-pressed', 'true');
 
   const rows = document.querySelectorAll('#fileTable tr');
   rows.forEach(r => {
@@ -740,7 +744,7 @@ const demoPlan = {
   decision_model: {name: 'regret_aware_priority', version: 2, formula: 'priority = reclaimable_allocated_bytes × unchanged_age × (1 - regret_weight)'},
   recommendations: [
     {kind: 'disposable', path: '/app/node_modules/.cache/webpack.pack', recovery_evidence: {type: 'known_regenerable_path', strength: 'heuristic'}},
-    {kind: 'duplicate', path: '/home/user/downloads/ubuntu-24.04-live.iso', survivor: '/var/lib/iso/ubuntu-24.04-live.iso', recovery_evidence: {type: 'byte_for_byte_match', strength: 'direct'}},
+    {kind: 'duplicate', path: '/home/user/downloads/ubuntu-24.04-live.iso', survivor: '/home/user/archive/ubuntu-24.04-live.iso', recovery_evidence: {type: 'byte_for_byte_match', strength: 'direct'}},
     {kind: 'tracked', path: '/home/user/code/linux-kernel/arch/x86/boot.o', recovery_evidence: {type: 'clean_git_head', strength: 'repository_state'}}
   ]
 };
