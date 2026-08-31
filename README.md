@@ -93,7 +93,7 @@ review-only policy as the CLI.
 # 1. Scan directory and display prioritized reclamation candidates
 sanchay /home/user --limit 10
 
-# 2. Write a fingerprinted, review-only cleanup plan
+# 2. Write an integrity-checked, review-only cleanup plan
 sanchay /home/user --plan cleanup-plan.json
 
 # 3. Recheck that a plan is still valid before any human acts on it
@@ -143,8 +143,12 @@ sanchay-ui .
 ## Privacy and safety boundaries
 
 * **Local by default**: Analysis and duplicate hashing run on-device. No file content is transmitted; `--explain` is optional and may send ranked file paths to the configured model provider.
-* **Inspectable safety policy**: Every plan item records its classification, observed identity, and proof; files classified as unique are excluded before ranking.
-* **Review gate**: `--verify-plan` rechecks the manifest fingerprint, candidate identity, duplicate survivor, and clean Git HEAD state where applicable. It never deletes or moves files.
+* **Inspectable evidence policy**: Every plan item records its classification,
+  observed identity, and typed recovery evidence with its strength; files
+  classified as unique are excluded before ranking.
+* **Review gate**: `--verify-plan` rechecks the integrity checksum (not a
+  digital signature), candidate identity, duplicate survivor, and clean Git
+  HEAD state where applicable. It never deletes or moves files.
 
 ---
 

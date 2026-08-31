@@ -8,7 +8,7 @@ To create a real local report:
 
     sanchay /path/to/scan --report report.html
 
-To recreate the safe sample fixture:
+To recreate the reviewable sample fixture:
 
     sanchay-demo /tmp/sanchay-demo
     sanchay /tmp/sanchay-demo --report sanchay-report.html

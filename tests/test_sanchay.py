@@ -196,7 +196,9 @@ class TestSanchay(unittest.TestCase):
 
             tampered = copy.deepcopy(cleanup_plan)
             tampered['safety']['rule'] = 'changed after review'
-            self.assertFalse(plan.verify(tampered)['fingerprint_valid'])
+            tampered_result = plan.verify(tampered)
+            self.assertFalse(tampered_result['fingerprint_valid'])
+            self.assertIn('integrity checksum', tampered_result['reason'])
 
             duplicate.write_bytes(b'y' * 4096)
             stale = plan.verify(cleanup_plan)

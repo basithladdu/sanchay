@@ -198,7 +198,7 @@ def verify(document):
         "recommendations": [],
     }
     if not result["fingerprint_valid"]:
-        result["reason"] = "plan fingerprint does not match its contents"
+        result["reason"] = "plan integrity checksum does not match its contents"
         return result
 
     # Git's clean-HEAD result is intentionally refreshed at verification time.

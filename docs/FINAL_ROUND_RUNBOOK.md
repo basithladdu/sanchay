@@ -18,7 +18,7 @@ or joining the call.
 | 0:00–0:45 | The problem: size alone cannot establish recoverability. | One-slide problem framing. |
 | 0:45–1:45 | The safety architecture: protected-file gate, duplicate survivor, review-only plan. | Architecture slide or CLI plan fields. |
 | 1:45–4:45 | Live, deterministic fixture scan. | Terminal: candidate classes and unique-file exclusion. |
-| 4:45–6:15 | Plan fingerprint and verification pass. | JSON plan plus `--verify-plan` output. |
+| 4:45–6:15 | Plan integrity checksum and verification pass. | JSON plan plus `--verify-plan` output. |
 | 6:15–7:00 | Change only the synthetic fixture and show verification fail closed. | Non-zero verification result; no deletion action exists. |
 | 7:00–10:00 | Forecast model, local-only boundary, and BOSS/C-DAC fit. | One concise slide and screenshot of the local dashboard. |
 | 10:00–15:00 | Jury questions. | Keep terminal and plan open. |
@@ -72,7 +72,7 @@ sanchay --verify-plan cleanup-plan.json
 
 Expected result: verification reports that the candidate identity changed and
 exits non-zero. It does not delete, move, or alter any file. This is the most
-important safety proof in the live demonstration.
+important fail-closed evidence in the live demonstration.
 
 ## Concise jury answers
 
