@@ -66,7 +66,7 @@ changes; it is not a digital signature. SANCHAY never deletes or moves files
 itself.
 
 ### 2. Two-Stage Runway Measurement
-SANCHAY derives an initial storage-growth estimate from the **inode modification time distribution (`mtime`) on run #1**. It is directional, not a guaranteed exhaustion date. A later aggregate local snapshot measures actual net growth; with multiple snapshots, an explainable local linear trend reports bytes/day, and with three or more snapshots it also reports fit quality.
+SANCHAY derives an initial storage-growth estimate from the **inode modification time distribution (`mtime`) on run #1**. It is directional, not a guaranteed exhaustion date. A later aggregate local snapshot measures actual net growth; with multiple snapshots, an explainable local linear trend reports bytes/day, and with three or more snapshots it also reports fit quality. Usage, snapshots, forecasts, and treemaps count each physical `(device, inode)` once, so a hardlink alias cannot inflate the result.
 
 ### 3. Tiered Fast Content Hashing
 Deduplicating large files can saturate I/O. SANCHAY uses a 3-tier cascade:
@@ -147,8 +147,10 @@ sanchay-ui .
   observed identity, and typed recovery evidence with its strength; files
   classified as unique are excluded before ranking.
 * **Review gate**: `--verify-plan` rechecks the integrity checksum (not a
-  digital signature), candidate identity, duplicate survivor, and clean Git
-  HEAD state where applicable. It never deletes or moves files.
+  digital signature), candidate identity including link count, duplicate
+  survivor, and clean Git HEAD state where applicable. Hardlinked entries are
+  never individual cleanup candidates because removing one name releases no
+  physical bytes. It never deletes or moves files.
 
 ---
 

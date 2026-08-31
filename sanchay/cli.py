@@ -2,7 +2,7 @@
 import argparse
 import shutil
 
-from . import dedup, explain, forecast, plan, regret, scan, snapshot
+from . import dedup, explain, forecast, plan, regret, scan, snapshot, storage
 
 
 def human(n):
@@ -63,8 +63,12 @@ def main(argv=None):
         files = scan.scan(args.root, cross_filesystems=args.cross_filesystems)
     except ValueError as exc:
         ap.error(str(exc))
-    total = sum(f.size for f in files)
-    print(f"{len(files):,} files, {human(total)}\n")
+    total = storage.physical_bytes(files)
+    aliases = storage.hardlink_alias_count(files)
+    print(f"{len(files):,} file entries, {human(total)} physical storage")
+    if aliases:
+        print(f"{aliases:,} hardlink aliases are not double-counted")
+    print()
 
     groups = dedup.duplicates(files)
     print(f"duplicates: {len(groups)} groups, {human(dedup.reclaimable(groups))} potential duplicate bytes")
@@ -84,28 +88,32 @@ def main(argv=None):
         fit = (f", R² {trend['r_squared']:.2f}"
                if trend["r_squared"] is not None else "")
         print(f"growth:     {human(trend['bytes_per_day'])}/day local linear trend from "
-              f"{trend['sample_count']} snapshots{fit}, full in {days:.0f} days")
+              f"{trend['sample_count']} snapshots{fit}, full in {forecast.runway_label(days)}")
     elif trend:
         print(f"growth:     {human(trend['bytes_per_day'])}/day local linear trend from "
               f"{trend['sample_count']} snapshots; no projected exhaustion")
     elif observed and observed["bytes_per_day"] > 0:
         days = free / observed["bytes_per_day"]
         print(f"growth:     {human(observed['bytes_per_day'])}/day observed over "
-              f"{observed['elapsed_seconds'] / 86400:.1f} days, full in {days:.0f} days")
+              f"{observed['elapsed_seconds'] / 86400:.1f} days, full in {forecast.runway_label(days)}")
     elif observed:
         print(f"growth:     {human(observed['bytes_per_day'])}/day observed over "
               f"{observed['elapsed_seconds'] / 86400:.1f} days; no projected exhaustion")
     else:
         days = forecast.days_until_full(files, free)
         print(f"growth:     {human(forecast.rate(files))}/day mtime estimate, "
-              + (f"full in {days:.0f} days" if days else "no measurable growth")
+              + (f"full in {forecast.runway_label(days)}" if days else "no measurable growth")
               + "; save a snapshot to measure future net growth")
 
     cleanup_plan = plan.build(files, groups, args.root, limit=args.limit)
     rows = cleanup_plan["recommendations"]
     excluded = cleanup_plan["safety"]["protected_unique_files"]
     print(f"candidates: {len(rows)} shown, {cleanup_plan['safety']['candidate_count']:,} eligible, "
-          f"{excluded:,} irreplaceable files excluded\n")
+          f"{excluded:,} irreplaceable files excluded")
+    hardlinks = cleanup_plan["safety"]["excluded_hardlink_entries"]
+    if hardlinks:
+        print(f"hardlinks: {hardlinks:,} entries excluded; a single link removal releases no physical bytes")
+    print()
 
     print(f"{'size':>10}  {'kind':<11} {'unchanged':>9}  path")
     print("-" * 78)

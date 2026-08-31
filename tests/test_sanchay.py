@@ -2,6 +2,7 @@ import subprocess
 import tempfile
 import time
 import unittest
+from unittest import mock
 import os
 import copy
 import contextlib
@@ -9,7 +10,7 @@ import io
 import shutil
 from pathlib import Path
 
-from sanchay import cli, dedup, demo, forecast, plan, regret, report, scan, snapshot
+from sanchay import cli, dedup, demo, forecast, plan, regret, report, scan, snapshot, storage
 
 
 class TestSanchay(unittest.TestCase):
@@ -56,6 +57,12 @@ class TestSanchay(unittest.TestCase):
         days = forecast.days_until_full(self.files, free_bytes=1000000000)
         self.assertIsNotNone(days)
         self.assertGreater(days, 0)
+
+    def test_runway_label_avoids_false_long_range_precision(self):
+        self.assertEqual(forecast.runway_label(None), '—')
+        self.assertEqual(forecast.runway_label(12.4), '~12 days')
+        self.assertEqual(forecast.runway_label(730), '~2.0 years')
+        self.assertEqual(forecast.runway_label(3650), '>10 years')
 
     def test_only_clean_committed_files_are_git_recoverable(self):
         with tempfile.TemporaryDirectory() as tmp:
@@ -146,12 +153,54 @@ class TestSanchay(unittest.TestCase):
             source.write_bytes(b'x' * 4096)
             os.link(source, alias)
 
-            def info(path):
-                st = path.stat()
-                return scan.FileInfo(str(path), st.st_size, st.st_atime, st.st_mtime,
-                                     st.st_ino, st.st_dev)
+            self.assertEqual(dedup.duplicates(scan.scan(root)), [])
 
-            self.assertEqual(dedup.duplicates([info(source), info(alias)]), [])
+    def test_mixed_hardlink_and_duplicate_reclaims_only_a_standalone_inode(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            source = root / 'a-source.bin'
+            alias = root / 'a-alias.bin'
+            standalone = root / 'z-standalone.bin'
+            source.write_bytes(b'x' * 4096)
+            os.link(source, alias)
+            standalone.write_bytes(b'x' * 4096)
+
+            files = scan.scan(root)
+            with mock.patch.object(dedup, '_digest', wraps=dedup._digest) as digest:
+                groups = dedup.duplicates(files)
+            copy_map = dedup.confirmed_duplicate_map(groups)
+            cleanup_plan = plan.build(files, groups, root, now=self.now)
+
+            self.assertEqual(len(groups), 1)
+            self.assertEqual(dedup.reclaimable(groups), 4096)
+            self.assertEqual(digest.call_count, 4)
+            self.assertEqual(len({str(call.args[0]) for call in digest.call_args_list}), 2)
+            self.assertEqual(set(copy_map), {str(standalone)})
+            self.assertIn(copy_map[str(standalone)], {str(source), str(alias)})
+            self.assertEqual([row['path'] for row in cleanup_plan['recommendations']],
+                             [str(standalone)])
+            self.assertEqual(cleanup_plan['safety']['excluded_hardlink_entries'], 2)
+            self.assertEqual(cleanup_plan['safety']['excluded_hardlink_physical_bytes'],
+                             4096)
+
+    def test_physical_storage_metrics_do_not_double_count_hardlinks(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            source = root / 'source.bin'
+            alias = root / 'alias.bin'
+            source.write_bytes(b'x' * 4096)
+            os.link(source, alias)
+            files = scan.scan(root)
+
+            measured_at = source.stat().st_mtime
+            captured = snapshot.capture(files, root, 1000, now=100)
+            self.assertEqual(storage.physical_bytes(files), 4096)
+            self.assertEqual(storage.hardlink_alias_count(files), 1)
+            self.assertEqual(captured['schema_version'], 2)
+            self.assertEqual(captured['used_bytes'], 4096)
+            self.assertEqual(captured['physical_file_count'], 1)
+            self.assertEqual(captured['hardlink_alias_count'], 1)
+            self.assertEqual(forecast.daily_growth(files, now=measured_at)[0], 4096)
 
     def test_snapshots_measure_observed_net_growth(self):
         previous = snapshot.capture(self.files, '/app', 1000, now=100)
@@ -193,7 +242,9 @@ class TestSanchay(unittest.TestCase):
             cleanup_plan = plan.build(files, dedup.duplicates(files), root,
                                       now=self.now)
 
-            verified = plan.verify(cleanup_plan)
+            plan_path = root / 'cleanup-plan.json'
+            plan.write(cleanup_plan, plan_path)
+            verified = plan.verify(plan.read(plan_path))
             self.assertTrue(verified['fingerprint_valid'])
             self.assertTrue(verified['valid'])
 
@@ -207,6 +258,23 @@ class TestSanchay(unittest.TestCase):
             stale = plan.verify(cleanup_plan)
             self.assertFalse(stale['valid'])
             self.assertIn('candidate', stale['recommendations'][0]['reasons'][0])
+
+    def test_cleanup_plan_verification_rejects_changed_hardlink_count(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            cache = root / 'workspace' / 'node_modules' / '.cache' / 'bundle.bin'
+            cache.parent.mkdir(parents=True)
+            cache.write_bytes(b'x' * 4096)
+            files = scan.scan(root)
+            cleanup_plan = plan.build(files, [], root, now=self.now)
+
+            alias = root / 'workspace' / 'bundle-alias.bin'
+            os.link(cache, alias)
+            result = plan.verify(cleanup_plan)
+
+            self.assertFalse(result['valid'])
+            self.assertTrue(any('candidate nlink changed' in reason
+                                for reason in result['recommendations'][0]['reasons']))
 
     def test_plan_verification_rejects_paths_outside_its_scan_root(self):
         with tempfile.TemporaryDirectory() as tmp:
@@ -255,6 +323,7 @@ class TestSanchay(unittest.TestCase):
                           paths)
             self.assertNotIn(str(root / 'documents' / 'capstone-thesis.txt'), paths)
             self.assertNotIn(str(root / 'hardlinks' / 'alias.bin'), paths)
+            self.assertEqual(cleanup_plan['safety']['excluded_hardlink_entries'], 2)
             self.assertTrue(plan.verify(cleanup_plan)['valid'])
 
     def test_demo_fixture_refuses_a_non_empty_directory(self):

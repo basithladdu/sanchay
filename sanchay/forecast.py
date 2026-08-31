@@ -7,11 +7,13 @@ an observed growth rate.
 import time
 from collections import defaultdict
 
+from . import storage
+
 
 def daily_growth(files, window=180, now=None):
     now = now or time.time()
     per_day = defaultdict(int)
-    for f in files:
+    for f in storage.physical_records(files):
         age = (now - f.mtime) / 86400
         if 0 <= age <= window:
             per_day[int(age)] += f.size
@@ -27,3 +29,14 @@ def rate(files, window=180, now=None):
 def days_until_full(files, free_bytes, window=180, now=None):
     r = rate(files, window, now)
     return None if r <= 0 else free_bytes / r
+
+
+def runway_label(days):
+    """Format a runway without pretending a first-pass estimate is precise."""
+    if days is None:
+        return "—"
+    if days >= 3650:
+        return ">10 years"
+    if days >= 365:
+        return f"~{days / 365:.1f} years"
+    return f"~{days:.0f} days"

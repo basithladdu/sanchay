@@ -13,7 +13,7 @@ from textual.app import App, ComposeResult
 from textual.containers import Horizontal
 from textual.widgets import DataTable, Footer, Header, Static
 
-from . import dedup, forecast, plan, scan
+from . import dedup, forecast, plan, scan, storage
 
 KIND_STYLE = {
     "disposable": "bold green",
@@ -112,13 +112,15 @@ class Sanchay(App):
         cleanup_plan = plan.build(files, groups, self.root, limit=500)
         rows = cleanup_plan["recommendations"]
         protected = cleanup_plan["safety"]["protected_unique_files"]
-        self.call_from_thread(self.show, files, groups, rows, protected)
+        hardlinks = cleanup_plan["safety"]["excluded_hardlink_entries"]
+        self.call_from_thread(self.show, files, groups, rows, protected, hardlinks)
 
-    def show(self, files, groups, rows, protected):
+    def show(self, files, groups, rows, protected, hardlinks):
         self.all_rows = rows
         self.rows = list(rows)
         stats = self.query(Stat)
-        stats[0].set(human(sum(f.size for f in files)), f"{len(files):,} files")
+        stats[0].set(human(storage.physical_bytes(files)),
+                     f"{len(files):,} entries; {storage.hardlink_alias_count(files):,} aliases")
         stats[1].set(human(dedup.reclaimable(groups)), f"{len(groups):,} groups")
         stats[2].set(human(sum(r['size'] for r in rows)), f"{len(rows):,} reviewable")
         try:
@@ -126,14 +128,16 @@ class Sanchay(App):
             days = forecast.days_until_full(files, shutil.disk_usage(self.root).free)
         except OSError:
             days = None
-        stats[3].set(f"~{days:.0f} days" if days else "—",
+        stats[3].set(forecast.runway_label(days),
                      f"{human(forecast.rate(files))}/day mtime estimate")
 
         self.update_status_bar()
         self.query_one("#guard", Static).update(Text.assemble(
             (f"{protected:,} files held back. ", "bold red"),
             ("Unique, untracked, uncached files have no known reproducibility "
-             "proof, so they are excluded from the review plan.", "dim")))
+             "proof, so they are excluded from the review plan. ", "dim"),
+            (f"{hardlinks:,} hardlinked entries are also excluded because one link removal frees no bytes.",
+             "dim")))
         self.fill()
 
     def update_status_bar(self):

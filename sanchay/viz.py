@@ -10,7 +10,7 @@ import pandas as pd
 import plotly.express as px
 from pathlib import Path
 
-from . import regret
+from . import regret, storage
 
 COLOURS = {
     "disposable": "#22c55e",   # a build tool regenerates it
@@ -31,7 +31,8 @@ def _relative_parts(path, root):
 
 
 def figure(files, dup_paths=frozenset(), limit=4000, root=None):
-    top = sorted(files, key=lambda f: f.size, reverse=True)[:limit]
+    top = sorted(storage.physical_records(files), key=lambda f: f.size,
+                 reverse=True)[:limit]
     rows = []
     for f in top:
         parts = list(_relative_parts(f.path, root))

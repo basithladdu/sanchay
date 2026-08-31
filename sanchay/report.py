@@ -11,7 +11,7 @@ import html
 import time
 from pathlib import Path
 
-from . import dedup, forecast, plan
+from . import dedup, forecast, plan, storage
 
 CSS = """
 :root{--bg:#090d16;--panel:#111827;--panel-sub:#1a2333;--ink:#f3f4f6;--mute:#9ca3af;--line:#1f293d;
@@ -51,6 +51,25 @@ td.p{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:12px;colo
 .tracked{background:rgba(245,158,11,.18);color:#fcd34d}
 .guard{background:rgba(239,68,68,.1);border-left:3px solid var(--red);border-radius:0 8px 8px 0;padding:14px 18px;margin-top:16px}
 .guard b{color:var(--red)}
+@media (max-width:600px){
+body{padding:20px 12px}
+header{align-items:flex-start;margin-bottom:20px}
+.cards{grid-template-columns:1fr;gap:12px;margin-bottom:20px}
+.card{padding:16px}
+.panel{padding:16px;margin-bottom:16px}
+.formula-box{display:block;padding:12px}
+.formula-tag{display:block;margin-bottom:6px}
+.search-box{flex-basis:100%;min-width:0}
+.filter-btn{flex:1 1 44%}
+table{min-width:0}
+thead{display:none}
+table,tbody,tr,td{display:block;width:100%}
+tr{padding:9px 0;border-bottom:1px solid var(--line)}
+td,td.num{padding:4px 0;border:0;text-align:left;white-space:normal}
+td::before{content:attr(data-label);display:block;color:var(--mute);font-size:10px;font-weight:600;letter-spacing:.06em;text-transform:uppercase}
+td.p{word-break:break-word}
+.evidence{max-width:none}
+}
 """
 
 
@@ -96,7 +115,8 @@ def build(files, root, free_bytes, out="sanchay-report.html", limit=50):
     protected_count = cleanup_plan["safety"]["protected_unique_files"]
     dup_paths = plan.duplicate_evidence_paths(cleanup_plan)
 
-    total = sum(f.size for f in files)
+    total = storage.physical_bytes(files)
+    aliases = storage.hardlink_alias_count(files)
     reviewable = sum(r["size"] for r in rows)
     days = forecast.days_until_full(files, free_bytes)
 
@@ -107,11 +127,11 @@ def build(files, root, free_bytes, out="sanchay-report.html", limit=50):
     table_rows = []
     for r in rows:
         table_rows.append(
-            f'<tr data-kind="{r["kind"]}"><td class="num font-bold">{human(r["size"])}</td>'
-            f'<td><span class="tag {r["kind"]}">{r["kind"]}</span></td>'
-            f'<td class="num">{r["staleness"] * 365:.0f} d</td>'
-            f'<td class="p">{html.escape(_display_path(r["path"], root))}</td>'
-            f'<td class="evidence">{html.escape(_evidence_label(r, root))}</td></tr>'
+            f'<tr data-kind="{r["kind"]}"><td class="num font-bold" data-label="Size">{human(r["size"])}</td>'
+            f'<td data-label="Category"><span class="tag {r["kind"]}">{r["kind"]}</span></td>'
+            f'<td class="num" data-label="Unchanged">{r["staleness"] * 365:.0f} d</td>'
+            f'<td class="p" data-label="Relative path">{html.escape(_display_path(r["path"], root))}</td>'
+            f'<td class="evidence" data-label="Recovery evidence">{html.escape(_evidence_label(r, root))}</td></tr>'
         )
 
     page = f"""<!doctype html>
@@ -132,15 +152,15 @@ def build(files, root, free_bytes, out="sanchay-report.html", limit=50):
   </header>
 
   <div class="cards">
-    {_card("Scanned on disk", human(total), f"{len(files):,} total files")}
-    {_card("Duplicate candidates", human(dedup.reclaimable(groups)), f"{len(groups):,} groups before survivor review", "#84cc16")}
+    {_card("Scanned on disk", human(total), f"{len(files):,} entries; {aliases:,} hardlink aliases not double-counted")}
+    {_card("Duplicate candidates", human(dedup.reclaimable(groups)), f"{len(groups):,} content groups; individual review only", "#84cc16")}
     {_card("Reviewable candidates", human(reviewable), f"top {len(rows)} recommendations; human review required", "#10b981")}
-    {_card("First-run runway estimate", f"~{days:.0f} days" if days else "—", f"{human(forecast.rate(files))}/day from mtime; capture snapshots for observed growth", "#3b82f6")}
+    {_card("First-run runway estimate", forecast.runway_label(days), f"{human(forecast.rate(files))}/day from mtime; capture snapshots for observed growth", "#3b82f6")}
   </div>
 
   <div class="panel">
     <h2>Storage Recoverability Treemap</h2>
-    <p class="h">Treemap blocks are coloured by recoverability evidence: green has cache or byte-confirmed duplicate evidence; red has no known recovery proof.</p>
+    <p class="h">One block represents one physical inode. Blocks are coloured by recoverability evidence: green has cache or byte-confirmed duplicate evidence; red has no known recovery proof.</p>
     {chart}
   </div>
 
@@ -177,9 +197,9 @@ def build(files, root, free_bytes, out="sanchay-report.html", limit=50):
     </table>
 
     <div class="guard">
-      <b>{protected_count:,} unique files excluded from this plan.</b><br>
+      <b>{protected_count:,} unique files and {cleanup_plan["safety"]["excluded_hardlink_entries"]:,} hardlinked entries are excluded from this plan.</b><br>
       Integrity checksum (not a signature): <code>{cleanup_plan["fingerprint_sha256"]}</code><br>
-      The active policy excludes unique, untracked, uncached files before ranking. SANCHAY never deletes or moves files.
+      A single hardlink removal releases no physical bytes. The active policy excludes unique, untracked, uncached, and hardlinked entries before ranking. SANCHAY never deletes or moves files.
     </div>
   </div>
 </div>

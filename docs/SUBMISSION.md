@@ -45,7 +45,9 @@ gets a full BLAKE2b-256 digest. Before a duplicate becomes reviewable, SANCHAY
 also compares that file with its named survivor byte for byte. Files whose
 sizes do not collide are never opened.
 Hardlinks pointing at the same inode are not counted as duplicates, because
-deleting one of them frees no space.
+deleting one of them frees no space. SANCHAY counts that inode once in disk
+usage, snapshot, forecast, and treemap metrics, and excludes every individual
+hardlinked path from the review plan.
 
 **2. Works out how recoverable each file is.** This is the core of the tool.
 Every file lands in one of four classes:
@@ -82,18 +84,20 @@ three or more snapshots it also reports R-squared fit quality, giving the user
 a measurable forecast without uploading file names or contents.
 
 **5. Writes a review-only plan.** Each eligible recommendation records its
-classification, observed device/inode/size/mtime identity, and typed recovery
+classification, observed device/inode/size/mtime/link-count identity, and typed recovery
 evidence with a visible strength: direct full-content match for duplicates,
 repository-state evidence for clean Git files, or a clearly labelled heuristic
 for conventional cache paths. Duplicate candidates name the copy that will
 survive. The JSON plan carries a SHA-256 integrity checksum, which detects
 accidental plan changes but is not a digital signature. `sanchay --verify-plan
 cleanup-plan.json` rechecks the checksum, file identity, retained duplicate,
-and clean Git HEAD state where applicable. SANCHAY never deletes or moves files.
+and clean Git HEAD state where applicable. A changed link count invalidates the
+plan, because it changes whether a path can release physical storage. SANCHAY
+never deletes or moves files.
 
-**6. Shows and explains.** A treemap is drawn where each block is coloured by
-recoverability rather than size — green for disposable, red for irreplaceable —
-so the user can see at a glance where the free space actually is. A language
+**6. Shows and explains.** A treemap is drawn with one block per physical inode,
+coloured by recoverability rather than size — green for disposable, red for
+irreplaceable — so hardlink aliases do not overstate disk use. A language
 model then writes the findings up in plain English.
 
 The model receives the ranked list only after ranking is complete, and only the
@@ -124,8 +128,9 @@ Two smaller original pieces support it. The first scan offers an mtime-derived
 runway estimate, while later aggregate snapshots drive an explainable local
 linear trend with a visible fit quality. This gives immediate orientation
 without pretending a single instant is a guaranteed exhaustion date. The
-treemap is coloured by recoverability rather than by size, which turns the
-safety model into something visible instead of something buried in a table.
+treemap is coloured by recoverability rather than by size and uses
+physical-inode accounting, which turns the safety model into something visible
+instead of something buried in a table.
 
 ---
 

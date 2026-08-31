@@ -55,11 +55,13 @@ Point out these concrete facts, not a generic dashboard:
 - `downloads/boss-image-copy.iso` is a duplicate candidate only because
   `archive/boss-image.iso` is explicitly named as its retained survivor.
 - `hardlinks/source.bin` and `hardlinks/alias.bin` are not reclaimable
-  duplicates because they share one `(device, inode)` identity.
+  duplicates because they share one `(device, inode)` identity. They count as
+  one physical file in the on-disk total, forecast, snapshot, and treemap.
 - `workspace/node_modules/.cache/bundle.bin` is a reviewable regenerable-output
   candidate, not an automatically deleted file.
 - `cleanup-plan.json` has a SHA-256 integrity checksum (not a signature),
-  candidate identity, typed recovery evidence, and a human-review requirement.
+  candidate identity including link count, typed recovery evidence, and a
+  human-review requirement.
 
 ## Fail-closed proof
 

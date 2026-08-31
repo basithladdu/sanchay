@@ -26,6 +26,7 @@ class FileInfo:
     mtime: float
     inode: int
     device: int = 0
+    nlink: int = 1
 
 
 def scan(root, skip=DEFAULT_SKIP_DIRS,
@@ -77,5 +78,5 @@ def scan(root, skip=DEFAULT_SKIP_DIRS,
             if not stat.S_ISREG(st.st_mode):
                 continue
             files.append(FileInfo(path, st.st_size, st.st_atime, st.st_mtime,
-                                  st.st_ino, st.st_dev))
+                                  st.st_ino, st.st_dev, st.st_nlink))
     return files

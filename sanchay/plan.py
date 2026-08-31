@@ -13,7 +13,7 @@ import os
 from pathlib import Path
 import stat
 
-from . import dedup, regret
+from . import dedup, regret, storage
 
 
 ACTION = {
@@ -58,6 +58,7 @@ def _identity(info):
         "inode": info.inode,
         "size": info.size,
         "mtime": info.mtime,
+        "nlink": getattr(info, "nlink", 1),
     }
 
 
@@ -76,8 +77,14 @@ def build(files, duplicate_groups, root, now=None, limit=25):
     eligible = []
     protected_count = 0
     protected_bytes = 0
+    excluded_hardlink_entries = 0
+    hardlinked = []
 
     for info in files:
+        if storage.is_hardlinked(info):
+            excluded_hardlink_entries += 1
+            hardlinked.append(info)
+            continue
         row = regret.score(info, info.path in duplicate_of, now)
         if row["kind"] == "unique":
             protected_count += 1
@@ -102,7 +109,7 @@ def build(files, duplicate_groups, root, now=None, limit=25):
         recommendations.append(item)
 
     document = {
-        "schema_version": 2,
+        "schema_version": 3,
         "generated_at": datetime.now(timezone.utc).isoformat(),
         "root": str(Path(root).resolve()),
         "execution": {
@@ -113,9 +120,13 @@ def build(files, duplicate_groups, root, now=None, limit=25):
         "safety": {
             "protected_unique_files": protected_count,
             "protected_unique_bytes": protected_bytes,
+            "logical_file_entries": len(files),
+            "physical_file_count": len(storage.physical_records(files)),
+            "excluded_hardlink_entries": excluded_hardlink_entries,
+            "excluded_hardlink_physical_bytes": storage.physical_bytes(hardlinked),
             "candidate_count": len(eligible),
             "candidate_bytes": sum(row["size"] for row, _ in eligible),
-            "rule": "unique, untracked, uncached files are excluded before ranking",
+            "rule": "unique, untracked, uncached files and every hardlinked entry are excluded before ranking",
         },
         "integrity": {
             "algorithm": "SHA-256",
@@ -158,10 +169,15 @@ def read(path):
     document = json.loads(Path(path).read_text(encoding="utf-8"))
     required = {"schema_version", "root", "execution", "recommendations", "safety",
                 "fingerprint_sha256"}
-    if (document.get("schema_version") != 2 or not required.issubset(document)
+    safety_required = {"protected_unique_files", "protected_unique_bytes",
+                       "logical_file_entries", "physical_file_count",
+                       "excluded_hardlink_entries", "excluded_hardlink_physical_bytes",
+                       "candidate_count", "candidate_bytes", "rule"}
+    if (document.get("schema_version") != 3 or not required.issubset(document)
             or not isinstance(document["root"], str)
             or not isinstance(document["execution"], dict)
             or not isinstance(document["safety"], dict)
+            or not safety_required.issubset(document["safety"])
             or not isinstance(document["recommendations"], list)
             or not isinstance(document["fingerprint_sha256"], str)):
         raise ValueError("Unsupported or incomplete SANCHAY cleanup plan")
@@ -180,6 +196,7 @@ def _current_identity(path):
         "inode": observed.st_ino,
         "size": observed.st_size,
         "mtime": observed.st_mtime,
+        "nlink": observed.st_nlink,
     }, None
 
 
@@ -189,7 +206,7 @@ def _identity_check(path, expected, role):
     actual, error = _current_identity(path)
     if error:
         return error
-    for field in ("device", "inode", "size", "mtime"):
+    for field in ("device", "inode", "size", "mtime", "nlink"):
         if actual[field] != expected.get(field):
             return f"{role} {field} changed since the plan was created"
     return None

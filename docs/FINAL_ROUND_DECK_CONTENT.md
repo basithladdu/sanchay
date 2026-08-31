@@ -48,7 +48,8 @@ confirmation → named survivor → identity recheck
 
 Three claims only:
 
-- hardlinks share a (device, inode) identity and are not reclaimable copies;
+- hardlinks share a (device, inode) identity, count once in physical-byte
+  metrics, and are not reclaimable copies;
 - every duplicate recommendation names its retained survivor;
 - revalidation rechecks both files and their matching contents.
 
@@ -68,7 +69,8 @@ Use the deterministic SANCHAY fixture and terminal output:
 
 - a unique capstone-thesis.txt is absent from the plan;
 - a duplicate has a named survivor;
-- a hardlink is excluded from reclaimable duplicates;
+- a hardlink is excluded from reclaimable duplicates and does not inflate the
+  disk total;
 - a build cache is reviewable, not deleted;
 - --verify-plan passes before change and fails closed after a synthetic fixture
   change.
