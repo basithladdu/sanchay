@@ -77,7 +77,10 @@ Show two stages, not a fake exact date:
 4. Record the root mount context. Btrfs, overlay, and device-mapper sources
    change what a free-space figure proves; SANCHAY labels that boundary rather
    than invoking a filesystem or volume-management action.
-5. If any in-scope path is unreadable, record only count-level coverage,
+5. On an explicit `--capacity-audit`, compare filesystem-used blocks with a
+   complete mount-root readable inventory plus visible deleted-open bytes. Call
+   the result an accounting gap, not reclaimable or unexplained storage.
+6. If any in-scope path is unreadable, record only count-level coverage,
    label the output readable-file inventory, and withhold forecast/snapshot
    claims rather than treating a partial scan as complete.
 

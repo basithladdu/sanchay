@@ -154,7 +154,19 @@ signal, restart, truncate, or delete anything held by a process.
 
 ---
 
-### 8. Mount-Aware Capacity Boundaries
+### 8. Mount-Root Accounting Gap Diagnostic
+
+`--capacity-audit` is an explicit diagnostic for a complete scan started at the
+root of one mounted filesystem. It compares reported filesystem-used blocks
+with the readable allocated-file inventory plus visible deleted-open files and
+labels the signed remainder an **accounting gap**. It is never called reclaimable
+or unexplained space: protected paths, filesystem metadata, Btrfs snapshots or
+shared extents, mount-overlaid data, and inaccessible state can all contribute.
+The audit never runs a filesystem, volume, container, or cleanup command.
+
+---
+
+### 9. Mount-Aware Capacity Boundaries
 
 Secure BOSS is deployed on an LVM-encrypted disk, while Linux installations
 may also use Btrfs snapshots or container overlay layers. SANCHAY reads the
@@ -187,6 +199,9 @@ sanchay /home/user --target-reclaim 5G --plan cleanup-plan.json
 
 # Cross mounted filesystems only for inventory; capacity plans stay per filesystem
 sanchay /srv --cross-filesystems --plan multi-mount-review.json
+
+# Audit a complete scan only when the selected directory is exactly a mount root
+sanchay /mnt/data --capacity-audit
 
 # 4. Recheck that a plan is still valid before any human acts on it
 sanchay --verify-plan cleanup-plan.json
@@ -281,6 +296,11 @@ sanchay-ui .
   separate retained inode with a byte-for-byte comparison and identity recheck.
   It rejects credential/control and system-managed paths, performs no file
   action, and never represents a same-filesystem copy as an independent backup.
+* **Capacity-audit boundary**: `--capacity-audit` works only for a complete
+  single-filesystem scan begun at that mount's root. It reports a signed
+  accounting gap after readable inventory and visible deleted-open storage; it
+  never treats that difference as a cleanup target or a complete explanation of
+  filesystem use.
 
 ---
 

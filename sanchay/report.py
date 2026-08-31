@@ -139,7 +139,7 @@ def _holder_summary(record):
 
 def build(files, root, free_bytes, out="sanchay-report.html", limit=50,
           target_reclaim_bytes=None, cross_filesystems=False, process_held=None,
-          filesystem_context=None, scan_coverage=None):
+          filesystem_context=None, scan_coverage=None, capacity_accounting=None):
     from . import viz
 
     groups = dedup.duplicates(managed.content_candidates(files), root=root)
@@ -268,6 +268,30 @@ def build(files, root, free_bytes, out="sanchay-report.html", limit=50,
   </div>
 """
 
+    accounting_panel = ""
+    if capacity_accounting:
+        if capacity_accounting.get("assessed"):
+            gap = capacity_accounting["accounting_gap_bytes"]
+            sign = "+" if gap >= 0 else "-"
+            accounting_panel = f"""
+  <div class="panel">
+    <h2>Filesystem accounting boundary</h2>
+    <p class="h">This compares the mounted filesystem's used blocks with the readable file inventory plus visible deleted-open files. The result is an accounting gap, not a reclaim recommendation.</p>
+    <table>
+      <thead><tr><th>Filesystem used</th><th>Readable inventory</th><th>Visible deleted-open</th><th>Accounting gap</th></tr></thead>
+      <tbody><tr><td class="num" data-label="Filesystem used">{human(capacity_accounting['filesystem_used_bytes'])}</td><td class="num" data-label="Readable inventory">{human(capacity_accounting['readable_file_allocated_bytes'])}</td><td class="num" data-label="Visible deleted-open">{human(capacity_accounting['deleted_open_allocated_bytes'])}</td><td class="num" data-label="Accounting gap">{sign}{human(abs(gap))}</td></tr></tbody>
+    </table>
+    <p class="h">{html.escape(capacity_accounting['boundary'])}</p>
+  </div>
+"""
+        else:
+            accounting_panel = f"""
+  <div class="panel">
+    <h2>Filesystem accounting boundary</h2>
+    <p class="h">Capacity audit not assessed: {html.escape(capacity_accounting.get('reason', 'unavailable'))}. {html.escape(capacity_accounting.get('boundary', ''))}</p>
+  </div>
+"""
+
     mount_panel = ""
     mount_context = cleanup_plan["safety"].get("filesystem_context")
     if mount_context and mount_context.get("advisory"):
@@ -353,6 +377,7 @@ def build(files, root, free_bytes, out="sanchay-report.html", limit=50,
   {managed_panel}
   {coverage_panel}
   {process_panel}
+  {accounting_panel}
   {mount_panel}
 </div>
 

@@ -89,14 +89,23 @@ snapshot-aware, host-wide, or logical-volume-pool headroom. It never runs LVM
 or Btrfs commands, resizes a volume, balances a filesystem, or deletes a
 snapshot.
 
-**1d. Fences system-reserved OS paths before content reads.** A duplicated byte
+**1d. Makes a capacity gap visible without calling it reclaimable.** On an
+explicit `--capacity-audit`, SANCHAY requires one mounted filesystem root and
+complete readable-path coverage. It compares reported filesystem-used blocks
+with the readable allocated inventory and visible deleted-open bytes, then
+labels any signed remainder an accounting gap. It does not claim that the gap
+has one cause or can be freed: protected paths, filesystem metadata, snapshots
+or shared extents, mount-overlaid data, and inaccessible state can contribute.
+The audit runs no filesystem, LVM, container, or cleanup action.
+
+**1e. Fences system-reserved OS paths before content reads.** A duplicated byte
 sequence under `/usr` or `/etc` is not evidence that it is safe to remove.
 SANCHAY separately measures, but never hashes, ranks, or recommends individual
 files in boot, configuration, package/cache, log, backup, and service/spool
 paths. The narrow APT, journal, Docker, containerd, and Flatpak policies still
 win first so the operator receives the relevant owning-tool review route.
 
-**1e. Makes partial scan coverage visible.** Secure endpoints can intentionally
+**1f. Makes partial scan coverage visible.** Secure endpoints can intentionally
 withhold access to part of the selected tree. SANCHAY counts unreadable
 directories and files without serialising their paths. If any occur, it labels
 the output a readable-file inventory and withholds the mtime forecast and

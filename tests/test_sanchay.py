@@ -14,7 +14,7 @@ import shutil
 from types import SimpleNamespace
 from pathlib import Path
 
-from sanchay import (archive, cli, dedup, demo, explain, forecast, managed, mounts,
+from sanchay import (accounting, archive, cli, dedup, demo, explain, forecast, managed, mounts,
                      plan, processes, regret, report, scan, snapshot, storage)
 
 
@@ -308,6 +308,64 @@ class TestSanchay(unittest.TestCase):
         self.assertIn('not calculated; scan coverage is incomplete', page)
         self.assertIn('Readable inventory only; inaccessible paths are not included', page)
 
+    def test_capacity_accounting_reports_a_gap_without_claiming_reclaim(self):
+        files = [
+            scan.FileInfo('/mnt/data/.cache/build.bin', 4096, self.now,
+                          self.now - 86400, 719, device=99,
+                          allocated_size=4096),
+        ]
+        audit = accounting.assess(
+            files, 16384, process_held_bytes=4096,
+            scan_coverage=scan.ScanCoverage(), root_is_mount=True)
+
+        self.assertTrue(audit['assessed'])
+        self.assertEqual(audit['readable_file_allocated_bytes'], 4096)
+        self.assertEqual(audit['deleted_open_allocated_bytes'], 4096)
+        self.assertEqual(audit['visible_accounted_bytes'], 8192)
+        self.assertEqual(audit['accounting_gap_bytes'], 8192)
+        self.assertEqual(audit['gap_direction'],
+                         'filesystem_used_exceeds_visible_accounting')
+        self.assertIn('not a full filesystem reconciliation', audit['boundary'])
+
+        not_mount_root = accounting.assess(
+            files, 16384, root_is_mount=False)
+        self.assertFalse(not_mount_root['assessed'])
+        self.assertIn('mounted filesystem root', not_mount_root['reason'])
+
+        partial = accounting.assess(
+            files, 16384, root_is_mount=True,
+            scan_coverage=scan.ScanCoverage(unreadable_files=1))
+        self.assertFalse(partial['assessed'])
+        self.assertIn('complete readable-path coverage', partial['reason'])
+
+        multi_mount = accounting.assess(
+            files, 16384, root_is_mount=True, cross_filesystems=True)
+        self.assertFalse(multi_mount['assessed'])
+        self.assertIn('cross-filesystem inventory', multi_mount['reason'])
+
+    @unittest.skipUnless(importlib.util.find_spec('pandas'),
+                         'requires the optional report dependencies')
+    def test_report_surfaces_capacity_accounting_as_a_boundary(self):
+        files = [
+            scan.FileInfo('/mnt/data/.cache/build.bin', 4096, self.now,
+                          self.now - 86400, 720, device=99,
+                          allocated_size=4096),
+        ]
+        audit = accounting.assess(
+            files, 16384, process_held_bytes=4096,
+            scan_coverage=scan.ScanCoverage(), root_is_mount=True)
+        with tempfile.TemporaryDirectory() as tmp:
+            output = Path(tmp) / 'report.html'
+            report.build(files, '/mnt/data', 1000000, output,
+                         capacity_accounting=audit)
+            page = output.read_text(encoding='utf-8')
+
+        self.assertIn('Filesystem accounting boundary', page)
+        self.assertIn('accounting gap, not a reclaim recommendation', page)
+        self.assertIn('16.0 KB', page)
+        self.assertIn('8.0 KB', page)
+        self.assertIn('data-label="Accounting gap"', page)
+
     def test_cli_labels_managed_storage_as_deferred_not_reclaimable(self):
         files = [
             scan.FileInfo('/home/user/.cache/build.bin', 4000, self.now,
@@ -361,6 +419,36 @@ class TestSanchay(unittest.TestCase):
         self.assertIn('pid 4321 (service) fd 9', rendered)
         self.assertIn('never signals, restarts, truncates, or deletes', rendered)
 
+    def test_cli_capacity_audit_quantifies_visible_gap_without_remediation(self):
+        files = [
+            scan.FileInfo('/mnt/data/.cache/build.bin', 4096, self.now,
+                          self.now - 86400 * 90, 725, device=44,
+                          allocated_size=4096),
+        ]
+        held = processes.DeletedOpenFile(
+            device=44, inode=726, logical_size=4096, allocated_size=4096,
+            holders=(processes.DeletedFileHolder(
+                pid=4321, process='service', fd='9',
+                path='/mnt/data/service.log (deleted)'),))
+        output = io.StringIO()
+        with mock.patch.object(scan, 'scan_with_coverage',
+                               return_value=(files, scan.ScanCoverage())), \
+                mock.patch.object(processes, 'deleted_open_files', return_value=[held]), \
+                mock.patch.object(mounts, 'is_mount_root', return_value=True), \
+                mock.patch.object(shutil, 'disk_usage',
+                                  return_value=SimpleNamespace(
+                                      free=1000000, used=16384)), \
+                contextlib.redirect_stdout(output):
+            status = cli.main(['/mnt/data', '--capacity-audit'])
+
+        rendered = output.getvalue()
+        self.assertIsNone(status)
+        self.assertIn('capacity audit: filesystem used 16.0KB', rendered)
+        self.assertIn('readable inventory 4.0KB', rendered)
+        self.assertIn('visible deleted-open 4.0KB', rendered)
+        self.assertIn('accounting gap: +8.0KB', rendered)
+        self.assertIn('not a full filesystem reconciliation', rendered)
+
     def test_cli_marks_incomplete_coverage_and_withholds_snapshot(self):
         files = [
             scan.FileInfo('/home/user/.cache/build.bin', 4000, self.now,
@@ -396,6 +484,8 @@ class TestSanchay(unittest.TestCase):
             source = Path(tmp) / 'mountinfo'
             source.write_text(mountinfo, encoding='utf-8')
             context = mounts.capacity_context('/srv archive/project', source)
+            self.assertTrue(mounts.is_mount_root('/srv archive', source))
+            self.assertFalse(mounts.is_mount_root('/srv archive/project', source))
 
         self.assertEqual('btrfs', context['filesystem'])
         self.assertEqual('/srv archive', context['mount_point'])
@@ -550,6 +640,7 @@ class TestSanchay(unittest.TestCase):
             ['--snapshot', 'baseline.json'],
             ['--compare', 'baseline.json'],
             ['--history', 'day-1.json', 'day-7.json'],
+            ['--capacity-audit'],
         )
         for extra in inputs:
             with self.subTest(extra=extra), self.assertRaises(SystemExit), \

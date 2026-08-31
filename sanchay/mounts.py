@@ -88,6 +88,13 @@ def mount_for(path, mountinfo_path=MOUNTINFO):
                                              record.mount_id), default=None)
 
 
+def is_mount_root(path, mountinfo_path=MOUNTINFO):
+    """Return whether *path* is exactly the root of its visible mount."""
+    record = mount_for(path, mountinfo_path)
+    return (record is not None
+            and _target_path(path) == posixpath.normpath(record.mount_point))
+
+
 def _source_class(source):
     if source == "overlay":
         return "overlay_layer"

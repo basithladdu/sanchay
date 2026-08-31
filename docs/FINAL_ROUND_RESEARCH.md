@@ -127,6 +127,13 @@ endorses SANCHAY or defines the hackathon scoring rubric.
   to deleted files that remain open as one cause. This is practitioner evidence,
   not proof that every `df`/`du` mismatch has that cause. Source:
   [r/linuxquestions discussion](https://www.reddit.com/r/linuxquestions/comments/1kpu4v9).
+- Practitioners also report Btrfs snapshots, data hidden beneath a mount point,
+  and container-overlay storage as distinct reasons that a directory walk and
+  filesystem capacity can diverge. These are examples, not a population study
+  or a diagnosis for any particular endpoint. Sources: [r/linuxquestions on
+  deleted-open files and hidden mounts](https://www.reddit.com/r/linuxquestions/comments/1cl57ke/),
+  [r/linuxquestions on Btrfs snapshots](https://www.reddit.com/r/linuxquestions/comments/rlbye3/),
+  and [r/selfhosted on Docker overlay use](https://www.reddit.com/r/selfhosted/comments/1eagm9c/).
 
 ## Decisions derived from the evidence
 
@@ -142,6 +149,7 @@ endorses SANCHAY or defines the hackathon scoring rubric.
 | Protect generic OS state | Fence boot, configuration, package/cache, log, backup, and service/spool paths before duplicate-content reads. Keep them as measured advisories, not raw deletion candidates; preserve narrower tool-specific guidance where available. | Implemented |
 | Explain process-held deleted storage | On Linux, report visible deleted regular files held through `/proc` only as an operational advisory; never signal, restart, truncate, delete, or include them in a reclaim target. | Implemented |
 | Keep capacity claims mount-aware | Record the selected Linux mount context. Label Btrfs, overlay, and device-mapper boundaries instead of inferring host-wide, snapshot-aware, or volume-pool capacity; run no filesystem or LVM command. | Implemented |
+| Make capacity disagreement measurable, not actionable | On explicit request, compare filesystem-used blocks with a complete mount-root readable inventory plus visible deleted-open bytes. Label the signed remainder an accounting gap, never reclaimable or a complete diagnosis. | Implemented |
 | Keep scan coverage honest | Count unreadable in-scope directories/files without serialising their paths. Mark the view as readable-file inventory and withhold mtime forecasts plus snapshots/history when coverage is incomplete. | Implemented |
 | Contain the optional LLM | Keep narration local by default. Require a separate cloud opt-in and send only opaque candidate IDs with fixed class/size/age metadata; deterministic code retains all decision and action boundaries. | Implemented |
 | Avoid crossing a governance boundary silently | Scan one filesystem by default; cross-filesystem traversal requires an explicit flag and is inventory-only across mounts. | Implemented |

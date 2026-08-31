@@ -4,7 +4,7 @@ import os
 import re
 import shutil
 
-from . import (archive, dedup, explain, forecast, managed, mounts, plan, processes,
+from . import (accounting, archive, dedup, explain, forecast, managed, mounts, plan, processes,
                regret, scan, snapshot, storage)
 
 
@@ -56,6 +56,8 @@ def main(argv=None):
                     help="write a review-only cleanup plan; SANCHAY never deletes files")
     ap.add_argument("--target-reclaim", metavar="SIZE", type=parse_reclaim_bytes,
                     help="select enough reviewable candidates to reclaim SIZE (for example 600M); never deletes files")
+    ap.add_argument("--capacity-audit", action="store_true",
+                    help="compare a complete mount-root readable inventory with filesystem used space; never remediates a gap")
     ap.add_argument("--snapshot", metavar="OUT.json",
                     help="save aggregate local usage for a later observed-growth comparison")
     forecast_group = ap.add_mutually_exclusive_group()
@@ -76,12 +78,14 @@ def main(argv=None):
 
     if args.verify_plan and args.verify_archive:
         ap.error("use either --verify-plan or --verify-archive, not both")
+    if args.verify_plan and args.capacity_audit:
+        ap.error("--capacity-audit requires a scan root, not --verify-plan")
 
     if args.cross_filesystems and any((
             args.target_reclaim is not None, args.snapshot, args.compare,
-            args.history)):
-        ap.error("--cross-filesystems cannot share a reclaim target or capacity "
-                 "history across mounts; scan one filesystem per capacity plan")
+            args.history, args.capacity_audit)):
+        ap.error("--cross-filesystems cannot use a capacity audit, shared reclaim "
+                 "target, or capacity history across mounts; scan one filesystem per capacity plan")
 
     if args.verify_plan:
         try:
@@ -112,7 +116,8 @@ def main(argv=None):
     if args.verify_archive:
         if any((args.root, args.cross_filesystems, args.explain, args.viz,
                 args.report, args.plan, args.target_reclaim is not None,
-                args.snapshot, args.compare, args.history, args.tui)):
+                args.snapshot, args.compare, args.history, args.capacity_audit,
+                args.tui)):
             ap.error("--verify-archive is a standalone read-only check")
         try:
             result = archive.verify(*args.verify_archive)
@@ -202,7 +207,28 @@ def main(argv=None):
         print("  review the owning service lifecycle; SANCHAY never signals, "
               "restarts, truncates, or deletes process-held storage")
 
-    free = None if args.cross_filesystems else shutil.disk_usage(args.root).free
+    usage = None if args.cross_filesystems else shutil.disk_usage(args.root)
+    free = None if usage is None else usage.free
+    capacity_accounting = None
+    if args.capacity_audit:
+        capacity_accounting = accounting.assess(
+            files, usage.used,
+            process_held_bytes=processes.allocated_total(held_deleted),
+            scan_coverage=scan_coverage,
+            root_is_mount=mounts.is_mount_root(args.root),
+            cross_filesystems=args.cross_filesystems,
+        )
+        if capacity_accounting["assessed"]:
+            gap = capacity_accounting["accounting_gap_bytes"]
+            print("capacity audit: filesystem used "
+                  f"{human(capacity_accounting['filesystem_used_bytes'])}; "
+                  f"readable inventory {human(capacity_accounting['readable_file_allocated_bytes'])}; "
+                  f"visible deleted-open {human(capacity_accounting['deleted_open_allocated_bytes'])}")
+            print(f"  accounting gap: {'+' if gap >= 0 else '-'}{human(abs(gap))} "
+                  f"({capacity_accounting['gap_direction']})")
+            print("  boundary: " + capacity_accounting["boundary"])
+        else:
+            print("capacity audit: not assessed; " + capacity_accounting["reason"])
     current_snapshot = (
         snapshot.capture(files, args.root, free, scan_coverage=scan_coverage)
         if free is not None and scan_coverage["complete"] else None)
@@ -282,7 +308,8 @@ def main(argv=None):
                                            cross_filesystems=args.cross_filesystems,
                                            process_held=held_deleted,
                                            filesystem_context=filesystem_context,
-                                           scan_coverage=scan_coverage))
+                                           scan_coverage=scan_coverage,
+                                           capacity_accounting=capacity_accounting))
 
     if args.plan:
         print("plan -> " + plan.write(cleanup_plan, args.plan))

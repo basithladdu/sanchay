@@ -127,13 +127,17 @@ cross-filesystem scans are inventory-only; they reject a shared reclaim target,
 snapshot comparison, and runway forecast because freeing another mount does not
 relieve the filesystem under pressure.
 
-**What if `df` says full but the directory scan does not add up?** Linux can
-keep an unlinked file allocated while a process still has it open. SANCHAY
-checks visible `/proc/<pid>/fd` records on the scanned filesystem and reports
-the PID, descriptor, and allocated bytes separately. This is an advisory, not a
-cleanup recommendation: SANCHAY never kills, restarts, truncates, or deletes a
-process-held file. Snapshots, reserved blocks, and other filesystem-specific
-causes remain separate diagnostic questions.
+**What if `df` says full but the directory scan does not add up?** On an
+explicit `--capacity-audit`, SANCHAY first requires a complete scan started at
+the root of one mounted filesystem. It then shows filesystem-used blocks,
+readable allocated inventory, and visible deleted-open bytes separately. The
+remainder is labelled an **accounting gap**, never an automatic cleanup target
+or a claimed root cause. Linux can keep an unlinked file allocated while a
+process still has it open, so SANCHAY checks visible `/proc/<pid>/fd` records
+and reports PID, descriptor, and allocated bytes separately. It never kills,
+restarts, truncates, or deletes a process-held file; snapshots, metadata,
+protected paths, mount overlays, and filesystem-specific state remain separate
+diagnostic questions.
 
 **Why does SANCHAY show mount context?** C-DAC describes Secure BOSS as
 LVM-encrypted, so filesystem-free bytes alone do not establish volume-group or
