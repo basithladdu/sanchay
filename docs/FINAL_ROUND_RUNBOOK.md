@@ -91,7 +91,7 @@ Point out these concrete facts, not a generic dashboard:
 - `--explain` produces a deterministic local narrative and says no candidate
   data left the machine. Do not use `--cloud-narrative` in the final demo unless
   the team has separately approved it and configured an API key.
-- `sanchay-demo --risk-prove` is available only as a transparent synthetic
+- `python -m sanchay.demo --risk-prove` is available only as a transparent synthetic
   aggregate rehearsal: it demonstrates that a qualifying seven-snapshot model
   result is withheld after a capacity resize. It is not a live-device forecast.
 - The explicit `600K` reclaim request first uses the 204,800-byte regenerable
@@ -110,7 +110,7 @@ Change only the disposable fixture, then recheck the original plan:
 
 ```bash
 printf 'fixture changed\n' >> "$DEMO_ROOT/workspace/node_modules/.cache/bundle.bin"
-sanchay --verify-plan cleanup-plan.json
+"$PYTHON" -m sanchay.cli --verify-plan "$EVIDENCE_ROOT/cleanup-plan.json"
 ```
 
 Expected result: verification reports that the candidate identity changed and
@@ -204,7 +204,7 @@ boundary, and, when requested and assessed, the capacity-risk probability,
 horizon, sample evidence, and model metrics. It excludes roots, paths, names,
 PIDs, process names, mount/device sources, free-form model rationale, and
 content; it does not transmit anything, sign an event, or authorize a cleanup.
-Use `sanchay --verify-operator-brief operator-brief.json`
+Use `"$PYTHON" -m sanchay.cli --verify-operator-brief operator-brief.json`
 to check its checksum only; it does not reread endpoint files or contact a
 service.
 
