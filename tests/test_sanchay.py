@@ -1,5 +1,9 @@
+import subprocess
+import tempfile
 import time
 import unittest
+from pathlib import Path
+
 from sanchay import dedup, forecast, regret, scan
 
 
@@ -41,6 +45,42 @@ class TestSanchay(unittest.TestCase):
         days = forecast.days_until_full(self.files, free_bytes=1000000000)
         self.assertIsNotNone(days)
         self.assertGreater(days, 0)
+
+    def test_only_clean_committed_files_are_git_recoverable(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            clean = root / 'clean.txt'
+            modified = root / 'modified.txt'
+            staged = root / 'staged.txt'
+            for path in (clean, modified, staged):
+                path.write_bytes(b'committed content')
+
+            def git(*args):
+                subprocess.run(
+                    ['git', *args], cwd=root, check=True,
+                    stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+
+            git('init', '-q')
+            git('add', '.')
+            git('-c', 'user.name=SANCHAY Tests',
+                '-c', 'user.email=tests@sanchay.invalid',
+                'commit', '-qm', 'fixture')
+            modified.write_bytes(b'uncommitted working content')
+            staged.write_bytes(b'uncommitted staged content')
+            git('add', staged.name)
+
+            regret._repo_cache.clear()
+            self.addCleanup(regret._repo_cache.clear)
+
+            def info(path):
+                stat = path.stat()
+                return scan.FileInfo(
+                    str(path), stat.st_size, stat.st_atime,
+                    stat.st_mtime, stat.st_ino)
+
+            self.assertEqual(regret.classify(info(clean), False), 'tracked')
+            self.assertEqual(regret.classify(info(modified), False), 'unique')
+            self.assertEqual(regret.classify(info(staged), False), 'unique')
 
 
 if __name__ == '__main__':

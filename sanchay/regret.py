@@ -52,15 +52,22 @@ def _repo_root(path):
 
 
 def _tracked_set(root):
-    """Files git actually knows about. Untracked and ignored files are not
-    recoverable from a repo, so being inside one proves nothing on its own."""
+    """Files whose current contents can be restored exactly from HEAD."""
     if root not in _repo_cache:
         try:
-            out = subprocess.run(["git", "-C", root, "ls-files", "-z"],
-                                 capture_output=True, timeout=30)
-            _repo_cache[root] = {
+            committed = subprocess.run(
+                ["git", "-C", root, "ls-tree", "-r", "--name-only", "-z", "HEAD"],
+                capture_output=True, check=True, timeout=30)
+            changed = subprocess.run(
+                ["git", "-C", root, "diff", "--name-only", "-z", "HEAD", "--"],
+                capture_output=True, check=True, timeout=30)
+            committed_paths = {
                 _norm(os.path.join(root, p))
-                for p in out.stdout.decode("utf-8", "replace").split(chr(0)) if p}
+                for p in committed.stdout.decode("utf-8", "replace").split(chr(0)) if p}
+            changed_paths = {
+                _norm(os.path.join(root, p))
+                for p in changed.stdout.decode("utf-8", "replace").split(chr(0)) if p}
+            _repo_cache[root] = committed_paths - changed_paths
         except (OSError, subprocess.SubprocessError):
             _repo_cache[root] = set()
     return _repo_cache[root]
