@@ -5,6 +5,10 @@ It contains incorrect Track 1, guarantee, exact-forecast, legal-compliance, and
 test-coverage claims. Preserve it as history; move the core content below into
 the organizer's template when it arrives.
 
+Use [`FINAL_ROUND_JURY_BRIEF.md`](FINAL_ROUND_JURY_BRIEF.md) for spoken
+C-DAC-specific positioning and hostile-Q&A answers; keep that material out of
+the visible slides.
+
 ## Communication target
 
 By the end, a C-DAC jury should see SANCHAY as a practical Linux storage
