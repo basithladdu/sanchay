@@ -59,6 +59,26 @@ def _visualization_dependency_missing(feature, exc):
     return True
 
 
+_RECOVERY_CLASS_LABELS = {
+    "disposable": "regenerable output",
+    "duplicate": "byte-confirmed alternate copy",
+    "tracked": "clean Git-tracked file",
+}
+_SELECTION_STRATEGY_LABELS = {
+    "all_lower_risk_candidates": "all lower-risk candidates",
+    "exact_minimum_excess_subset": "exact minimum-excess subset",
+    "greedy_fallback_above_exact_limit": "bounded greedy fallback",
+}
+
+
+def _selection_class_label(regret_weight):
+    """Name the evidence class behind an optimizer step for review output."""
+    for kind, weight in regret.REGRET.items():
+        if weight == regret_weight:
+            return _RECOVERY_CLASS_LABELS.get(kind, kind)
+    return "unrecognized recovery class"
+
+
 def _invocation_artifact_paths(args):
     """Return canonical paths explicitly supplied as SANCHAY artifacts.
 
@@ -562,6 +582,16 @@ def main(argv=None):
             f"short by {human(selection['shortfall_bytes'])}")
         print(f"intent: reclaim {human(selection['target_reclaim_bytes'])}; "
               f"{human(selection['selected_reclaim_bytes'])} selected ({state})")
+        for index, step in enumerate(selection["optimizer"]["class_steps"], start=1):
+            strategy = _SELECTION_STRATEGY_LABELS.get(
+                step["strategy"], step["strategy"].replace("_", " "))
+            print(
+                f"  selection {index}: "
+                f"{_selection_class_label(step['regret_weight'])} "
+                f"(regret {step['regret_weight']:.2f}); "
+                f"{human(step['selected_reclaim_bytes'])} selected from "
+                f"{human(step['available_reclaim_bytes'])} eligible ({strategy})")
+        print("  table below: deterministic review priority, not an execution order")
     print()
 
     print(f"{'reclaim':>10}  {'kind':<11} {'unchanged':>9}  path")

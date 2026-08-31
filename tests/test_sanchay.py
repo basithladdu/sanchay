@@ -180,6 +180,25 @@ class TestSanchay(unittest.TestCase):
         self.assertEqual(selection['selected_reclaim_bytes'], 4000)
         self.assertEqual(selection['shortfall_bytes'], 2000)
 
+    def test_cli_makes_target_selection_order_visible_separately_from_review_priority(self):
+        output = io.StringIO()
+        with tempfile.TemporaryDirectory() as tmp:
+            root = demo.create(Path(tmp) / 'fixture')
+            with contextlib.redirect_stdout(output):
+                status = cli.main([str(root), '--target-reclaim', '600K'])
+
+        rendered = output.getvalue()
+        self.assertIsNone(status)
+        self.assertIn(
+            'selection 1: regenerable output (regret 0.02); 200.0KB selected '
+            'from 200.0KB eligible (all lower-risk candidates)', rendered)
+        self.assertIn(
+            'selection 2: byte-confirmed alternate copy (regret 0.10); '
+            '512.0KB selected from 512.0KB eligible (exact minimum-excess subset)',
+            rendered)
+        self.assertIn('table below: deterministic review priority, not an execution order',
+                      rendered)
+
     def test_boss_managed_storage_is_deferred_to_its_owning_tool(self):
         files = [
             scan.FileInfo('/home/user/.cache/build.bin', 4000, self.now,

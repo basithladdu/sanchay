@@ -105,6 +105,8 @@ Point out these concrete facts, not a generic dashboard:
   cache, then uses the 524,288-byte duplicate as the exact minimum-excess choice
   for the remaining target. The plan records that optimizer strategy; it does
   not broaden into the thesis or hardlinked entries to meet a target.
+- The CLI prints those two selection steps before the candidate table. The table
+  is a deterministic review-priority view, explicitly not an execution order.
 - `cleanup-plan.json` has a SHA-256 integrity checksum (not a signature),
   candidate identity including link count, typed recovery evidence, and a
   human-review requirement. Each recommendation also carries its frozen

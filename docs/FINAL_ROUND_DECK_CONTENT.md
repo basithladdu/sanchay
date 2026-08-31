@@ -107,12 +107,14 @@ Show one terminal capture from the deterministic fixture, in this order:
 - `capstone-thesis.txt` is absent from the plan;
 - a duplicate has a named byte-confirmed evidence peer;
 - hardlink aliases are excluded from reclaimable storage;
-- the target optimizer reports lower-risk-first selection;
+- the target optimizer prints a lower-risk-first selection trace, while the
+  review table is explicitly labelled as priority rather than execution order;
 - `--verify-plan` passes, then fails closed after one synthetic cache mutation.
 
-Use `python -m sanchay.demo --prove` from the repository root for the rehearsal
-check. It creates a disposable fixture only; it never deletes, moves, or
-transmits a file.
+Use the `--target-reclaim 600K` CLI step in `FINAL_ROUND_RUNBOOK.md` for the
+visible selection trace. Use `python -m sanchay.demo --prove` from the
+repository root as the rehearsal check. It creates a disposable fixture only;
+it never deletes, moves, or transmits a file.
 
 ### Slide 7 - Designed for a secure Linux operating model
 
