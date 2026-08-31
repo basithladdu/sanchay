@@ -39,6 +39,10 @@ read at this stage.
 
 It then does six things.
 
+Before the scan records metadata, SANCHAY excludes common credential
+directories, environment files, private-key formats, and local credential
+vaults. They are never duplicate-hashed or placed in a recommendation.
+
 **1. Finds duplicates cheaply.** Files are grouped by size first. Only groups
 that collide get their first 64 KB hashed. Only what still collides after that
 gets a full BLAKE2b-256 digest. Before a duplicate becomes reviewable, SANCHAY

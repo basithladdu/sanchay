@@ -402,6 +402,19 @@ class TestSanchay(unittest.TestCase):
             with self.assertRaises(ValueError):
                 scan.scan(root / '.ssh')
 
+    def test_scan_excludes_common_secret_files_before_metadata_or_hashing(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            visible = root / 'visible.txt'
+            visible.write_text('candidate', encoding='utf-8')
+            for name in ('.env', '.env.local', 'id_ed25519', 'service.pem',
+                         'token.key', 'vault.kdbx', 'credentials.json'):
+                (root / name).write_text('secret material', encoding='utf-8')
+            (root / '.env.example').write_text('example only', encoding='utf-8')
+
+            paths = {item.path for item in scan.scan(root)}
+            self.assertEqual(paths, {str(visible), str(root / '.env.example')})
+
     def test_whole_dependency_and_environment_trees_are_not_assumed_regenerable(self):
         package = scan.FileInfo('/usr/lib/python3.12/site-packages/tool.py', 4096,
                                 self.now, self.now, 200)

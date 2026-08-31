@@ -16,6 +16,11 @@ DEFAULT_SKIP_DIRS = frozenset({
     ".aws", ".git", ".gnupg", ".hg", ".kube", ".password-store", ".pki",
     ".ssh", ".svn",
 })
+DEFAULT_SKIP_FILES = frozenset({
+    ".env", ".netrc", ".pypirc", "credentials", "credentials.json",
+    "id_dsa", "id_ecdsa", "id_ed25519", "id_rsa", "secrets.json",
+})
+DEFAULT_SKIP_SUFFIXES = (".kdbx", ".key", ".p12", ".pem", ".pfx")
 
 
 @dataclass
@@ -27,6 +32,15 @@ class FileInfo:
     inode: int
     device: int = 0
     nlink: int = 1
+
+
+def _is_protected_file(name):
+    """Keep common credential material out of metadata and hash passes."""
+    normalized = name.lower()
+    if normalized in DEFAULT_SKIP_FILES or normalized.endswith(DEFAULT_SKIP_SUFFIXES):
+        return True
+    return (normalized.startswith(".env.")
+            and normalized not in {".env.example", ".env.sample"})
 
 
 def scan(root, skip=DEFAULT_SKIP_DIRS,
@@ -70,6 +84,8 @@ def scan(root, skip=DEFAULT_SKIP_DIRS,
                     continue
             dirnames[:] = same_filesystem
         for name in filenames:
+            if _is_protected_file(name):
+                continue
             path = os.path.join(dirpath, name)
             try:
                 st = os.lstat(path)

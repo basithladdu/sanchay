@@ -106,7 +106,8 @@ invented exact full-disk date.
 
 **Why does this fit a sovereign secure OS?** The core is inspectable,
 dependency-light, local by default, and stays on one filesystem unless the
-operator explicitly opts into crossing that boundary. No file content leaves
+operator explicitly opts into crossing that boundary. Common credential paths
+are excluded before metadata collection or hashing, and no file content leaves
 the machine through the core workflow.
 
 ## What not to claim
