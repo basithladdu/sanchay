@@ -1548,6 +1548,11 @@ class TestSanchay(unittest.TestCase):
         self.assertIn('/home/user/archive/ubuntu-24.04-live.iso', source_page)
         self.assertNotIn('/var/lib/iso/ubuntu-24.04-live.iso', source_page)
         self.assertIn('path-free operator brief', source_page)
+        self.assertIn('Storage pressure triage', source_page)
+        self.assertIn('Seeded mount scenario.', source_page)
+        self.assertIn('free but unavailable to an unprivileged process', source_page)
+        self.assertIn('FILE-ENTRY CAPACITY', source_page)
+        self.assertIn('LOCAL CLI ONLY', source_page)
 
     def test_cli_history_uses_the_local_linear_trend(self):
         with tempfile.TemporaryDirectory() as tmp:

@@ -479,6 +479,15 @@ header {
 }
 .formula-code { color: var(--text-main); font-size: 15px; letter-spacing: -.025em; }
 .formula-badge { background: transparent; border: 1px solid var(--emerald); border-radius: 0; color: var(--emerald); font-family: ui-monospace, monospace; font-size: 10px; padding: 5px 7px; }
+.pressure-panel { border-top: 4px solid var(--cyan); }
+.pressure-grid { border-bottom: 1px solid var(--border); display: grid; grid-template-columns: repeat(3, 1fr); margin-top: 20px; }
+.pressure-signal { border-right: 1px solid var(--border); min-height: 160px; padding: 17px 18px 18px 0; }
+.pressure-signal + .pressure-signal { padding-left: 18px; }
+.pressure-signal:last-child { border-right: 0; padding-right: 0; }
+.pressure-code { color: var(--cyan); display: block; font-family: ui-monospace, monospace; font-size: 10px; font-weight: 700; letter-spacing: .06em; margin-bottom: 16px; }
+.pressure-signal strong { color: var(--text-main); display: block; font-size: 21px; letter-spacing: -.04em; line-height: 1.08; margin-bottom: 10px; }
+.pressure-signal p { color: var(--text-muted); font-size: 12px; line-height: 1.5; margin: 0; }
+.pressure-boundary { color: var(--text-muted); font-family: ui-monospace, monospace; font-size: 10px; line-height: 1.5; margin: 16px 0 0; }
 .interactive-panel {
   background: var(--surface);
   border: 1px solid var(--border);
@@ -546,6 +555,9 @@ button:focus-visible, a:focus-visible, input:focus-visible { outline: 3px solid 
   #forecastDiv { height: 270px !important; }
   .chart-fallback { padding: 7px; }
   .chart-fallback-note { font-size: 9px; }
+  .pressure-grid { grid-template-columns: 1fr; margin-top: 16px; }
+  .pressure-signal, .pressure-signal + .pressure-signal, .pressure-signal:last-child { border-bottom: 1px solid var(--border); border-right: 0; min-height: auto; padding: 15px 0; }
+  .pressure-signal:last-child { border-bottom: 0; }
 }
 </style>
 </head>
@@ -604,6 +616,30 @@ button:focus-visible, a:focus-visible, input:focus-visible { outline: 3px solid 
     </div>
     <div class="formula-badge">Unique files are excluded before ranking</div>
   </div>
+
+  <section class="interactive-panel pressure-panel" aria-labelledby="pressure-title">
+    <h3 class="section-title" id="pressure-title">Storage pressure triage</h3>
+    <p class="section-desc">A disk incident is not one number. SANCHAY keeps block availability, file-entry capacity, and inventory disagreement separate.</p>
+    <div class="demo-boundary" role="note"><strong>Seeded mount scenario.</strong> These example counters explain the local <span class="mono">--capacity-audit</span>; they are not measurements of this browser or server.</div>
+    <div class="pressure-grid">
+      <article class="pressure-signal">
+        <span class="pressure-code">01 · BLOCK AVAILABILITY</span>
+        <strong>18.4 GB usable</strong>
+        <p>20.0 GB free; 1.6 GB is free but unavailable to an unprivileged process. That is a policy boundary, not a deletion recommendation.</p>
+      </article>
+      <article class="pressure-signal">
+        <span class="pressure-code">02 · FILE-ENTRY CAPACITY</span>
+        <strong>4.2 M entries free</strong>
+        <p>Byte space can remain while the filesystem cannot create another file. The audit surfaces inode/file-entry availability separately.</p>
+      </article>
+      <article class="pressure-signal">
+        <span class="pressure-code">03 · INVENTORY ACCOUNTING</span>
+        <strong>+3.7 GB observed gap</strong>
+        <p>Readable files do not fully explain used blocks. Process-held files, mount layers, snapshots, metadata, and protected paths remain review questions.</p>
+      </article>
+    </div>
+    <p class="pressure-boundary">LOCAL CLI ONLY · COMPLETE MOUNT-ROOT SCAN REQUIRED · NO FILESYSTEM, LVM, CONTAINER, OR CLEANUP COMMAND IS RUN</p>
+  </section>
 
   <section class="interactive-panel" id="interactive">
     <h3 class="section-title">Review-plan sandbox</h3>
