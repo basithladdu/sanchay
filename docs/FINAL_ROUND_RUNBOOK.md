@@ -87,12 +87,12 @@ important fail-closed evidence in the live demonstration.
 
 ## Concise jury answers
 
-**Where is the AI?** The decision layer is intentionally explainable: a
-recoverability model ranks eligible candidates and a local linear trend learns
-bytes/day from aggregate snapshots. The default narration is local. A separate
-cloud opt-in receives opaque candidate IDs plus class, allocated bytes, and
-unchanged age—not raw paths or file contents—and cannot promote protected files
-or execute actions.
+**Where is the AI?** The decision layer is intentionally explainable: a local
+recoverability model ranks eligible candidates, and aggregate snapshots fit a
+local linear bytes/day trend. We do not claim this is a trained black box. The
+default narration is local. A separately opt-in cloud LLM receives opaque
+candidate IDs plus class, allocated bytes, and unchanged age—not raw paths or
+file contents—and cannot promote protected files or execute actions.
 
 **Why is the cloud narrative not automatic?** A storage scan can contain
 sensitive path names, and file-derived text is untrusted input for an LLM. The

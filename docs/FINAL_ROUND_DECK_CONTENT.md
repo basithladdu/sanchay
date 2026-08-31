@@ -67,7 +67,7 @@ Three claims only:
 Show two stages, not a fake exact date:
 
 1. An initial mtime-based estimate gives immediate orientation.
-2. Aggregate local snapshots train an explainable linear trend that reports
+2. Aggregate local snapshots fit an explainable linear trend that reports
    bytes/day and, from the third snapshot onward, R-squared fit quality.
 3. If `/proc` shows a deleted regular file still held open, identify its PID and
    allocated bytes as a separate advisory, never as a cleanup recommendation.
@@ -103,7 +103,9 @@ Put the command in small monospace text only:
 
 ## Slide 7 — Fit for a secure, sovereign Linux workflow
 
-- Local core workflow; no file contents transmitted.
+- Local core workflow; no file contents transmitted. Known credential/control
+  paths are excluded before metadata or content reads, and the same gate repeats
+  in direct content and plan APIs.
 - One filesystem by default. Explicit cross-filesystem traversal is inventory
   only: SANCHAY refuses a shared reclaim target or capacity forecast across mounts.
 - On Debian-derived BOSS, APT archives and persistent journals are measured as
@@ -118,9 +120,9 @@ Put the command in small monospace text only:
 - C-DAC describes Secure BOSS as LVM-encrypted. SANCHAY records a visible
   device-mapper boundary but does not infer pool headroom, encryption state, or
   permission to run LVM commands.
-- Dependency-free Python core; TUI, plots, and narrative are optional.
-- Inspectable JSON manifest with SHA-256 integrity checksum (not a signature)
-  and observed identity.
+- Dependency-free Python core; TUI, plots, and the separately opt-in cloud
+  narration are optional. The JSON manifest records observed identity and a
+  SHA-256 integrity checksum (not a signature).
 
 Phrase this as a product fit inferred from C-DAC's Secure OS context, not a
 claim of C-DAC endorsement or scoring criteria.

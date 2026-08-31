@@ -284,9 +284,9 @@ the user's aggregate snapshots and reports its slope and R-squared value. This
 is deliberately a small, inspectable statistical model: the user can see the
 inputs, the fit quality, and the exact limitation of the forecast.
 
-A separate large language model (Claude, accessed via the Anthropic API) is used
-only to write findings up in readable English. It takes no part in the
-decisions, and the tool runs fully without it.
+An optional separate large language model (Claude, accessed via the Anthropic
+API) can write findings up in readable English only after ranking is complete.
+It takes no part in decisions, and the tool runs fully without it.
 
 ---
 
