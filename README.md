@@ -103,14 +103,16 @@ reports the shortfall instead of widening scope to protected files.
 
 ### 6. BOSS-Aware Managed Storage, Not Raw File Cleanup
 
-BOSS is Debian-derived. SANCHAY therefore measures two common system-storage
-areas separately: APT archives under `/var/cache/apt/archives/` and persistent
-systemd journals under `/var/log/journal/`. They are **never** included in a
-file-level reclaim target or suggested for raw deletion. Instead, the plan
-shows the allocated storage, the owning-tool review route (`apt-get autoclean`
-or an approved `apt-get clean` policy; `journalctl --disk-usage` plus an
-approved journal-retention decision), and the reason a human must retain
-control.
+BOSS is Debian-derived. SANCHAY therefore measures APT archives under
+`/var/cache/apt/archives/` and persistent systemd journals under
+`/var/log/journal/` separately. If present, it also fences Docker Engine,
+containerd, and Flatpak system storage under `/var/lib/`. These paths are
+**never** included in a file-level reclaim target or suggested for raw deletion.
+Instead, the plan shows allocated storage and the owning-tool review route:
+`apt-get autoclean` or an approved `apt-get clean` policy; `journalctl
+--disk-usage` plus an approved journal-retention decision; `docker system df
+-v` before any explicit Docker pruning decision; or `flatpak list` before a
+review of unused runtimes. A human retains control over every action.
 
 ---
 
@@ -190,9 +192,9 @@ sanchay-ui .
   during the scan. Linux reads are rooted at the canonical scan directory and
   reject symlink components; all platforms reject non-regular files and
   descriptor identity drift before using content as evidence.
-* **System-tool boundary**: APT archive and persistent journal paths are
-  reported as managed operational storage, not raw file cleanup candidates or
-  target-reclaim bytes.
+* **System-tool boundary**: APT archive, persistent journal, Docker,
+  containerd, and Flatpak system paths are reported as managed operational
+  storage, not raw file cleanup candidates or target-reclaim bytes.
 * **Inspectable evidence policy**: Every plan item records its classification,
   logical and reclaimable allocated sizes, observed identity, typed recovery
   evidence with its strength, and frozen decision-model inputs; files

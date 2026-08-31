@@ -65,7 +65,9 @@ candidates. SANCHAY measures them in a separate advisory section, excludes them
 from deduplication reads and `--target-reclaim`, and names the owning-tool
 review route. APT archives remain under APT policy; journal vacuuming remains
 under an approved retention policy because it may affect audit or incident
-evidence.
+evidence. When present, Docker Engine, containerd, and Flatpak system stores
+under `/var/lib/` receive the same treatment: SANCHAY does not hash, rank, or
+turn their individual files into raw cleanup recommendations.
 
 **2. Works out how recoverable each file is.** This is the core of the tool.
 Every file lands in one of four classes:

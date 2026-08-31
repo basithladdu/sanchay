@@ -144,7 +144,7 @@ class Sanchay(App):
             deferred_entries = sum(item["entries"] for item in managed_storage)
             deferred_bytes = sum(item["allocated_bytes"] for item in managed_storage)
             guard.append(
-                f"{deferred_entries:,} system-managed entries ({human(deferred_bytes)}) are deferred to APT or journal policy.",
+                f"{deferred_entries:,} system-managed entries ({human(deferred_bytes)}) are deferred to their owning tools.",
                 style="dim")
         self.query_one("#guard", Static).update(guard)
         self.fill()

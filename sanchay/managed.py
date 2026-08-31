@@ -1,9 +1,10 @@
 """Recognise system-owned storage that must not be treated as loose files.
 
 BOSS is Debian-derived, so APT's archive cache and persistent systemd journals
-are useful operational signals.  Neither is a safe raw-path deletion target:
-APT owns its locks and cache policy, while journal retention may be relevant to
-operations, audit, or incident response.  SANCHAY reports those areas as
+are useful operational signals. Container and Flatpak stores are not assumed to
+exist on every BOSS endpoint, but when present they are also runtime-owned state.
+None is a safe raw-path deletion target: the owning tool controls locks,
+metadata, retention, and recoverability. SANCHAY reports those areas as
 tool-owned advisories and keeps them outside its file-level reclaim target.
 """
 from dataclasses import dataclass
@@ -45,6 +46,45 @@ POLICIES = (
         boundary=(
             "journal retention can affect audit and incident evidence; do not "
             "delete journal files individually"
+        ),
+    ),
+    ManagedPolicy(
+        key="docker_engine_storage",
+        label="Docker Engine storage",
+        prefix="/var/lib/docker/",
+        review_action=(
+            "review docker system df -v; use Docker's explicit prune "
+            "confirmation only after a deployment and data-retention review"
+        ),
+        boundary=(
+            "Docker owns image, container, overlay, and volume state; do not "
+            "delete files under this path individually"
+        ),
+    ),
+    ManagedPolicy(
+        key="container_runtime_storage",
+        label="Container runtime storage",
+        prefix="/var/lib/containerd/",
+        review_action=(
+            "review the owning container runtime or orchestrator state and "
+            "retention policy before action"
+        ),
+        boundary=(
+            "containerd owns runtime content and metadata; do not delete files "
+            "under this path individually"
+        ),
+    ),
+    ManagedPolicy(
+        key="flatpak_system_installation",
+        label="Flatpak system installation",
+        prefix="/var/lib/flatpak/",
+        review_action=(
+            "review flatpak list; consider flatpak uninstall --unused only "
+            "after checking required runtimes and installation scope"
+        ),
+        boundary=(
+            "Flatpak owns application, runtime, and repository state; do not "
+            "delete files under this path individually"
         ),
     ),
 )

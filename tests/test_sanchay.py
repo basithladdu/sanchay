@@ -110,8 +110,14 @@ class TestSanchay(unittest.TestCase):
                           self.now, self.now - 86400 * 90, 702),
             scan.FileInfo('/var/log/journal/machine/system.journal', 16000,
                           self.now, self.now - 86400 * 90, 703),
+            scan.FileInfo('/var/lib/docker/overlay2/layer/diff.bin', 22000,
+                          self.now, self.now - 86400 * 90, 704),
+            scan.FileInfo('/var/lib/containerd/content/blobs/sha256/blob', 24000,
+                          self.now, self.now - 86400 * 90, 705),
+            scan.FileInfo('/var/lib/flatpak/repo/objects/object', 28000,
+                          self.now, self.now - 86400 * 90, 706),
             scan.FileInfo('/home/user/project/var/cache/apt/archives/not-system.deb',
-                          20000, self.now, self.now - 86400 * 90, 704),
+                          20000, self.now, self.now - 86400 * 90, 707),
         ]
 
         cleanup_plan = plan.build(files, [], '/', now=self.now,
@@ -123,14 +129,24 @@ class TestSanchay(unittest.TestCase):
         self.assertEqual(selected_paths, ['/home/user/.cache/build.bin'])
         self.assertFalse(cleanup_plan['selection']['target_met'])
         self.assertEqual(cleanup_plan['selection']['shortfall_bytes'], 2000)
-        self.assertEqual(cleanup_plan['safety']['deferred_managed_entries'], 2)
-        self.assertEqual(cleanup_plan['safety']['deferred_managed_bytes'], 28000)
+        self.assertEqual(cleanup_plan['safety']['deferred_managed_entries'], 5)
+        self.assertEqual(cleanup_plan['safety']['deferred_managed_bytes'], 102000)
         self.assertIn('apt_archive_cache', advisory)
         self.assertIn('persistent_system_journal', advisory)
+        self.assertIn('docker_engine_storage', advisory)
+        self.assertIn('container_runtime_storage', advisory)
+        self.assertIn('flatpak_system_installation', advisory)
         self.assertIn('apt-get autoclean', advisory['apt_archive_cache']['review_action'])
         self.assertIn('journalctl --disk-usage',
                       advisory['persistent_system_journal']['review_action'])
+        self.assertIn('docker system df -v',
+                      advisory['docker_engine_storage']['review_action'])
+        self.assertIn('flatpak uninstall --unused',
+                      advisory['flatpak_system_installation']['review_action'])
         self.assertEqual(managed.classify(files[-1].path), None)
+        self.assertEqual(managed.classify('/var/lib/docker-old/layer.bin'), None)
+        self.assertEqual(managed.classify('/home/user/project/var/lib/docker/layer.bin'),
+                         None)
         self.assertEqual(regret.classify(files[-1], False), 'unique')
         self.assertEqual(managed.content_candidates(files), [files[0], files[-1]])
 
@@ -144,6 +160,12 @@ class TestSanchay(unittest.TestCase):
                           self.now, self.now - 86400 * 90, 712),
             scan.FileInfo('/var/log/journal/machine/system.journal', 16000,
                           self.now, self.now - 86400 * 90, 713),
+            scan.FileInfo('/var/lib/docker/overlay2/layer/diff.bin', 22000,
+                          self.now, self.now - 86400 * 90, 714),
+            scan.FileInfo('/var/lib/containerd/content/blobs/sha256/blob', 24000,
+                          self.now, self.now - 86400 * 90, 715),
+            scan.FileInfo('/var/lib/flatpak/repo/objects/object', 28000,
+                          self.now, self.now - 86400 * 90, 716),
         ]
         with tempfile.TemporaryDirectory() as tmp:
             output = Path(tmp) / 'report.html'
@@ -153,6 +175,9 @@ class TestSanchay(unittest.TestCase):
         self.assertIn('System-managed storage', page)
         self.assertIn('APT archive cache', page)
         self.assertIn('Persistent systemd journal', page)
+        self.assertIn('Docker Engine storage', page)
+        self.assertIn('Container runtime storage', page)
+        self.assertIn('Flatpak system installation', page)
         self.assertIn('excluded from file-level reclamation', page)
         self.assertIn('not calculated across multiple filesystems', page)
         self.assertIn('Cross-filesystem inventory; no aggregate free-space or reclaim target', page)
@@ -165,6 +190,8 @@ class TestSanchay(unittest.TestCase):
                           self.now - 86400 * 90, 721),
             scan.FileInfo('/var/cache/apt/archives/boss-tools.deb', 12000,
                           self.now, self.now - 86400 * 90, 722),
+            scan.FileInfo('/var/lib/docker/overlay2/layer/diff.bin', 22000,
+                          self.now, self.now - 86400 * 90, 723),
         ]
         output = io.StringIO()
         with mock.patch.object(scan, 'scan', return_value=files), \
@@ -177,6 +204,7 @@ class TestSanchay(unittest.TestCase):
         self.assertIsNone(status)
         self.assertIn('managed:', rendered)
         self.assertIn('APT archive cache', rendered)
+        self.assertIn('Docker Engine storage', rendered)
         self.assertIn('never selected as file cleanup candidates', rendered)
 
     def test_cross_filesystem_scan_avoids_a_single_mount_capacity_claim(self):

@@ -23,6 +23,16 @@ endorses SANCHAY or defines the hackathon scoring rubric.
 - systemd documents that `journalctl --vacuum-size=` removes **archived**
   journals only, so active journals and retention policy still matter. Source:
   [systemd `journalctl`](https://www.freedesktop.org/software/systemd/man/255/journalctl.html).
+- Docker documents that `docker system df -v` reports detailed daemon disk use;
+  `docker system prune` removes unused containers, networks, images, and build
+  cache, while volume pruning is an explicit additional choice. SANCHAY does
+  not execute either command: it reports Docker storage as a tool-owned review
+  boundary. Source: [Docker disk usage](https://docs.docker.com/reference/cli/docker/system/df/)
+  and [Docker prune](https://docs.docker.com/reference/cli/docker/system/prune/).
+- Flatpak distinguishes system-wide from per-user installations and documents
+  `flatpak uninstall --unused` for unused runtimes and extensions. SANCHAY
+  therefore treats the system installation as tool-owned storage rather than
+  loose files. Source: [Flatpak documentation](https://docs.flatpak.org/en/latest/using-flatpak.html).
 
 ### Storage-systems research
 
@@ -48,6 +58,10 @@ endorses SANCHAY or defines the hackathon scoring rubric.
   noted that deleting a still-open file does not necessarily return its space.
   This is anecdotal evidence for surfacing journal storage as a policy review,
   not promising an immediate raw-file reclaim. Source: [r/debian discussion](https://www.reddit.com/r/debian/comments/1l6elfa/).
+- A Debian operator described a Docker-heavy root filesystem with ample space
+  elsewhere and uncertainty around encrypted LVM layout and data relocation.
+  This is anecdotal evidence for separating container-runtime review from a
+  generic free-space recommendation. Source: [r/linuxquestions discussion](https://www.reddit.com/r/linuxquestions/comments/16j9d9c).
 
 ## Decisions derived from the evidence
 
@@ -58,6 +72,7 @@ endorses SANCHAY or defines the hackathon scoring rubric.
 | Preserve source-of-truth and hardlinks | Keep a deterministic duplicate survivor; identify hardlinks by `(device, inode)`, count each inode once, and exclude individual hardlinked paths because one unlink releases no bytes. | Implemented |
 | Avoid treating a path swap as duplicate proof | On Linux, walk from the canonical scan-root descriptor with `openat` plus no-follow flags; reject non-regular files or identity drift before/after a content read. | Implemented |
 | Make BOSS storage operations safer | Measure APT archive and persistent systemd-journal storage separately; defer action to the owning tool and approved package/log-retention policy instead of raw file deletion or reclaim-target selection. | Implemented |
+| Protect managed application stores | When present, report Docker, containerd, and Flatpak system stores as tool-owned advisories; do not hash, rank, or raw-delete their files. | Implemented |
 | Avoid crossing a governance boundary silently | Scan one filesystem by default; cross-filesystem traversal requires an explicit flag and is inventory-only across mounts. | Implemented |
 | Keep forecasting honest | Label the first pass an mtime-derived estimate; capture aggregate local snapshots for observed growth and an explainable local linear trend. Cross-mount scans refuse shared targets and capacity forecasts. | Implemented |
 | Support government/BOSS deployment | Keep the core local, dependency-light, inspectable, and suitable for an offline terminal workflow. | Implemented |

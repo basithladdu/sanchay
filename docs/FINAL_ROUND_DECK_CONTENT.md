@@ -93,7 +93,8 @@ Put the command in small monospace text only:
 - One filesystem by default. Explicit cross-filesystem traversal is inventory
   only: SANCHAY refuses a shared reclaim target or capacity forecast across mounts.
 - On Debian-derived BOSS, APT archives and persistent journals are measured as
-  tool-owned operational storage, never raw file-deletion candidates.
+  tool-owned operational storage. When present, Docker, containerd, and Flatpak
+  stores receive the same protection—never raw file-deletion candidates.
 - Dependency-free Python core; TUI, plots, and narrative are optional.
 - Inspectable JSON manifest with SHA-256 integrity checksum (not a signature)
   and observed identity.

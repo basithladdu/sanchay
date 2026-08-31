@@ -121,8 +121,10 @@ operator explicitly opts into a multi-mount inventory. That inventory does not
 make a shared capacity forecast or reclaim-target claim. Common credential paths
 are excluded before metadata collection or hashing, and no file content leaves
 the machine through the core workflow. On Debian-derived BOSS, SANCHAY reports
-APT archives and persistent journals as tool-owned operational storage; it
-does not convert them into raw file-deletion candidates or target-reclaim bytes.
+APT archives and persistent journals as tool-owned operational storage. When
+they exist, Docker, containerd, and Flatpak stores receive the same treatment;
+SANCHAY does not convert any of them into raw file-deletion candidates or
+target-reclaim bytes.
 
 ## What not to claim
 
