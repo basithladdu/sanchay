@@ -344,6 +344,33 @@ class TestSanchay(unittest.TestCase):
         self.assertFalse(multi_mount['assessed'])
         self.assertIn('cross-filesystem inventory', multi_mount['reason'])
 
+    def test_inode_capacity_audit_is_mount_scoped_and_advisory_only(self):
+        stats = SimpleNamespace(f_files=1000, f_ffree=12, f_favail=9)
+        with mock.patch.object(accounting.os, 'statvfs', return_value=stats,
+                               create=True):
+            audit = accounting.assess_inode_capacity(
+                '/mnt/data', scan_coverage=scan.ScanCoverage(), root_is_mount=True)
+
+        self.assertTrue(audit['assessed'])
+        self.assertEqual(audit['total_inodes'], 1000)
+        self.assertEqual(audit['free_inodes'], 12)
+        self.assertEqual(audit['available_inodes'], 9)
+        self.assertEqual(audit['used_inodes'], 988)
+        self.assertEqual(audit['used_percent'], 98.8)
+        self.assertIn('not a cleanup recommendation', audit['boundary'])
+
+        partial = accounting.assess_inode_capacity(
+            '/mnt/data', scan_coverage=scan.ScanCoverage(unreadable_files=1),
+            root_is_mount=True)
+        self.assertFalse(partial['assessed'])
+        self.assertIn('complete readable-path coverage', partial['reason'])
+
+        with mock.patch.object(accounting.os, 'statvfs', None, create=True):
+            unavailable = accounting.assess_inode_capacity(
+                '/mnt/data', scan_coverage=scan.ScanCoverage(), root_is_mount=True)
+        self.assertFalse(unavailable['assessed'])
+        self.assertIn('no statvfs support', unavailable['reason'])
+
     @unittest.skipUnless(importlib.util.find_spec('pandas'),
                          'requires the optional report dependencies')
     def test_report_surfaces_capacity_accounting_as_a_boundary(self):
@@ -355,6 +382,10 @@ class TestSanchay(unittest.TestCase):
         audit = accounting.assess(
             files, 16384, process_held_bytes=4096,
             scan_coverage=scan.ScanCoverage(), root_is_mount=True)
+        audit['inode_capacity'] = {
+            'assessed': True, 'total_inodes': 1000, 'free_inodes': 12,
+            'available_inodes': 9, 'used_inodes': 988, 'used_percent': 98.8,
+        }
         with tempfile.TemporaryDirectory() as tmp:
             output = Path(tmp) / 'report.html'
             report.build(files, '/mnt/data', 1000000, output,
@@ -366,6 +397,8 @@ class TestSanchay(unittest.TestCase):
         self.assertIn('16.0 KB', page)
         self.assertIn('8.0 KB', page)
         self.assertIn('data-label="Accounting gap"', page)
+        self.assertIn('Inode capacity advisory', page)
+        self.assertIn('1,000 file entries; 12 free; 98.8% used', page)
 
     def test_cli_labels_managed_storage_as_deferred_not_reclaimable(self):
         files = [
@@ -421,6 +454,10 @@ class TestSanchay(unittest.TestCase):
         audit = accounting.assess(
             files, 49152, process_held_bytes=held.allocated_size,
             scan_coverage=scan.ScanCoverage(), root_is_mount=True)
+        audit['inode_capacity'] = {
+            'assessed': True, 'total_inodes': 1000, 'free_inodes': 12,
+            'available_inodes': 9, 'used_inodes': 988, 'used_percent': 98.8,
+        }
 
         document = brief.build(
             files, cleanup_plan, process_held=[held], capacity_accounting=audit)
@@ -444,6 +481,11 @@ class TestSanchay(unittest.TestCase):
             'visible_deleted_open_inode_count'], 1)
         self.assertEqual(document['operational_advisories'][
             'visible_deleted_open_allocated_bytes'], 16384)
+        self.assertEqual(document['operational_advisories']['capacity_accounting'][
+            'inode_capacity'], {
+                'assessed': True, 'total_inodes': 1000, 'free_inodes': 12,
+                'available_inodes': 9, 'used_inodes': 988, 'used_percent': 98.8,
+            })
         for sensitive in (root, 'private-note.txt', '.aws', 'credentials',
                           'private-service', '9101', 'deleted-audit.log',
                           '/var/log/secure-audit.log'):
@@ -578,10 +620,17 @@ class TestSanchay(unittest.TestCase):
                 pid=4321, process='service', fd='9',
                 path='/mnt/data/service.log (deleted)'),))
         output = io.StringIO()
+        inode_audit = {
+            'assessed': True, 'total_inodes': 1000, 'free_inodes': 12,
+            'available_inodes': 9, 'used_inodes': 988, 'used_percent': 98.8,
+            'boundary': 'inode metrics are advisory only',
+        }
         with mock.patch.object(scan, 'scan_with_coverage',
                                return_value=(files, scan.ScanCoverage())), \
                 mock.patch.object(processes, 'deleted_open_files', return_value=[held]), \
                 mock.patch.object(mounts, 'is_mount_root', return_value=True), \
+                mock.patch.object(accounting, 'assess_inode_capacity',
+                                  return_value=inode_audit), \
                 mock.patch.object(shutil, 'disk_usage',
                                   return_value=SimpleNamespace(
                                       free=1000000, used=16384)), \
@@ -595,6 +644,8 @@ class TestSanchay(unittest.TestCase):
         self.assertIn('visible deleted-open 4.0KB', rendered)
         self.assertIn('accounting gap: +8.0KB', rendered)
         self.assertIn('not a full filesystem reconciliation', rendered)
+        self.assertIn('inode capacity: 1,000 file entries; 12 free; 98.8% used', rendered)
+        self.assertIn('available to an unprivileged process: 9 file entries', rendered)
 
     def test_cli_marks_incomplete_coverage_and_withholds_snapshot(self):
         files = [

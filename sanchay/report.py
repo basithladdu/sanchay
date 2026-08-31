@@ -273,6 +273,24 @@ def build(files, root, free_bytes, out="sanchay-report.html", limit=50,
         if capacity_accounting.get("assessed"):
             gap = capacity_accounting["accounting_gap_bytes"]
             sign = "+" if gap >= 0 else "-"
+            inode_capacity = capacity_accounting.get("inode_capacity")
+            inode_note = ""
+            if isinstance(inode_capacity, dict) and inode_capacity.get("assessed"):
+                available = inode_capacity.get("available_inodes")
+                available_note = (
+                    f"; {available:,} available to an unprivileged process"
+                    if isinstance(available, int) else "")
+                inode_note = (
+                    f"<p class=\"h\">Inode capacity advisory: "
+                    f"{inode_capacity['total_inodes']:,} file entries; "
+                    f"{inode_capacity['free_inodes']:,} free; "
+                    f"{inode_capacity['used_percent']:.1f}% used{available_note}. "
+                    f"This is a mount-level observation, not a cleanup instruction.</p>")
+            elif isinstance(inode_capacity, dict):
+                inode_note = (
+                    "<p class=\"h\">Inode capacity advisory not assessed: "
+                    + html.escape(inode_capacity.get("reason", "unavailable"))
+                    + ".</p>")
             accounting_panel = f"""
   <div class="panel">
     <h2>Filesystem accounting boundary</h2>
@@ -282,6 +300,7 @@ def build(files, root, free_bytes, out="sanchay-report.html", limit=50,
       <tbody><tr><td class="num" data-label="Filesystem used">{human(capacity_accounting['filesystem_used_bytes'])}</td><td class="num" data-label="Readable inventory">{human(capacity_accounting['readable_file_allocated_bytes'])}</td><td class="num" data-label="Visible deleted-open">{human(capacity_accounting['deleted_open_allocated_bytes'])}</td><td class="num" data-label="Accounting gap">{sign}{human(abs(gap))}</td></tr></tbody>
     </table>
     <p class="h">{html.escape(capacity_accounting['boundary'])}</p>
+    {inode_note}
   </div>
 """
         else:

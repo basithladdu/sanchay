@@ -80,7 +80,10 @@ Show two stages, not a fake exact date:
 5. On an explicit `--capacity-audit`, compare filesystem-used blocks with a
    complete mount-root readable inventory plus visible deleted-open bytes. Call
    the result an accounting gap, not reclaimable or unexplained storage.
-6. If any in-scope path is unreadable, record only count-level coverage,
+6. In the same explicit audit, show the mount's POSIX inode/file-entry
+   counters (total, free, and unprivileged availability where reported), so
+   `ENOSPC` with free byte space is surfaced without recommending a deletion.
+7. If any in-scope path is unreadable, record only count-level coverage,
    label the output readable-file inventory, and withhold forecast/snapshot
    claims rather than treating a partial scan as complete.
 

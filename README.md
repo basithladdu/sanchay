@@ -171,10 +171,14 @@ signal, restart, truncate, or delete anything held by a process.
 `--capacity-audit` is an explicit diagnostic for a complete scan started at the
 root of one mounted filesystem. It compares reported filesystem-used blocks
 with the readable allocated-file inventory plus visible deleted-open files and
-labels the signed remainder an **accounting gap**. It is never called reclaimable
-or unexplained space: protected paths, filesystem metadata, Btrfs snapshots or
-shared extents, mount-overlaid data, and inaccessible state can all contribute.
-The audit never runs a filesystem, volume, container, or cleanup command.
+labels the signed remainder an **accounting gap**. It also reads the mounted
+filesystem's POSIX `statvfs` file-entry/inode counters: total, free, and, when
+reported, entries available to an unprivileged process. That catches the
+separate failure mode where Linux cannot create a file despite free byte space.
+Neither signal is called reclaimable or unexplained space: protected paths,
+filesystem metadata, Btrfs snapshots or shared extents, mount-overlaid data,
+and inaccessible state can all contribute. The audit identifies no file to
+remove and never runs a filesystem, volume, container, or cleanup command.
 
 ---
 
@@ -331,8 +335,9 @@ sanchay-ui .
   action, and never represents a same-filesystem copy as an independent backup.
 * **Capacity-audit boundary**: `--capacity-audit` works only for a complete
   single-filesystem scan begun at that mount's root. It reports a signed
-  accounting gap after readable inventory and visible deleted-open storage; it
-  never treats that difference as a cleanup target or a complete explanation of
+  accounting gap after readable inventory and visible deleted-open storage,
+  alongside any usable POSIX inode/file-entry capacity counters. It never
+  treats either signal as a cleanup target or a complete explanation of
   filesystem use.
 
 ---

@@ -140,7 +140,11 @@ process still has it open, so SANCHAY checks visible `/proc/<pid>/fd` records
 and reports PID, descriptor, and allocated bytes separately. It never kills,
 restarts, truncates, or deletes a process-held file; snapshots, metadata,
 protected paths, mount overlays, and filesystem-specific state remain separate
-diagnostic questions.
+diagnostic questions. The same audit also reports POSIX `statvfs` inode/file-
+entry capacity where the filesystem exposes it: total entries, free entries,
+and entries available to an unprivileged process. This catches the distinct
+case where byte space remains but no file entry can be created. It does not
+identify a file to remove or claim a cause when the counters are unavailable.
 
 **Why does SANCHAY show mount context?** C-DAC describes Secure BOSS as
 LVM-encrypted, so filesystem-free bytes alone do not establish volume-group or

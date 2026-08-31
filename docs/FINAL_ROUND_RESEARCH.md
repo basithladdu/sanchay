@@ -99,6 +99,14 @@ endorses SANCHAY or defines the hackathon scoring rubric.
   failure. That is a useful baseline: a storage estimate must preserve its
   failure boundary rather than silently report a misleading total. Source:
   [GNU Coreutils `du`](https://www.gnu.org/software/coreutils/manual/html_node/du-invocation.html).
+- Python documents that `os.statvfs()` exposes a filesystem's total file-entry
+  (inode) count, free file entries, and free entries available to an
+  unprivileged process; Linux documents the same counters in `statvfs(3)`. A
+  byte-capacity check alone can therefore miss a full file-entry table. SANCHAY
+  reads those counters only in its explicit, mount-root capacity audit and
+  never converts them into a deletion instruction. Sources: [Python
+  `os.statvfs`](https://docs.python.org/3/library/os.html#os.statvfs) and
+  [Linux `statvfs(3)`](https://man7.org/linux/man-pages/man3/statvfs.3.html).
 
 ### AI security boundary
 
@@ -134,6 +142,13 @@ endorses SANCHAY or defines the hackathon scoring rubric.
   deleted-open files and hidden mounts](https://www.reddit.com/r/linuxquestions/comments/1cl57ke/),
   [r/linuxquestions on Btrfs snapshots](https://www.reddit.com/r/linuxquestions/comments/rlbye3/),
   and [r/selfhosted on Docker overlay use](https://www.reddit.com/r/selfhosted/comments/1eagm9c/).
+- A Linux user reported `ENOSPC` despite free byte space after exhausting ext4
+  inodes; commenters in a separate discussion likewise describe inode counts
+  as a second capacity metric. These are practitioner accounts, not a
+  filesystem-wide incident rate, but they justify surfacing the counters before
+  a user is forced into a recovery path. Sources: [r/linuxquestions: ENOSPC
+  with free space](https://www.reddit.com/r/linuxquestions/comments/1vtb008/how_to_handle_enospc_on_the_root_filesystem/) and
+  [r/linuxadmin: inode exhaustion](https://www.reddit.com/r/linuxadmin/comments/k7n557/removed/).
 
 ## Decisions derived from the evidence
 
@@ -150,6 +165,7 @@ endorses SANCHAY or defines the hackathon scoring rubric.
 | Explain process-held deleted storage | On Linux, report visible deleted regular files held through `/proc` only as an operational advisory; never signal, restart, truncate, delete, or include them in a reclaim target. | Implemented |
 | Keep capacity claims mount-aware | Record the selected Linux mount context. Label Btrfs, overlay, and device-mapper boundaries instead of inferring host-wide, snapshot-aware, or volume-pool capacity; run no filesystem or LVM command. | Implemented |
 | Make capacity disagreement measurable, not actionable | On explicit request, compare filesystem-used blocks with a complete mount-root readable inventory plus visible deleted-open bytes. Label the signed remainder an accounting gap, never reclaimable or a complete diagnosis. | Implemented |
+| Detect file-entry exhaustion separately from byte exhaustion | In the same explicit mount-root audit, read POSIX `statvfs` total/free/available inode counters when exposed. Report them as an advisory only; do not infer a cause or nominate a file for deletion. | Implemented |
 | Keep scan coverage honest | Count unreadable in-scope directories/files without serialising their paths. Mark the view as readable-file inventory and withhold mtime forecasts plus snapshots/history when coverage is incomplete. | Implemented |
 | Contain the optional LLM | Keep narration local by default. Require a separate cloud opt-in and send only opaque candidate IDs with fixed class/size/age metadata; deterministic code retains all decision and action boundaries. | Implemented |
 | Avoid crossing a governance boundary silently | Scan one filesystem by default; cross-filesystem traversal requires an explicit flag and is inventory-only across mounts. | Implemented |

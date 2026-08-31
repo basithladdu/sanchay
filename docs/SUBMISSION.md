@@ -96,7 +96,10 @@ with the readable allocated inventory and visible deleted-open bytes, then
 labels any signed remainder an accounting gap. It does not claim that the gap
 has one cause or can be freed: protected paths, filesystem metadata, snapshots
 or shared extents, mount-overlaid data, and inaccessible state can contribute.
-The audit runs no filesystem, LVM, container, or cleanup action.
+The same read-only audit reports POSIX inode/file-entry capacity (total, free,
+and, when reported, unprivileged availability), so it can distinguish byte
+capacity from the separate inability to create a new file. It identifies no
+file to remove and runs no filesystem, LVM, container, or cleanup action.
 
 **1e. Fences system-reserved OS paths before content reads.** A duplicated byte
 sequence under `/usr` or `/etc` is not evidence that it is safe to remove.

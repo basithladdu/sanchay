@@ -85,8 +85,12 @@ def _capacity_summary(capacity_accounting):
     if not isinstance(capacity_accounting, dict):
         return {"requested": False, "assessed": False}
     if not capacity_accounting.get("assessed"):
-        return {"requested": True, "assessed": False}
-    return {
+        return {
+            "requested": True,
+            "assessed": False,
+            "inode_capacity": {"assessed": False},
+        }
+    summary = {
         "requested": True,
         "assessed": True,
         "filesystem_used_bytes": _non_negative_int(
@@ -107,6 +111,32 @@ def _capacity_summary(capacity_accounting):
             "visible_accounting_matches_filesystem_used",
         } else "unavailable",
     }
+    inode_capacity = capacity_accounting.get("inode_capacity")
+    if not isinstance(inode_capacity, dict) or not inode_capacity.get("assessed"):
+        summary["inode_capacity"] = {"assessed": False}
+        return summary
+    total = _non_negative_int(inode_capacity.get("total_inodes"))
+    free = _non_negative_int(inode_capacity.get("free_inodes"))
+    used = _non_negative_int(inode_capacity.get("used_inodes"))
+    available = inode_capacity.get("available_inodes")
+    available = (_non_negative_int(available)
+                 if available is not None else None)
+    if (total is None or total == 0 or free is None or used is None
+            or free > total or used > total or used != total - free
+            or (available is not None and available > total)):
+        summary["inode_capacity"] = {"assessed": False}
+        return summary
+    summary["inode_capacity"] = {
+        "assessed": True,
+        "total_inodes": total,
+        "free_inodes": free,
+        "available_inodes": available,
+        "used_inodes": used,
+        "used_percent": inode_capacity.get("used_percent")
+        if isinstance(inode_capacity.get("used_percent"), (int, float))
+        and not isinstance(inode_capacity.get("used_percent"), bool) else 0,
+    }
+    return summary
 
 
 def build(files, cleanup_plan, *, process_held=None, capacity_accounting=None,

@@ -249,11 +249,18 @@ def main(argv=None):
     free = None if usage is None else usage.free
     capacity_accounting = None
     if args.capacity_audit:
+        root_is_mount = mounts.is_mount_root(args.root)
         capacity_accounting = accounting.assess(
             files, usage.used,
             process_held_bytes=processes.allocated_total(held_deleted),
             scan_coverage=scan_coverage,
-            root_is_mount=mounts.is_mount_root(args.root),
+            root_is_mount=root_is_mount,
+            cross_filesystems=args.cross_filesystems,
+        )
+        capacity_accounting["inode_capacity"] = accounting.assess_inode_capacity(
+            args.root,
+            scan_coverage=scan_coverage,
+            root_is_mount=root_is_mount,
             cross_filesystems=args.cross_filesystems,
         )
         if capacity_accounting["assessed"]:
@@ -267,6 +274,18 @@ def main(argv=None):
             print("  boundary: " + capacity_accounting["boundary"])
         else:
             print("capacity audit: not assessed; " + capacity_accounting["reason"])
+        inode_capacity = capacity_accounting["inode_capacity"]
+        if inode_capacity["assessed"]:
+            print("inode capacity: "
+                  f"{inode_capacity['total_inodes']:,} file entries; "
+                  f"{inode_capacity['free_inodes']:,} free; "
+                  f"{inode_capacity['used_percent']:.1f}% used")
+            if inode_capacity["available_inodes"] is not None:
+                print("  available to an unprivileged process: "
+                      f"{inode_capacity['available_inodes']:,} file entries")
+            print("  boundary: " + inode_capacity["boundary"])
+        else:
+            print("inode capacity: not assessed; " + inode_capacity["reason"])
     current_snapshot = (
         snapshot.capture(files, args.root, free, scan_coverage=scan_coverage)
         if free is not None and scan_coverage["complete"] else None)
