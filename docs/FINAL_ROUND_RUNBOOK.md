@@ -91,9 +91,9 @@ the irreversible step has a different risk profile. SANCHAY supplies an
 auditable plan and revalidation gate so an operator retains authority.
 
 **What if an operator needs a stated amount of free space?** `--target-reclaim`
-selects enough evidence-backed candidates in deterministic priority order and
-reports whether the target is met. If it cannot be met safely, it reports a
-shortfall rather than recommending protected files.
+selects from the lowest recovery-risk class first, using the smallest safe
+excess within that class, and reports whether the target is met. If it cannot
+be met safely, it reports a shortfall rather than recommending protected files.
 
 **How do you prove a duplicate is eligible for review?** It uses size bucketing,
 prefix hashing, then a full BLAKE2b-256 digest and a byte-for-byte comparison;

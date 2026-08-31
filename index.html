@@ -538,10 +538,10 @@ const demoPlan = {
 };
 
 const demoCandidates = [
-  {kind: 'duplicate', sizeGB: 4.8},
-  {kind: 'disposable', sizeGB: 1.45},
-  {kind: 'disposable', sizeGB: 0.85},
-  {kind: 'tracked', sizeGB: 0.32}
+  {id: 'webpack-cache', kind: 'disposable', regret: 0.02, sizeGB: 1.45},
+  {id: 'rust-cache', kind: 'disposable', regret: 0.02, sizeGB: 0.85},
+  {id: 'ubuntu-duplicate', kind: 'duplicate', regret: 0.10, sizeGB: 4.8},
+  {id: 'tracked-boot-object', kind: 'tracked', regret: 0.20, sizeGB: 0.32}
 ];
 
 function formatDemoGB(value) {
@@ -549,12 +549,24 @@ function formatDemoGB(value) {
 }
 
 function selectDemoCandidates(targetGB) {
+  const pool = [...demoCandidates];
   let selectedGB = 0;
   let selectedCount = 0;
-  for (const candidate of demoCandidates) {
-    if (selectedGB >= targetGB) break;
+  while (pool.length && selectedGB < targetGB) {
+    const lowestRegret = Math.min(...pool.map(candidate => candidate.regret));
+    const safest = pool.filter(candidate => candidate.regret === lowestRegret);
+    const enough = safest.filter(candidate => candidate.sizeGB >= targetGB - selectedGB);
+    const choices = enough.length ? enough : safest;
+    choices.sort((left, right) => {
+      const sizeOrder = enough.length
+        ? left.sizeGB - right.sizeGB
+        : right.sizeGB - left.sizeGB;
+      return sizeOrder || left.id.localeCompare(right.id);
+    });
+    const candidate = choices[0];
     selectedGB += candidate.sizeGB;
     selectedCount += 1;
+    pool.splice(pool.indexOf(candidate), 1);
   }
   return {selectedGB, selectedCount, targetMet: selectedGB >= targetGB};
 }
@@ -589,7 +601,7 @@ async function generateDemoPlan() {
   const fingerprint = [...new Uint8Array(digest)]
     .map(value => value.toString(16).padStart(2, '0')).join('');
   const outcome = selection.targetMet ? 'target met' : 'evidence-limited shortfall';
-  status.textContent = `Seeded ${formatDemoGB(targetGB)} target: ${formatDemoGB(selection.selectedGB)} across ${selection.selectedCount} reviewable candidates — ${outcome}. SHA-256 ${fingerprint.slice(0, 16)}… (not a signature); no file action exists in this demo.`;
+  status.textContent = `Seeded ${formatDemoGB(targetGB)} target: ${formatDemoGB(selection.selectedGB)} across ${selection.selectedCount} lowest-risk candidates — ${outcome}. SHA-256 ${fingerprint.slice(0, 16)}… (not a signature); no file action exists in this demo.`;
 }
 
 // Treemap rendering

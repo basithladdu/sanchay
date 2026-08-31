@@ -99,6 +99,34 @@ class TestSanchay(unittest.TestCase):
         self.assertEqual(selection['selected_reclaim_bytes'], 4000)
         self.assertEqual(selection['shortfall_bytes'], 2000)
 
+    def test_reclaim_target_prefers_lowest_risk_with_minimal_safe_excess(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            cache = root / '.cache' / 'small-safe.bin'
+            duplicate_a = root / 'archive' / 'large-source.bin'
+            duplicate_z = root / 'downloads' / 'large-copy.bin'
+            cache.parent.mkdir(parents=True)
+            duplicate_a.parent.mkdir(parents=True)
+            duplicate_z.parent.mkdir(parents=True)
+            cache.write_bytes(b'c' * 8192)
+            duplicate_a.write_bytes(b'd' * 20480)
+            duplicate_z.write_bytes(b'd' * 20480)
+            old = self.now - 86400 * 300
+            os.utime(duplicate_a, (old, old))
+            os.utime(duplicate_z, (old, old))
+
+            files = scan.scan(root)
+            cleanup_plan = plan.build(files, dedup.duplicates(files), root,
+                                      now=self.now, target_reclaim_bytes=6000)
+            selection = cleanup_plan['selection']
+
+            self.assertEqual([item['path'] for item in cleanup_plan['recommendations']],
+                             [str(cache)])
+            self.assertEqual(cleanup_plan['recommendations'][0]['kind'], 'disposable')
+            self.assertEqual(selection['selected_reclaim_bytes'], 8192)
+            self.assertTrue(selection['target_met'])
+            self.assertIn('lowest-recovery-risk', selection['method'])
+
     def test_equal_priority_targets_are_selected_by_normalized_path(self):
         candidates = [
             scan.FileInfo('/app/.cache/z-last.bin', 4096, self.now,

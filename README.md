@@ -82,9 +82,9 @@ Interactive visualization color-coded by recoverability class rather than raw di
 
 ### 5. Intent-Aware, Evidence-Bounded Reclamation
 When an operator needs a specific amount of space, `--target-reclaim 5G` selects
-only enough already-eligible candidates in deterministic priority order to meet
-that target. If the recovery-evidence gate cannot meet it, SANCHAY reports the
-shortfall instead of widening scope to protected files.
+from the lowest recovery-risk class first, using the smallest safe excess within
+that class. If the recovery-evidence gate cannot meet the target, SANCHAY
+reports the shortfall instead of widening scope to protected files.
 
 ---
 

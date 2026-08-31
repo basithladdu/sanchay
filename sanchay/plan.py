@@ -66,6 +66,39 @@ def _decision_trace(row):
     }
 
 
+def _candidate_order(item):
+    row, _ = item
+    return (-row["priority"], row["path"].replace("\\", "/"))
+
+
+def _select_for_target(eligible, target_reclaim_bytes):
+    """Choose a deterministic, recovery-risk-first target set.
+
+    The normal table remains priority-ranked. A stated reclaim target has a
+    different objective: take the lowest recovery-risk class first, then choose
+    the smallest member that clears the remaining target (or the largest member
+    that reduces it). This avoids using a large, higher-risk duplicate merely
+    because its size makes its general review priority high.
+    """
+    remaining = target_reclaim_bytes
+    pool = list(eligible)
+    selected = []
+    while pool and remaining > 0:
+        lowest_regret = min(row["regret"] for row, _ in pool)
+        safest = [item for item in pool if item[0]["regret"] == lowest_regret]
+        enough = [item for item in safest if item[0]["size"] >= remaining]
+        if enough:
+            choice = min(enough, key=lambda item: (item[0]["size"],
+                                                    *_candidate_order(item)))
+        else:
+            choice = min(safest, key=lambda item: (-item[0]["size"],
+                                                    *_candidate_order(item)))
+        selected.append(choice)
+        pool.remove(choice)
+        remaining -= choice[0]["size"]
+    return selected
+
+
 def _fingerprint(document):
     payload = json.dumps(document, sort_keys=True, separators=(",", ":"),
                          ensure_ascii=False).encode("utf-8")
@@ -115,17 +148,10 @@ def build(files, duplicate_groups, root, now=None, limit=25,
             continue
         eligible.append((row, info))
 
-    eligible.sort(key=lambda item: (-item[0]["priority"],
-                                    item[0]["path"].replace("\\", "/")))
+    eligible.sort(key=_candidate_order)
     selected = eligible[:limit]
     if target_reclaim_bytes is not None:
-        selected = []
-        selected_bytes = 0
-        for item in eligible:
-            if selected_bytes >= target_reclaim_bytes:
-                break
-            selected.append(item)
-            selected_bytes += item[0]["size"]
+        selected = _select_for_target(eligible, target_reclaim_bytes)
 
     recommendations = []
     for row, info in selected:
@@ -178,7 +204,7 @@ def build(files, duplicate_groups, root, now=None, limit=25,
             "selected_reclaim_bytes": selected_bytes,
             "target_met": selected_bytes >= target_reclaim_bytes,
             "shortfall_bytes": max(0, target_reclaim_bytes - selected_bytes),
-            "method": "deterministic priority order after the recovery-evidence safety gate; no file action is executed",
+            "method": "deterministic lowest-recovery-risk selection with minimal safe excess after the evidence gate; no file action is executed",
         }
     document["fingerprint_sha256"] = _fingerprint(document)
     return document
