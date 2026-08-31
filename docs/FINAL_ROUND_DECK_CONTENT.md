@@ -131,6 +131,9 @@ Put the command in small monospace text only:
   summaries first, then uses Plotly only as an optional enhancement. The JSON
   manifest records observed identity and a SHA-256 integrity checksum (not a
   signature).
+- For an ISOC or support handoff, `--operator-brief` emits aggregate counts and
+  byte totals only. It excludes roots, paths, file names, process IDs/names,
+  mount/device sources, and file content; it does not transmit anything.
 
 Phrase this as a product fit inferred from C-DAC's Secure OS context, not a
 claim of C-DAC endorsement or scoring criteria.

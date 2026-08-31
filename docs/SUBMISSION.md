@@ -113,6 +113,15 @@ snapshot/history operations. It can still show review-only evidence for files
 actually inspected, but never presents that partial view as whole-tree capacity
 evidence.
 
+**1g. Creates a path-free operator brief.** The detailed review plan and HTML
+report stay local because they can contain relative paths or process context.
+`--operator-brief` writes a distinct aggregate-only JSON handoff for a secure
+operations or ISOC review: evidence-class counts, allocated-byte totals,
+managed-store totals, coverage, mount source class, deleted-open aggregate, and
+capacity boundary. It excludes roots, paths, file names, process IDs/names,
+mount/device sources, and file content; it does not transmit data, sign an
+event, or authorize cleanup.
+
 **2. Works out how recoverable each file is.** This is the core of the tool.
 Every file lands in one of four classes:
 

@@ -155,6 +155,7 @@ endorses SANCHAY or defines the hackathon scoring rubric.
 | Avoid crossing a governance boundary silently | Scan one filesystem by default; cross-filesystem traversal requires an explicit flag and is inventory-only across mounts. | Implemented |
 | Keep forecasting honest | Label the first pass an mtime-derived estimate; capture aggregate local snapshots for observed growth and an explainable local linear trend. Cross-mount scans refuse shared targets and capacity forecasts. | Implemented |
 | Support government/BOSS deployment | Keep the core local, dependency-light, inspectable, and suitable for an offline terminal workflow. | Implemented |
+| Support monitored secure endpoints without exporting path metadata | Keep the detailed plan and HTML report local. Add a separately requested `--operator-brief` that contains only aggregate evidence, capacity, and operational-advisory counts; it excludes paths, names, process IDs/names, mount/device sources, and content, and makes no network call. | Implemented |
 | Improve inclusivity | Add Hindi and other BOSS-language UI strings only after native-speaker review; do not machine-claim localisation. | Planned |
 
 ## Demo truth boundary

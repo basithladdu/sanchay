@@ -88,6 +88,18 @@ inventory. Candidate evidence remains limited to files actually seen, while
 mtime forecasts, comparable snapshots, and trend claims are withheld rather
 than treating a partial tree as complete.
 
+### Path-Free Operator Brief
+
+The detailed plan and HTML report are local review artifacts and can contain
+relative paths or process context. `--operator-brief OUT.json` produces a
+separate aggregate handoff for a secure endpoint or operations review: evidence
+class counts, allocated-byte totals, managed-store totals, coverage, mount
+source class, deleted-open aggregate, and the capacity-accounting boundary. It
+intentionally contains no root, paths, file names, process IDs, process names,
+mount points, device sources, or file content, and it performs no network
+transfer. Its SHA-256 checksum detects accidental changes; it is not a
+signature, incident log, remediation instruction, or external submission.
+
 ### 3. Tiered Fast Content Hashing
 Deduplicating large files can saturate I/O. SANCHAY uses a 3-tier cascade:
 1. File size grouping (avoids hashing files whose sizes do not collide)
@@ -229,16 +241,22 @@ sanchay /home/user --history day-1.json day-7.json day-14.json
 # 8. Generate an interactive Plotly HTML report (requires .[viz])
 sanchay /home/user --report report.html
 
-# 9. Produce a deterministic local-only narrative for the review set
+# 9. Write a path-free aggregate operator handoff; no network transfer
+sanchay /home/user --operator-brief operator-brief.json
+
+# 10. Recheck that the brief has not changed; it never touches endpoint files
+sanchay --verify-operator-brief operator-brief.json
+
+# 11. Produce a deterministic local-only narrative for the review set
 sanchay /home/user --explain
 
 # Explicit cloud narrative over opaque IDs and fixed metadata only
 sanchay /home/user --explain --cloud-narrative
 
-# 10. Create a harmless, reproducible final-round demo fixture
+# 12. Create a harmless, reproducible final-round demo fixture
 sanchay-demo /tmp/sanchay-demo
 
-# 11. Launch interactive Textual Terminal Dashboard
+# 13. Launch interactive Textual Terminal Dashboard
 sanchay-ui /home/user
 ```
 
@@ -294,6 +312,10 @@ sanchay-ui .
   recording their names. An incomplete traversal is labelled readable-file
   inventory only; SANCHAY withholds its mtime forecast and snapshots rather
   than claiming a complete capacity view.
+* **Operator-brief boundary**: `--operator-brief` emits only aggregate local
+  review facts for a secure-operator handoff. It excludes roots, paths, file
+  names, process IDs/names, mount/device sources, and file content; it does not
+  transmit data or authorize a cleanup action.
 * **Inspectable evidence policy**: Every plan item records its classification,
   logical and reclaimable allocated sizes, observed identity, typed recovery
   evidence with its strength, and frozen decision-model inputs; files

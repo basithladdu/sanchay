@@ -148,6 +148,17 @@ thin-pool headroom. SANCHAY reads Linux mount metadata and marks Btrfs,
 container-overlay, and device-mapper boundaries as read-only advisory evidence.
 It does not run `lvs`, resize a volume, balance Btrfs, or delete a snapshot.
 
+**How can an operator hand this to an ISOC or support team?** The detailed
+plan and HTML report stay local because they can include relative paths and
+process context. `--operator-brief operator-brief.json` creates a separate,
+aggregate-only handoff: counts and allocated bytes by evidence class, managed
+storage totals, coverage, mount source class, deleted-open aggregate, and
+capacity boundary. It excludes roots, paths, names, PIDs, process names,
+mount/device sources, and content; it does not transmit anything, sign an
+event, or authorize a cleanup. Use `sanchay --verify-operator-brief operator-brief.json`
+to check its checksum only; it does not reread endpoint files or contact a
+service.
+
 **What if the scan cannot read part of the selected tree?** SANCHAY does not
 pretend that an unprivileged walk is complete. It records count-only coverage
 evidence, labels the result as readable-file inventory, and withholds mtime

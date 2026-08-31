@@ -4,8 +4,8 @@ import os
 import re
 import shutil
 
-from . import (accounting, archive, dedup, explain, forecast, managed, mounts, plan, processes,
-               regret, scan, snapshot, storage)
+from . import (accounting, archive, brief, dedup, explain, forecast, managed, mounts, plan,
+               processes, regret, scan, snapshot, storage)
 
 
 def human(n):
@@ -61,7 +61,10 @@ def main(argv=None):
     ap.add_argument("--cloud-narrative", action="store_true",
                     help="with --explain, explicitly allow an optional cloud narrative over opaque metadata only")
     ap.add_argument("--viz", metavar="OUT.html", help="write a regret treemap")
-    ap.add_argument("--report", metavar="OUT.html", help="write a shareable HTML report")
+    ap.add_argument("--report", metavar="OUT.html",
+                    help="write a detailed local HTML review report; contains relative paths")
+    ap.add_argument("--operator-brief", metavar="OUT.json",
+                    help="write a path-free aggregate local handoff; no network transfer")
     ap.add_argument("--plan", metavar="OUT.json",
                     help="write a review-only cleanup plan; SANCHAY never deletes files")
     ap.add_argument("--target-reclaim", metavar="SIZE", type=parse_reclaim_bytes,
@@ -80,6 +83,8 @@ def main(argv=None):
     ap.add_argument("--verify-archive", metavar=("SOURCE", "RETAINED_COPY"),
                     nargs=2,
                     help="verify a separate byte-matching retained copy; never copies, moves, or deletes files")
+    ap.add_argument("--verify-operator-brief", metavar="BRIEF.json",
+                    help="verify an operator brief checksum; never transmits or changes files")
     ap.add_argument("--tui", action="store_true", help="open the terminal UI")
     args = ap.parse_args(argv)
 
@@ -88,8 +93,12 @@ def main(argv=None):
 
     if args.verify_plan and args.verify_archive:
         ap.error("use either --verify-plan or --verify-archive, not both")
+    if args.verify_operator_brief and (args.verify_plan or args.verify_archive):
+        ap.error("use operator brief verification by itself")
     if args.verify_plan and args.capacity_audit:
         ap.error("--capacity-audit requires a scan root, not --verify-plan")
+    if args.verify_plan and args.operator_brief:
+        ap.error("--operator-brief requires a scan root, not --verify-plan")
 
     if args.cross_filesystems and any((
             args.target_reclaim is not None, args.snapshot, args.compare,
@@ -123,10 +132,29 @@ def main(argv=None):
             print(f"- {item['kind']}: {item['path']} — {verdict}")
         return 0 if result["valid"] else 1
 
+    if args.verify_operator_brief:
+        if any((args.root, args.cross_filesystems, args.explain, args.viz,
+                args.report, args.operator_brief, args.plan,
+                args.target_reclaim is not None, args.snapshot, args.compare,
+                args.history, args.capacity_audit, args.tui)):
+            ap.error("--verify-operator-brief is a standalone read-only check")
+        try:
+            document = brief.read(args.verify_operator_brief)
+        except (OSError, ValueError) as exc:
+            print(f"operator brief: unavailable for review ({exc})")
+            return 2
+        valid = brief.fingerprint_valid(document)
+        print("operator brief: integrity checksum "
+              + ("matches" if valid else "does not match"))
+        print("action boundary: no file was read from the endpoint, transmitted, or changed")
+        return 0 if valid else 1
+
     if args.verify_archive:
         if any((args.root, args.cross_filesystems, args.explain, args.viz,
                 args.report, args.plan, args.target_reclaim is not None,
                 args.snapshot, args.compare, args.history, args.capacity_audit,
+                args.operator_brief,
+                args.verify_operator_brief,
                 args.tui)):
             ap.error("--verify-archive is a standalone read-only check")
         try:
@@ -327,6 +355,12 @@ def main(argv=None):
                 return 2
             raise
         print("report -> " + report_path)
+
+    if args.operator_brief:
+        operator_brief = brief.build(
+            files, cleanup_plan, process_held=held_deleted,
+            capacity_accounting=capacity_accounting)
+        print("operator brief -> " + brief.write(operator_brief, args.operator_brief))
 
     if args.plan:
         print("plan -> " + plan.write(cleanup_plan, args.plan))

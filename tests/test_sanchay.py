@@ -1,4 +1,5 @@
 import errno
+import json
 import subprocess
 import tempfile
 import time
@@ -14,8 +15,8 @@ import shutil
 from types import SimpleNamespace
 from pathlib import Path
 
-from sanchay import (accounting, archive, cli, dedup, demo, explain, forecast, managed, mounts,
-                     plan, processes, regret, report, scan, snapshot, storage)
+from sanchay import (accounting, archive, brief, cli, dedup, demo, explain, forecast, managed,
+                     mounts, plan, processes, regret, report, scan, snapshot, storage)
 
 
 class TestSanchay(unittest.TestCase):
@@ -392,6 +393,124 @@ class TestSanchay(unittest.TestCase):
         self.assertIn('Docker Engine storage', rendered)
         self.assertIn('System-reserved paths', rendered)
         self.assertIn('never selected as file cleanup candidates', rendered)
+
+    def test_operator_brief_is_aggregate_path_free_and_integrity_checked(self):
+        root = '/restricted/field-node'
+        files = [
+            scan.FileInfo(root + '/.cache/build.bin', 4096, self.now,
+                          self.now - 86400 * 90, 801, allocated_size=4096),
+            scan.FileInfo(root + '/private-note.txt', 2048, self.now,
+                          self.now - 86400 * 90, 802, allocated_size=2048),
+            scan.FileInfo(root + '/.aws/credentials', 1024, self.now,
+                          self.now - 86400 * 90, 803, allocated_size=1024),
+            scan.FileInfo('/var/log/secure-audit.log', 8192, self.now,
+                          self.now - 86400 * 90, 804, allocated_size=8192),
+        ]
+        context = {
+            'filesystem': 'ext4',
+            'mount_point': '/restricted',
+            'source_class': 'device_mapper',
+            'capacity_scope': 'private mount details must stay local',
+        }
+        cleanup_plan = plan.build(files, [], root, filesystem_context=context)
+        held = processes.DeletedOpenFile(
+            device=81, inode=805, logical_size=16384, allocated_size=16384,
+            holders=(processes.DeletedFileHolder(
+                pid=9101, process='private-service', fd='7',
+                path=root + '/private/deleted-audit.log (deleted)'),))
+        audit = accounting.assess(
+            files, 49152, process_held_bytes=held.allocated_size,
+            scan_coverage=scan.ScanCoverage(), root_is_mount=True)
+
+        document = brief.build(
+            files, cleanup_plan, process_held=[held], capacity_accounting=audit)
+        rendered = json.dumps(document, sort_keys=True)
+
+        self.assertTrue(brief.fingerprint_valid(document))
+        self.assertEqual(document['scope']['mount_context'], {
+            'context_observed': True,
+            'source_class': 'device_mapper',
+        })
+        self.assertEqual(document['review']['selected_by_evidence_class']['disposable'], {
+            'count': 1,
+            'allocated_bytes': 4096,
+        })
+        self.assertEqual(document['safety']['managed_storage'], [{
+            'policy': 'system_reserved_paths',
+            'entries': 1,
+            'allocated_bytes': 8192,
+        }])
+        self.assertEqual(document['operational_advisories'][
+            'visible_deleted_open_inode_count'], 1)
+        self.assertEqual(document['operational_advisories'][
+            'visible_deleted_open_allocated_bytes'], 16384)
+        for sensitive in (root, 'private-note.txt', '.aws', 'credentials',
+                          'private-service', '9101', 'deleted-audit.log',
+                          '/var/log/secure-audit.log'):
+            self.assertNotIn(sensitive, rendered)
+
+        changed = copy.deepcopy(document)
+        changed['review']['eligible_candidate_count'] += 1
+        self.assertFalse(brief.fingerprint_valid(changed))
+
+    def test_cli_writes_a_path_free_operator_brief(self):
+        root = '/private/field-node'
+        files = [
+            scan.FileInfo(root + '/.cache/build.bin', 4096, self.now,
+                          self.now - 86400 * 90, 806),
+        ]
+        output = io.StringIO()
+        with tempfile.TemporaryDirectory() as tmp:
+            brief_path = Path(tmp) / 'operator-brief.json'
+            with mock.patch.object(scan, 'scan_with_coverage',
+                                   return_value=(files, scan.ScanCoverage())), \
+                    mock.patch.object(processes, 'deleted_open_files',
+                                      return_value=[]), \
+                    mock.patch.object(shutil, 'disk_usage',
+                                      return_value=SimpleNamespace(free=1000000)), \
+                    contextlib.redirect_stdout(output):
+                status = cli.main([root, '--operator-brief', str(brief_path)])
+            document = json.loads(brief_path.read_text(encoding='utf-8'))
+
+        self.assertIsNone(status)
+        self.assertIn('operator brief -> ', output.getvalue())
+        self.assertTrue(brief.fingerprint_valid(document))
+        self.assertNotIn(root, json.dumps(document))
+        self.assertNotIn('build.bin', json.dumps(document))
+
+    def test_cli_rejects_operator_brief_with_plan_verification(self):
+        stderr = io.StringIO()
+        with contextlib.redirect_stderr(stderr), self.assertRaises(SystemExit) as raised:
+            cli.main(['--verify-plan', 'cleanup-plan.json', '--operator-brief', 'brief.json'])
+
+        self.assertEqual(raised.exception.code, 2)
+        self.assertIn('--operator-brief requires a scan root, not --verify-plan',
+                      stderr.getvalue())
+
+    def test_cli_verifies_operator_brief_and_fails_on_tampering(self):
+        files = [
+            scan.FileInfo('/private/field-node/.cache/build.bin', 4096, self.now,
+                          self.now - 86400 * 90, 807),
+        ]
+        document = brief.build(files, plan.build(files, [], '/private/field-node'))
+        output = io.StringIO()
+        with tempfile.TemporaryDirectory() as tmp:
+            brief_path = Path(tmp) / 'operator-brief.json'
+            brief.write(document, brief_path)
+            with contextlib.redirect_stdout(output):
+                valid_status = cli.main(['--verify-operator-brief', str(brief_path)])
+
+            document['storage']['allocated_physical_bytes'] += 1
+            brief_path.write_text(json.dumps(document), encoding='utf-8')
+            with contextlib.redirect_stdout(output):
+                changed_status = cli.main(['--verify-operator-brief', str(brief_path)])
+
+        self.assertEqual(valid_status, 0)
+        self.assertEqual(changed_status, 1)
+        self.assertIn('integrity checksum matches', output.getvalue())
+        self.assertIn('integrity checksum does not match', output.getvalue())
+        self.assertIn('no file was read from the endpoint, transmitted, or changed',
+                      output.getvalue())
 
     def test_cli_report_explains_when_optional_visualization_is_missing(self):
         files = [
@@ -1333,6 +1452,7 @@ class TestSanchay(unittest.TestCase):
         self.assertIn("setAttribute('aria-pressed', 'true')", source_page)
         self.assertIn('/home/user/archive/ubuntu-24.04-live.iso', source_page)
         self.assertNotIn('/var/lib/iso/ubuntu-24.04-live.iso', source_page)
+        self.assertIn('path-free operator brief', source_page)
 
     def test_cli_history_uses_the_local_linear_trend(self):
         with tempfile.TemporaryDirectory() as tmp:
