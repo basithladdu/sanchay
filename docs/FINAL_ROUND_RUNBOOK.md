@@ -203,7 +203,12 @@ mounted filesystem's reported used bytes, require the same root/device, and
 require a 24-hour first-to-latest history before producing a local linear trend
 with an explicit slope and, from three observations onward, R-squared—rather
 than turning seconds of background activity into an invented full-disk date.
-Legacy inventory-only snapshots are rejected and must be recaptured.
+A two-point slope remains visible as an observation, but SANCHAY withholds a
+runway date until at least three captures expose an R² of 0.80 or higher. That
+conservative product gate does not make the forecast a guarantee; it prevents
+a perfect-looking two-point line or a weak fit from becoming an invented
+full-disk date. Legacy inventory-only snapshots are rejected and must be
+recaptured.
 
 **Why does this fit a sovereign secure OS?** The core is inspectable,
 dependency-light, local by default, and stays on one filesystem unless the

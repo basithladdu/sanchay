@@ -1219,8 +1219,10 @@ class TestSanchay(unittest.TestCase):
             self.files, used=1086400, free=913600, now=100 + 86400)
 
         observed = snapshot.observed_growth(previous, current)
+        self.assertEqual(observed['sample_count'], 2)
         self.assertEqual(observed['net_bytes'], 86400)
         self.assertEqual(observed['bytes_per_day'], 86400)
+        self.assertFalse(snapshot.runway_readiness(observed)['ready'])
         self.assertEqual(previous['readable_inventory_allocated_bytes'],
                          current['readable_inventory_allocated_bytes'])
 
@@ -1238,6 +1240,30 @@ class TestSanchay(unittest.TestCase):
 
         two_point_trend = snapshot.linear_trend([first, second])
         self.assertIsNone(two_point_trend['r_squared'])
+
+        self.assertEqual(snapshot.runway_readiness(trend), {
+            'ready': True,
+            'reason': None,
+        })
+        self.assertFalse(snapshot.runway_readiness(two_point_trend)['ready'])
+        self.assertIn('at least 3 snapshots',
+                      snapshot.runway_readiness(two_point_trend)['reason'])
+
+    def test_runway_projection_withholds_a_noisy_positive_trend(self):
+        noisy = {
+            'sample_count': 3,
+            'bytes_per_day': 1024,
+            'r_squared': 0.79,
+        }
+        ready = snapshot.runway_readiness(noisy)
+
+        self.assertFalse(ready['ready'])
+        self.assertIn('R-squared 0.80', ready['reason'])
+        self.assertFalse(snapshot.runway_readiness({
+            'sample_count': 3,
+            'bytes_per_day': float('nan'),
+            'r_squared': 1.0,
+        })['ready'])
 
     def test_snapshots_with_less_than_a_day_of_history_withhold_a_rate(self):
         previous = self._capture_snapshot(self.files, used=1000000, now=100)
@@ -1716,7 +1742,49 @@ class TestSanchay(unittest.TestCase):
             with contextlib.redirect_stdout(output):
                 cli.main([str(root), '--history', str(previous_path), '--limit', '1'])
 
-            self.assertIn('mounted-filesystem trend from 2 snapshots', output.getvalue())
+            rendered = output.getvalue()
+            self.assertIn('mounted-filesystem trend from 2 snapshots', rendered)
+            self.assertIn('runway withheld: at least 3 snapshots', rendered)
+
+    def test_cli_history_projects_only_after_a_fit_checked_third_capture(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = demo.create(Path(tmp) / 'fixture')
+            files = scan.scan(root)
+            usage = shutil.disk_usage(root)
+            stable_usage = SimpleNamespace(
+                total=usage.total,
+                used=10_000_000,
+                free=usage.total - 10_000_000,
+            )
+            first = snapshot.capture(
+                files, root,
+                filesystem_total_bytes=stable_usage.total,
+                filesystem_used_bytes=stable_usage.used - 2048,
+                filesystem_free_bytes=stable_usage.free + 2048,
+                filesystem_device=os.stat(root).st_dev,
+                now=time.time() - 2 * 86400)
+            second = snapshot.capture(
+                files, root,
+                filesystem_total_bytes=stable_usage.total,
+                filesystem_used_bytes=stable_usage.used - 1024,
+                filesystem_free_bytes=stable_usage.free + 1024,
+                filesystem_device=os.stat(root).st_dev,
+                now=time.time() - 86400)
+            first_path = Path(tmp) / 'first.json'
+            second_path = Path(tmp) / 'second.json'
+            snapshot.write(first, first_path)
+            snapshot.write(second, second_path)
+
+            output = io.StringIO()
+            with mock.patch.object(shutil, 'disk_usage', return_value=stable_usage), \
+                    contextlib.redirect_stdout(output):
+                cli.main([str(root), '--history', str(first_path), str(second_path),
+                          '--limit', '1'])
+
+        rendered = output.getvalue()
+        self.assertIn('mounted-filesystem trend from 3 snapshots, R² 1.00, full in',
+                      rendered)
+        self.assertNotIn('runway withheld', rendered)
 
 
 if __name__ == '__main__':

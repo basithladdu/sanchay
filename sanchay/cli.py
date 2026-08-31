@@ -386,11 +386,17 @@ def main(argv=None):
               f"{trend['elapsed_seconds'] / 3600:.1f} hours; wait for at least "
               f"{trend['minimum_span_seconds'] / 3600:.0f} hours")
     elif trend and trend["bytes_per_day"] > 0:
-        days = free / trend["bytes_per_day"]
         fit = (f", R² {trend['r_squared']:.2f}"
                if trend["r_squared"] is not None else "")
-        print(f"growth:     {human(trend['bytes_per_day'])}/day mounted-filesystem trend from "
-              f"{trend['sample_count']} snapshots{fit}, full in {forecast.runway_label(days)}")
+        readiness = snapshot.runway_readiness(trend)
+        if readiness["ready"]:
+            days = free / trend["bytes_per_day"]
+            print(f"growth:     {human(trend['bytes_per_day'])}/day mounted-filesystem trend from "
+                  f"{trend['sample_count']} snapshots{fit}, full in {forecast.runway_label(days)}")
+        else:
+            print(f"growth:     {human(trend['bytes_per_day'])}/day mounted-filesystem trend from "
+                  f"{trend['sample_count']} snapshots{fit}; runway withheld: "
+                  + readiness["reason"])
     elif trend:
         print(f"growth:     {human(trend['bytes_per_day'])}/day mounted-filesystem trend from "
               f"{trend['sample_count']} snapshots; no projected exhaustion")
@@ -399,9 +405,9 @@ def main(argv=None):
               f"{observed['elapsed_seconds'] / 3600:.1f} hours apart; wait for at least "
               f"{observed['minimum_span_seconds'] / 3600:.0f} hours")
     elif observed and observed["bytes_per_day"] > 0:
-        days = free / observed["bytes_per_day"]
         print(f"growth:     {human(observed['bytes_per_day'])}/day observed mounted-filesystem use over "
-              f"{observed['elapsed_seconds'] / 86400:.1f} days, full in {forecast.runway_label(days)}")
+              f"{observed['elapsed_seconds'] / 86400:.1f} days; runway withheld: "
+              + snapshot.runway_readiness(observed)["reason"])
     elif observed:
         print(f"growth:     {human(observed['bytes_per_day'])}/day observed mounted-filesystem use over "
               f"{observed['elapsed_seconds'] / 86400:.1f} days; no projected exhaustion")

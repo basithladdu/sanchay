@@ -100,6 +100,9 @@ Show two stages, not a fake exact date:
     mounted view, so older entries covered by a child mount may be absent from
     the readable inventory; SANCHAY calls this a topology boundary and never
     unmounts or remounts a path to inspect it.
+11. Show a measured mounted-filesystem rate after 24 hours, but withhold a
+    runway date until three snapshots expose an R² fit of at least 0.80. This
+    is a conservative product gate, not a promise that the date is certain.
 
 Footer: “A first scan is an inventory estimate; same-mount observed history is stronger evidence.”
 

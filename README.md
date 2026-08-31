@@ -68,6 +68,15 @@ itself.
 ### 2. Two-Stage Runway Measurement
 SANCHAY derives an initial storage-growth estimate from the **readable-inventory inode modification-time distribution (`mtime`) on run #1**. It is directional, not a guaranteed exhaustion date. A later local snapshot records the selected mounted filesystem's total, used, and free bytes separately from the readable inventory. Comparisons and local linear trends use only the mounted-filesystem used-byte series; they require complete readable coverage, the same resolved root and filesystem device, and at least a 24-hour first-to-latest observation span. The gate prevents seconds of ordinary background activity from becoming a fictional runway. With three or more snapshots, SANCHAY also reports fit quality. The readable inventory, review plan, and treemap count each physical `(device, inode)` once and use allocated blocks (`st_blocks × 512`) where the filesystem exposes them, so hardlink aliases and sparse logical length do not inflate those diagnostic totals. Snapshot schema 5 deliberately rejects earlier inventory-only snapshot files: recapture a fresh baseline rather than mixing metrics.
 
+#### Runway Projection Gate
+
+A two-snapshot rate is useful evidence of observed filesystem use, but it
+cannot expose variation: any two points form a perfect line. SANCHAY therefore
+keeps the measured rate visible while withholding a `full in` date until there
+are at least three same-root snapshots, a 24-hour first-to-latest span, and an
+R² fit of at least 0.80. This is a conservative product gate, not a guarantee
+that future storage consumption will remain linear.
+
 ### Capacity Boundary Across Mounts
 
 SANCHAY scans one filesystem by default. `--cross-filesystems` is an explicit

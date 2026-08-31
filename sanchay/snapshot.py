@@ -7,6 +7,7 @@ only; they never copy a file list or file contents.
 """
 from datetime import datetime, timezone
 import json
+import math
 from pathlib import Path
 import time
 
@@ -15,6 +16,11 @@ from . import scan, storage
 
 SNAPSHOT_SCHEMA_VERSION = 5
 MIN_FORECAST_SPAN_SECONDS = 24 * 60 * 60
+# A two-point line always has a perfect apparent fit.  SANCHAY therefore
+# treats a rate from two captures as useful observation, but not as enough
+# evidence to issue an exhaustion-date projection.
+MIN_RUNWAY_SNAPSHOT_COUNT = 3
+MIN_RUNWAY_R_SQUARED = 0.80
 
 
 def _require_filesystem_accounting(document):
@@ -130,10 +136,12 @@ def observed_growth(previous, current):
         return None
     delta = current["filesystem_used_bytes"] - previous["filesystem_used_bytes"]
     return {
+        "sample_count": 2,
         "elapsed_seconds": elapsed,
         "net_bytes": delta,
         "bytes_per_day": (delta * 86400 / elapsed
                           if elapsed >= MIN_FORECAST_SPAN_SECONDS else None),
+        "r_squared": None,
         "minimum_span_seconds": MIN_FORECAST_SPAN_SECONDS,
     }
 
@@ -199,3 +207,47 @@ def linear_trend(snapshots):
         "r_squared": r_squared,
         "minimum_span_seconds": MIN_FORECAST_SPAN_SECONDS,
     }
+
+
+def runway_readiness(measurement):
+    """Return whether a measured growth rate supports a runway projection.
+
+    This is intentionally a conservative product gate rather than a claim that
+    a linear forecast is statistically guaranteed. It keeps an observed rate
+    visible, while rejecting a date extrapolated from an uncheckable two-point
+    line or a weakly fitting history.
+    """
+    if not isinstance(measurement, dict):
+        return {
+            "ready": False,
+            "reason": "no measured growth record is available",
+        }
+    rate = measurement.get("bytes_per_day")
+    if (isinstance(rate, bool) or not isinstance(rate, (int, float))
+            or not math.isfinite(rate) or rate <= 0):
+        return {
+            "ready": False,
+            "reason": "a measured rate is not available yet",
+        }
+    sample_count = measurement.get("sample_count")
+    if (isinstance(sample_count, bool) or not isinstance(sample_count, int)
+            or sample_count < MIN_RUNWAY_SNAPSHOT_COUNT):
+        return {
+            "ready": False,
+            "reason": (
+                f"at least {MIN_RUNWAY_SNAPSHOT_COUNT} snapshots are required "
+                "to assess trend fit"
+            ),
+        }
+    r_squared = measurement.get("r_squared")
+    if (isinstance(r_squared, bool) or not isinstance(r_squared, (int, float))
+            or not math.isfinite(r_squared) or not 0 <= r_squared <= 1
+            or r_squared < MIN_RUNWAY_R_SQUARED):
+        return {
+            "ready": False,
+            "reason": (
+                f"trend fit is below the R-squared {MIN_RUNWAY_R_SQUARED:.2f} "
+                "projection threshold"
+            ),
+        }
+    return {"ready": True, "reason": None}
