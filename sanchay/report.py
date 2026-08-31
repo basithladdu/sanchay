@@ -180,8 +180,8 @@ def build(files, root, free_bytes, out="sanchay-report.html", limit=50,
     runway_note = ("not calculated; scan coverage is incomplete" if not coverage["complete"]
                    else "not calculated across multiple filesystems; scan one filesystem "
                    "for a capacity forecast" if cross_filesystems
-                   else f"{human(forecast.rate(files))}/day from readable-inventory mtime; "
-                   "capture same-mount snapshots for observed growth")
+                   else f"{human(forecast.rate(files))}/day readable-inventory mtime orientation; "
+                   "not a capacity forecast. Capture same-mount snapshots for observed growth")
     selection = cleanup_plan.get("selection")
     review_note = f"top {len(rows)} recommendations; human review required"
     if selection:
@@ -382,7 +382,7 @@ def build(files, root, free_bytes, out="sanchay-report.html", limit=50,
     {_card(allocation_title, human(total), allocation_note)}
     {_card("Duplicate candidates", human(dedup.reclaimable(groups)), f"{len(groups):,} content groups; allocated reclaim only", "#84cc16")}
     {_card("Reviewable candidates", human(reviewable), review_note, "#10b981")}
-    {_card("First-run runway estimate", forecast.runway_label(days), runway_note, "#3b82f6")}
+    {_card("First-run orientation", forecast.runway_label(days), runway_note, "#3b82f6")}
   </div>
 
   <div class="panel">

@@ -76,6 +76,20 @@ class TestSanchay(unittest.TestCase):
         self.assertIsNotNone(days)
         self.assertGreater(days, 0)
 
+    def test_cli_labels_a_first_scan_growth_signal_as_orientation(self):
+        output = io.StringIO()
+        with tempfile.TemporaryDirectory() as tmp:
+            root = demo.create(Path(tmp) / 'fixture')
+            with contextlib.redirect_stdout(output):
+                status = cli.main([str(root)])
+
+        self.assertIsNone(status)
+        rendered = output.getvalue()
+        self.assertIn('readable-inventory mtime orientation; not a capacity forecast',
+                      rendered)
+        self.assertIn('directional full-in indicator', rendered)
+        self.assertNotIn('mtime estimate, full in', rendered)
+
     def test_reclaim_target_parser_accepts_human_units(self):
         self.assertEqual(cli.parse_reclaim_bytes('600M'), 600 * 1024 ** 2)
         self.assertEqual(cli.parse_reclaim_bytes('1.5 GiB'), int(1.5 * 1024 ** 3))
@@ -388,6 +402,8 @@ class TestSanchay(unittest.TestCase):
         self.assertIn('oninput="filterCandidates()"', page)
         self.assertNotIn('onkeyup="filterCandidates()"', page)
         self.assertFalse(any(line.endswith((' ', '\t')) for line in page.splitlines()))
+        self.assertIn('First-run orientation', page)
+        self.assertIn('not a capacity forecast', page)
 
     @unittest.skipUnless(importlib.util.find_spec('pandas'),
                          'requires the optional report dependencies')

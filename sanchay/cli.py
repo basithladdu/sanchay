@@ -497,8 +497,10 @@ def main(argv=None):
               f"{observed['elapsed_seconds'] / 86400:.1f} days; no projected exhaustion")
     else:
         days = forecast.days_until_full(files, free)
-        print(f"growth:     {human(forecast.rate(files))}/day readable-inventory mtime estimate, "
-              + (f"full in {forecast.runway_label(days)}" if days else "no measurable growth")
+        print(f"growth:     {human(forecast.rate(files))}/day readable-inventory mtime orientation; "
+              + "not a capacity forecast; "
+              + (f"directional full-in indicator {forecast.runway_label(days)}"
+                 if days else "no measurable growth")
               + "; save a snapshot to measure future net growth")
 
     if args.risk_horizon is not None:
