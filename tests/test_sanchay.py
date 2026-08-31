@@ -13,8 +13,8 @@ import shutil
 from types import SimpleNamespace
 from pathlib import Path
 
-from sanchay import (cli, dedup, demo, forecast, managed, plan, regret, report,
-                     scan, snapshot, storage)
+from sanchay import (cli, dedup, demo, forecast, managed, plan, processes,
+                     regret, report, scan, snapshot, storage)
 
 
 class TestSanchay(unittest.TestCase):
@@ -167,9 +167,15 @@ class TestSanchay(unittest.TestCase):
             scan.FileInfo('/var/lib/flatpak/repo/objects/object', 28000,
                           self.now, self.now - 86400 * 90, 716),
         ]
+        held = processes.DeletedOpenFile(
+            device=901, inode=902, logical_size=32000, allocated_size=32768,
+            holders=(processes.DeletedFileHolder(
+                pid=1234, process='logger', fd='8',
+                path='/var/log/service.log (deleted)'),))
         with tempfile.TemporaryDirectory() as tmp:
             output = Path(tmp) / 'report.html'
-            report.build(files, '/', 1000000, output, cross_filesystems=True)
+            report.build(files, '/', 1000000, output, cross_filesystems=True,
+                         process_held=[held])
             page = output.read_text(encoding='utf-8')
 
         self.assertIn('System-managed storage', page)
@@ -183,6 +189,10 @@ class TestSanchay(unittest.TestCase):
         self.assertIn('Cross-filesystem inventory; no aggregate free-space or reclaim target', page)
         self.assertIn('Allocated inventory', page)
         self.assertIn('no shared free-space claim', page)
+        self.assertIn('Process-held deleted files', page)
+        self.assertIn('PID 1234 (logger), fd 8', page)
+        self.assertIn('/var/log/service.log (deleted)', page)
+        self.assertIn('never signals, restarts, truncates, or deletes', page)
 
     def test_cli_labels_managed_storage_as_deferred_not_reclaimable(self):
         files = [
@@ -206,6 +216,31 @@ class TestSanchay(unittest.TestCase):
         self.assertIn('APT archive cache', rendered)
         self.assertIn('Docker Engine storage', rendered)
         self.assertIn('never selected as file cleanup candidates', rendered)
+
+    def test_cli_reports_process_held_deleted_storage_as_an_advisory(self):
+        files = [
+            scan.FileInfo('/home/user/.cache/build.bin', 4000, self.now,
+                          self.now - 86400 * 90, 724, device=44),
+        ]
+        held = processes.DeletedOpenFile(
+            device=44, inode=725, logical_size=16000, allocated_size=16384,
+            holders=(processes.DeletedFileHolder(
+                pid=4321, process='service', fd='9',
+                path='/var/log/service.log (deleted)'),))
+        output = io.StringIO()
+        with mock.patch.object(scan, 'scan', return_value=files), \
+                mock.patch.object(processes, 'deleted_open_files', return_value=[held]), \
+                mock.patch.object(shutil, 'disk_usage',
+                                  return_value=SimpleNamespace(free=1000000)), \
+                contextlib.redirect_stdout(output):
+            status = cli.main(['/'])
+
+        rendered = output.getvalue()
+        self.assertIsNone(status)
+        self.assertIn('process-held deleted:', rendered)
+        self.assertIn('not in file cleanup plan', rendered)
+        self.assertIn('pid 4321 (service) fd 9', rendered)
+        self.assertIn('never signals, restarts, truncates, or deletes', rendered)
 
     def test_cross_filesystem_scan_avoids_a_single_mount_capacity_claim(self):
         files = [
@@ -620,6 +655,28 @@ class TestSanchay(unittest.TestCase):
             self.assertTrue(any(
                 'outside the selected scan root' in reason
                 for reason in result['recommendations'][0]['reasons']))
+
+    @unittest.skipUnless(processes.available(), 'requires Linux /proc')
+    def test_linux_process_advisory_finds_self_held_deleted_file(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            deleted = Path(tmp) / 'held-open.log'
+            deleted.write_bytes(b'x' * 16384)
+            observed = deleted.stat()
+            handle = deleted.open('rb')
+            try:
+                deleted.unlink()
+                records = processes.deleted_open_files({observed.st_dev})
+                record = next(item for item in records
+                              if (item.device, item.inode) ==
+                              (observed.st_dev, observed.st_ino))
+                self.assertGreaterEqual(record.allocated_size,
+                                        storage.allocated_bytes_from_stat(observed))
+                self.assertTrue(any(holder.pid == os.getpid()
+                                    for holder in record.holders))
+                self.assertIn(str(deleted) + ' (deleted)',
+                              {holder.path for holder in record.holders})
+            finally:
+                handle.close()
 
     def test_cli_handles_an_invalid_plan_without_a_traceback(self):
         with tempfile.TemporaryDirectory() as tmp:

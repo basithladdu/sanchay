@@ -126,8 +126,19 @@ def _evidence_label(row, root):
     return f"{strength}: {evidence['detail']}"
 
 
+def _holder_summary(record):
+    """Render a bounded, human-readable list of processes holding one inode."""
+    shown = record.holders[:3]
+    summary = ", ".join(
+        f"PID {holder.pid} ({holder.process}), fd {holder.fd}"
+        for holder in shown)
+    if len(record.holders) > len(shown):
+        summary += f"; +{len(record.holders) - len(shown)} more holder(s)"
+    return summary
+
+
 def build(files, root, free_bytes, out="sanchay-report.html", limit=50,
-          target_reclaim_bytes=None, cross_filesystems=False):
+          target_reclaim_bytes=None, cross_filesystems=False, process_held=None):
     from . import viz
 
     groups = dedup.duplicates(managed.content_candidates(files), root=root)
@@ -205,6 +216,30 @@ def build(files, root, free_bytes, out="sanchay-report.html", limit=50,
   </div>
 """
 
+    process_panel = ""
+    process_held = tuple(process_held or ())
+    if process_held:
+        process_rows = []
+        for record in process_held:
+            path = record.holders[0].path if record.holders else "(unavailable)"
+            process_rows.append(
+                f'<tr><td class="num" data-label="Allocated storage">{human(record.allocated_size)}</td>'
+                f'<td data-label="Process holders">{html.escape(_holder_summary(record))}</td>'
+                f'<td class="p" data-label="Observed deleted path">{html.escape(path)}</td>'
+                f'<td class="evidence" data-label="Operational boundary">Review the owning service lifecycle. '
+                f'SANCHAY never signals, restarts, truncates, or deletes process-held storage.</td></tr>'
+            )
+        process_panel = f"""
+  <div class="panel">
+    <h2>Process-held deleted files</h2>
+    <p class="h">No directory entry remains for these files, but their allocated bytes persist until every listed process closes its descriptor. They are operational evidence, never cleanup candidates.</p>
+    <table>
+      <thead><tr><th class="num">Allocated storage</th><th>Process holders</th><th>Observed deleted path</th><th>Operational boundary</th></tr></thead>
+      <tbody>{"".join(process_rows)}</tbody>
+    </table>
+  </div>
+"""
+
     page = f"""<!doctype html>
 <html lang="en">
 <head>
@@ -274,6 +309,7 @@ def build(files, root, free_bytes, out="sanchay-report.html", limit=50,
     </div>
   </div>
   {managed_panel}
+  {process_panel}
 </div>
 
 <script>

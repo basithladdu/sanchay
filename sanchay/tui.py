@@ -13,7 +13,7 @@ from textual.app import App, ComposeResult
 from textual.containers import Horizontal
 from textual.widgets import DataTable, Footer, Header, Static
 
-from . import dedup, forecast, managed, plan, scan, storage
+from . import dedup, forecast, managed, plan, processes, scan, storage
 
 KIND_STYLE = {
     "disposable": "bold green",
@@ -114,10 +114,15 @@ class Sanchay(App):
         protected = cleanup_plan["safety"]["protected_unique_files"]
         hardlinks = cleanup_plan["safety"]["excluded_hardlink_entries"]
         managed_storage = cleanup_plan["safety"]["managed_operational_storage"]
+        devices = {getattr(info, "device", None)
+                   for info in storage.physical_records(files)}
+        held_deleted = processes.deleted_open_files(
+            {device for device in devices if device is not None})
         self.call_from_thread(self.show, files, groups, rows, protected, hardlinks,
-                              managed_storage)
+                              managed_storage, held_deleted)
 
-    def show(self, files, groups, rows, protected, hardlinks, managed_storage):
+    def show(self, files, groups, rows, protected, hardlinks, managed_storage,
+             held_deleted):
         self.all_rows = rows
         self.rows = list(rows)
         stats = self.query(Stat)
@@ -145,6 +150,10 @@ class Sanchay(App):
             deferred_bytes = sum(item["allocated_bytes"] for item in managed_storage)
             guard.append(
                 f"{deferred_entries:,} system-managed entries ({human(deferred_bytes)}) are deferred to their owning tools.",
+                style="dim")
+        if held_deleted:
+            guard.append(
+                f" {len(held_deleted):,} deleted inode(s) ({human(processes.allocated_total(held_deleted))}) are held open by process descriptors and excluded from the plan.",
                 style="dim")
         self.query_one("#guard", Static).update(guard)
         self.fill()

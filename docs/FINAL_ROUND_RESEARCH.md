@@ -60,6 +60,11 @@ endorses SANCHAY or defines the hackathon scoring rubric.
   that descriptor-relative `openat` avoids the path-change race that affects
   ordinary path-based opening. Source: [The Open Group `open()`
   specification](https://pubs.opengroup.org/onlinepubs/9799919799/functions/open.html).
+- POSIX specifies that removing a pathname does not release an open file's
+  resources until its last reference is closed. This supports a separate
+  process-held-deleted-storage advisory rather than pretending a directory scan
+  explains every allocated block. Source: [The Open Group `unlink()`
+  specification](https://pubs.opengroup.org/onlinepubs/000095399/functions/unlink.html).
 
 ### Practitioner evidence (anecdotal, not population research)
 
@@ -75,6 +80,10 @@ endorses SANCHAY or defines the hackathon scoring rubric.
   elsewhere and uncertainty around encrypted LVM layout and data relocation.
   This is anecdotal evidence for separating container-runtime review from a
   generic free-space recommendation. Source: [r/linuxquestions discussion](https://www.reddit.com/r/linuxquestions/comments/16j9d9c).
+- Linux users describe `df` reporting more allocated space than `du` and point
+  to deleted files that remain open as one cause. This is practitioner evidence,
+  not proof that every `df`/`du` mismatch has that cause. Source:
+  [r/linuxquestions discussion](https://www.reddit.com/r/linuxquestions/comments/1kpu4v9).
 
 ## Decisions derived from the evidence
 
@@ -87,6 +96,7 @@ endorses SANCHAY or defines the hackathon scoring rubric.
 | Avoid collecting tool credentials | Exclude documented Docker, npm, and Terraform credential paths alongside existing cloud, key, vault, and environment-file safeguards before metadata collection or hashing. | Implemented |
 | Make BOSS storage operations safer | Measure APT archive and persistent systemd-journal storage separately; defer action to the owning tool and approved package/log-retention policy instead of raw file deletion or reclaim-target selection. | Implemented |
 | Protect managed application stores | When present, report Docker, containerd, and Flatpak system stores as tool-owned advisories; do not hash, rank, or raw-delete their files. | Implemented |
+| Explain process-held deleted storage | On Linux, report visible deleted regular files held through `/proc` only as an operational advisory; never signal, restart, truncate, delete, or include them in a reclaim target. | Implemented |
 | Avoid crossing a governance boundary silently | Scan one filesystem by default; cross-filesystem traversal requires an explicit flag and is inventory-only across mounts. | Implemented |
 | Keep forecasting honest | Label the first pass an mtime-derived estimate; capture aggregate local snapshots for observed growth and an explainable local linear trend. Cross-mount scans refuse shared targets and capacity forecasts. | Implemented |
 | Support government/BOSS deployment | Keep the core local, dependency-light, inspectable, and suitable for an offline terminal workflow. | Implemented |

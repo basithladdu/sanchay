@@ -70,6 +70,14 @@ evidence. When present, Docker Engine, containerd, and Flatpak system stores
 under `/var/lib/` receive the same treatment: SANCHAY does not hash, rank, or
 turn their individual files into raw cleanup recommendations.
 
+**1b. Surfaces deleted files still held by processes.** On Linux, a directory
+walk cannot see a file after unlinking even though its allocated blocks persist
+until its final open descriptor closes. SANCHAY reads visible
+`/proc/<pid>/fd` entries only for the selected filesystem and reports matching
+deleted regular files as operational evidence. They are never added to the
+cleanup plan or reclaim target, and SANCHAY never signals, restarts, truncates,
+or deletes a process-held file.
+
 **2. Works out how recoverable each file is.** This is the core of the tool.
 Every file lands in one of four classes:
 

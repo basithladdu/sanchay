@@ -15,3 +15,8 @@ To recreate the reviewable sample fixture:
 
 The report intentionally shows paths relative to the selected root so a shared
 report does not disclose the operator's absolute local path.
+
+When Linux exposes a deleted regular file that a process still has open, the
+report includes a separate **Process-held deleted files** panel. It identifies
+the visible holders and allocated bytes as operational evidence only; those
+records never become file cleanup candidates.

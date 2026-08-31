@@ -116,6 +116,17 @@ review of unused runtimes. A human retains control over every action.
 
 ---
 
+### 7. Linux Process-Held Deleted Storage
+
+A directory scan cannot see a file after its directory entry has been removed,
+even when its blocks remain allocated because a Linux process still holds an
+open descriptor. SANCHAY inspects visible `/proc/<pid>/fd` entries on the
+scanned filesystem and reports these records as a separate operational
+advisory. They never enter a reclaim target or cleanup plan: SANCHAY does not
+signal, restart, truncate, or delete anything held by a process.
+
+---
+
 ## 🖥️ Terminal & Web Visualizations
 
 ### Rich Terminal Dashboard (`sanchay-ui`)

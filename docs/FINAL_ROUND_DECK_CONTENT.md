@@ -67,6 +67,8 @@ Show two stages, not a fake exact date:
 1. An initial mtime-based estimate gives immediate orientation.
 2. Aggregate local snapshots train an explainable linear trend that reports
    bytes/day and, from the third snapshot onward, R-squared fit quality.
+3. If `/proc` shows a deleted regular file still held open, identify its PID and
+   allocated bytes as a separate advisory, never as a cleanup recommendation.
 
 Footer: “A first scan is an estimate; observed history is stronger evidence.”
 
@@ -78,6 +80,8 @@ Use the deterministic SANCHAY fixture and terminal output:
 - a duplicate has a named survivor;
 - a hardlink is excluded from reclaimable duplicates and does not inflate the
   disk total;
+- a process-held deleted file, when observed, is evidence for an operator to
+  review a service lifecycle—not permission for SANCHAY to stop or alter it;
 - a 600 KB target is met only with reviewable evidence-backed candidates;
 - a build cache is reviewable, not deleted;
 - --verify-plan passes before change and fails closed after a synthetic fixture

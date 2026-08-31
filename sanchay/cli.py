@@ -1,9 +1,11 @@
 """sanchay -- regret-aware storage intelligence for Linux."""
 import argparse
+import os
 import re
 import shutil
 
-from . import dedup, explain, forecast, managed, plan, regret, scan, snapshot, storage
+from . import (dedup, explain, forecast, managed, plan, processes, regret, scan,
+               snapshot, storage)
 
 
 def human(n):
@@ -121,6 +123,25 @@ def main(argv=None):
     groups = dedup.duplicates(managed.content_candidates(files), root=args.root)
     print(f"duplicates: {len(groups)} groups, {human(dedup.reclaimable(groups))} potential allocated reclaim")
 
+    process_devices = {device for device in devices if device is not None}
+    if not process_devices:
+        try:
+            process_devices.add(os.stat(args.root).st_dev)
+        except OSError:
+            pass
+    held_deleted = processes.deleted_open_files(process_devices or None)
+    if held_deleted:
+        print(f"process-held deleted: {human(processes.allocated_total(held_deleted))} "
+              f"across {len(held_deleted):,} deleted inode(s); not in file cleanup plan")
+        for record in held_deleted[:5]:
+            holder = record.holders[0]
+            more_holders = (f" (+{len(record.holders) - 1} holder(s))"
+                            if len(record.holders) > 1 else "")
+            print(f"  {human(record.allocated_size)} pid {holder.pid} "
+                  f"({holder.process}) fd {holder.fd}{more_holders}: {holder.path}")
+        print("  review the owning service lifecycle; SANCHAY never signals, "
+              "restarts, truncates, or deletes process-held storage")
+
     free = None if args.cross_filesystems else shutil.disk_usage(args.root).free
     current_snapshot = (snapshot.capture(files, args.root, free)
                         if free is not None else None)
@@ -193,7 +214,8 @@ def main(argv=None):
         from . import report
         print("report -> " + report.build(files, args.root, free, args.report,
                                            target_reclaim_bytes=args.target_reclaim,
-                                           cross_filesystems=args.cross_filesystems))
+                                           cross_filesystems=args.cross_filesystems,
+                                           process_held=held_deleted))
 
     if args.plan:
         print("plan -> " + plan.write(cleanup_plan, args.plan))

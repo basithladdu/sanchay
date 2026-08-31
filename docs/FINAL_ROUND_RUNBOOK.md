@@ -102,6 +102,14 @@ cross-filesystem scans are inventory-only; they reject a shared reclaim target,
 snapshot comparison, and runway forecast because freeing another mount does not
 relieve the filesystem under pressure.
 
+**What if `df` says full but the directory scan does not add up?** Linux can
+keep an unlinked file allocated while a process still has it open. SANCHAY
+checks visible `/proc/<pid>/fd` records on the scanned filesystem and reports
+the PID, descriptor, and allocated bytes separately. This is an advisory, not a
+cleanup recommendation: SANCHAY never kills, restarts, truncates, or deletes a
+process-held file. Snapshots, reserved blocks, and other filesystem-specific
+causes remain separate diagnostic questions.
+
 **How do you prove a duplicate is eligible for review?** It uses size bucketing,
 prefix hashing, then a full BLAKE2b-256 digest and a byte-for-byte comparison;
 the plan names the survivor and verification rechecks both identities and
