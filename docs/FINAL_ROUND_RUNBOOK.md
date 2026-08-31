@@ -63,7 +63,8 @@ Point out these concrete facts, not a generic dashboard:
   it does not broaden into the thesis or hardlinked entries to meet a target.
 - `cleanup-plan.json` has a SHA-256 integrity checksum (not a signature),
   candidate identity including link count, typed recovery evidence, and a
-  human-review requirement.
+  human-review requirement. Each recommendation also carries its frozen
+  size/age/regret decision trace and computed priority.
 
 ## Fail-closed proof
 

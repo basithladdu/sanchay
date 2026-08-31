@@ -104,6 +104,10 @@ and clean Git HEAD state where applicable. A changed link count invalidates the
 plan, because it changes whether a path can release physical storage. SANCHAY
 never deletes or moves files.
 
+The plan also freezes the decision trace for every recommendation: the exact
+size, unchanged-age factor, regret weight, formula, and computed priority. A
+reviewer can inspect the model inputs instead of accepting an opaque score.
+
 **6. Shows and explains.** A treemap is drawn with one block per physical inode,
 coloured by recoverability rather than size — green for disposable, red for
 irreplaceable — so hardlink aliases do not overstate disk use. A language

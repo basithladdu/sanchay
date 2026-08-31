@@ -158,8 +158,9 @@ sanchay-ui .
   private-key formats, and local credential vaults are excluded before metadata
   collection or duplicate hashing.
 * **Inspectable evidence policy**: Every plan item records its classification,
-  observed identity, and typed recovery evidence with its strength; files
-  classified as unique are excluded before ranking.
+  observed identity, typed recovery evidence with its strength, and frozen
+  decision-model inputs (size, unchanged age, regret weight, and computed
+  priority); files classified as unique are excluded before ranking.
 * **Review gate**: `--verify-plan` rechecks the integrity checksum (not a
   digital signature), candidate identity including link count, duplicate
   survivor, and clean Git HEAD state where applicable. Hardlinked entries are

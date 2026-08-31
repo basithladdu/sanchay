@@ -183,6 +183,9 @@ class TestSanchay(unittest.TestCase):
             self.assertEqual(item['recovery_evidence']['strength'], 'direct')
             self.assertIn(str(duplicate_a), item['recovery_evidence']['detail'])
             self.assertEqual(item['observed_identity']['size'], 4096)
+            self.assertEqual(item['decision_trace']['name'], 'regret_aware_priority')
+            self.assertEqual(item['decision_trace']['inputs']['size_bytes'], 4096)
+            self.assertEqual(item['decision_trace']['computed_priority'], item['priority'])
             self.assertEqual(
                 plan.duplicate_evidence_paths(cleanup_plan),
                 frozenset({str(duplicate_a), str(duplicate_z)}))

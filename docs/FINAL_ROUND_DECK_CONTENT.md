@@ -36,6 +36,10 @@ local scan → duplicate content match / clean-Git state / cache-path heuristic 
 Headline: “Unique, untracked, uncached files are excluded from the plan before
 priority ranking.”
 
+Each recommendation records the exact size, unchanged-age, regret weight, and
+computed priority behind its decision; the model is inspectable rather than a
+black box.
+
 Call out that the optional LLM narrates an already fenced list. It cannot add a
 file, alter an order, or execute an action.
 

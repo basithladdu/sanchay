@@ -22,6 +22,13 @@ ACTION = {
     "tracked": "confirm the project owner accepts removal; Git HEAD is a restoration route",
 }
 
+DECISION_MODEL = {
+    "name": "regret_aware_priority",
+    "version": 1,
+    "formula": "priority = size_bytes × unchanged_age × (1 - regret_weight)",
+    "boundary": "unique and hardlinked entries are excluded before ranking",
+}
+
 
 def _evidence(row, duplicate_of):
     """Return evidence with its strength instead of overstating certainty."""
@@ -43,6 +50,19 @@ def _evidence(row, duplicate_of):
         "strength": "heuristic",
         "detail": "matched a narrow cache or tool-specific build-output path; "
                   "confirm with the owning tool before manual clearing",
+    }
+
+
+def _decision_trace(row):
+    """Freeze the exact model inputs behind one review recommendation."""
+    return {
+        **DECISION_MODEL,
+        "inputs": {
+            "size_bytes": row["size"],
+            "unchanged_age": row["staleness"],
+            "regret_weight": row["regret"],
+        },
+        "computed_priority": row["priority"],
     }
 
 
@@ -113,6 +133,7 @@ def build(files, duplicate_groups, root, now=None, limit=25,
             **row,
             "proposed_action": ACTION[row["kind"]],
             "recovery_evidence": _evidence(row, duplicate_of),
+            "decision_trace": _decision_trace(row),
             "requires_human_review": True,
             "observed_identity": _identity(info),
         }
@@ -146,6 +167,7 @@ def build(files, duplicate_groups, root, now=None, limit=25,
             "algorithm": "SHA-256",
             "purpose": "detects accidental plan changes; this checksum is not a signature",
         },
+        "decision_model": DECISION_MODEL,
         "recommendations": recommendations,
     }
     if target_reclaim_bytes is not None:
