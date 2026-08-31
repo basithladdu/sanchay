@@ -14,7 +14,7 @@ import shutil
 from types import SimpleNamespace
 from pathlib import Path
 
-from sanchay import (cli, dedup, demo, explain, forecast, managed, mounts,
+from sanchay import (archive, cli, dedup, demo, explain, forecast, managed, mounts,
                      plan, processes, regret, report, scan, snapshot, storage)
 
 
@@ -913,6 +913,59 @@ class TestSanchay(unittest.TestCase):
             stale = plan.verify(cleanup_plan)
             self.assertFalse(stale['valid'])
             self.assertIn('candidate', stale['recommendations'][0]['reasons'][0])
+
+    def test_archive_verification_requires_separate_matching_regular_files(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            source = root / 'source.iso'
+            retained = root / 'archive' / 'source.iso'
+            retained.parent.mkdir()
+            source.write_bytes(b'x' * 8192)
+            retained.write_bytes(b'x' * 8192)
+
+            verified = archive.verify(source, retained)
+            self.assertTrue(verified['verified'])
+            self.assertTrue(verified['separate_inode'])
+            self.assertEqual(verified['comparison'], 'byte_for_byte_stream')
+            self.assertEqual(verified['reclaimable_allocated_bytes'],
+                             storage.allocated_bytes_from_stat(source.stat()))
+            self.assertIn('not an independent backup',
+                          verified['storage_boundary'])
+
+            same_inode = root / 'same-inode.iso'
+            os.link(source, same_inode)
+            alias = archive.verify(source, same_inode)
+            self.assertFalse(alias['verified'])
+            self.assertFalse(alias['separate_inode'])
+            self.assertEqual(alias['reclaimable_allocated_bytes'], 0)
+            self.assertIn('same inode', alias['reason'])
+
+            retained.write_bytes(b'y' * 8192)
+            changed = archive.verify(source, retained)
+            self.assertFalse(changed['verified'])
+            self.assertIn('byte-for-byte match', changed['reason'])
+
+            protected = root / '.ssh' / 'id_rsa'
+            protected.parent.mkdir()
+            protected.write_bytes(b'credential')
+            with self.assertRaisesRegex(ValueError, 'protected credential/control'):
+                archive.verify(protected, retained)
+
+    def test_cli_archive_verification_is_read_only(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            source = root / 'source.bin'
+            retained = root / 'archive.bin'
+            source.write_bytes(b'x' * 4096)
+            retained.write_bytes(b'x' * 4096)
+            output = io.StringIO()
+            with contextlib.redirect_stdout(output):
+                status = cli.main(['--verify-archive', str(source), str(retained)])
+
+            self.assertEqual(status, 0)
+            self.assertEqual(source.read_bytes(), retained.read_bytes())
+            self.assertIn('archive: verified retained copy', output.getvalue())
+            self.assertIn('no file was copied, moved, or deleted', output.getvalue())
 
     def test_cleanup_plan_verification_rejects_changed_hardlink_count(self):
         with tempfile.TemporaryDirectory() as tmp:

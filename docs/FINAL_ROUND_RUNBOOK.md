@@ -43,6 +43,7 @@ human acts.
 DEMO_ROOT="$(mktemp -d /tmp/sanchay-demo.XXXXXX)"
 sanchay-demo "$DEMO_ROOT"
 
+sanchay --verify-archive "$DEMO_ROOT/downloads/boss-image-copy.iso" "$DEMO_ROOT/archive/boss-image.iso"
 sanchay "$DEMO_ROOT" --target-reclaim 600K --limit 10 --plan cleanup-plan.json --snapshot baseline.json --explain
 python -m json.tool cleanup-plan.json | less
 sanchay --verify-plan cleanup-plan.json
@@ -54,6 +55,10 @@ Point out these concrete facts, not a generic dashboard:
   in the plan.
 - `downloads/boss-image-copy.iso` is a duplicate candidate only because
   `archive/boss-image.iso` is explicitly named as its retained survivor.
+- `--verify-archive` first proves those files are byte-for-byte equal and
+  separate inodes. The fixture puts them on the same filesystem, so SANCHAY
+  deliberately calls this recovery evidence for a manual space review, **not**
+  an independent backup.
 - `hardlinks/source.bin` and `hardlinks/alias.bin` are not reclaimable
   duplicates because they share one `(device, inode)` identity. They count as
   one physical file in the allocated on-disk total, forecast, snapshot, and
@@ -105,11 +110,13 @@ model.
 the irreversible step has a different risk profile. SANCHAY supplies an
 auditable plan and revalidation gate so an operator retains authority.
 
-**What about archiving?** An archive becomes recovery evidence only after an
-operator chooses its destination and retention policy, a copy is verified, and
-restoration is governed. SANCHAY does not treat an old unique file as safe to
-move merely because it is old. Once a byte-confirmed surviving copy exists, it
-is handled as a duplicate with a named survivor and revalidation gate.
+**What about archiving?** `--verify-archive SOURCE RETAINED_COPY` is a
+read-only gate for an operator-chosen copy. It rejects credential and
+system-managed paths, a hardlink alias posing as a second copy, mismatched
+bytes, and identity changes during the check. A verified separate inode then
+becomes a named survivor for review. Same-filesystem equivalence is not called
+a backup; destination durability, retention, and restoration remain operator
+policy.
 
 **What if an operator needs a stated amount of free space?** `--target-reclaim`
 selects from the lowest recovery-risk class first, using the smallest safe

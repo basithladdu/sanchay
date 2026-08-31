@@ -168,6 +168,15 @@ size, reclaimable allocated bytes, unchanged-age factor, regret weight,
 formula, and computed priority. A
 reviewer can inspect the model inputs instead of accepting an opaque score.
 
+**Archive-copy proof is separate from archiving action.** An operator may run
+`sanchay --verify-archive SOURCE RETAINED_COPY` before treating a chosen archive
+copy as a named survivor. The read-only check rejects credential/control and
+system-managed paths, hardlink aliases, byte mismatches, and identity drift;
+it compares regular-file bytes and rechecks both identities. It does not copy,
+move, or delete either path. A same-filesystem result establishes a separate
+survivor for a manual space-recovery review, not an independent backup,
+retention promise, or restore procedure.
+
 **6. Shows and explains.** A treemap is drawn with one block per physical inode
 sized by allocated bytes, coloured by recoverability rather than logical size — green for disposable, red for
 irreplaceable — so hardlink aliases do not overstate disk use. The default

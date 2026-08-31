@@ -4,7 +4,7 @@ import os
 import re
 import shutil
 
-from . import (dedup, explain, forecast, managed, mounts, plan, processes,
+from . import (archive, dedup, explain, forecast, managed, mounts, plan, processes,
                regret, scan, snapshot, storage)
 
 
@@ -65,11 +65,17 @@ def main(argv=None):
                                 help="fit a local linear trend to prior snapshots and this scan")
     ap.add_argument("--verify-plan", metavar="PLAN.json",
                     help="recheck a review-only plan; never deletes or moves files")
+    ap.add_argument("--verify-archive", metavar=("SOURCE", "RETAINED_COPY"),
+                    nargs=2,
+                    help="verify a separate byte-matching retained copy; never copies, moves, or deletes files")
     ap.add_argument("--tui", action="store_true", help="open the terminal UI")
     args = ap.parse_args(argv)
 
     if args.cloud_narrative and not args.explain:
         ap.error("--cloud-narrative requires --explain")
+
+    if args.verify_plan and args.verify_archive:
+        ap.error("use either --verify-plan or --verify-archive, not both")
 
     if args.cross_filesystems and any((
             args.target_reclaim is not None, args.snapshot, args.compare,
@@ -102,6 +108,28 @@ def main(argv=None):
             verdict = "ok" if item["valid"] else "; ".join(item["reasons"])
             print(f"- {item['kind']}: {item['path']} — {verdict}")
         return 0 if result["valid"] else 1
+
+    if args.verify_archive:
+        if any((args.root, args.cross_filesystems, args.explain, args.viz,
+                args.report, args.plan, args.target_reclaim is not None,
+                args.snapshot, args.compare, args.history, args.tui)):
+            ap.error("--verify-archive is a standalone read-only check")
+        try:
+            result = archive.verify(*args.verify_archive)
+        except (OSError, ValueError) as exc:
+            print(f"archive: unavailable for review ({exc})")
+            return 2
+        state = "verified retained copy" if result["verified"] else "not verified"
+        print(f"archive: {state}")
+        print("comparison: byte-for-byte stream; separate inode: "
+              + ("yes" if result["separate_inode"] else "no"))
+        print(f"source reclaim on manual review: {human(result['reclaimable_allocated_bytes'])}")
+        if result["verified"]:
+            print("storage boundary: " + result["storage_boundary"])
+        else:
+            print("reason: " + result["reason"])
+        print("action boundary: no file was copied, moved, or deleted")
+        return 0 if result["verified"] else 1
 
     if not args.root:
         ap.error("ROOT is required unless --verify-plan is used")

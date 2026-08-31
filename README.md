@@ -98,6 +98,17 @@ Deduplicating large files can saturate I/O. SANCHAY uses a 3-tier cascade:
    scan root with no-follow flags. A symlink component, non-regular file, or
    scan-time identity change yields no duplicate evidence.
 
+### Verified Archive-Copy Gate
+
+`sanchay --verify-archive SOURCE RETAINED_COPY` is a separate, read-only proof
+step for an operator-chosen archive destination. It requires two regular,
+non-sensitive, non-system-managed files, rejects a hardlink alias as a fake
+copy, compares the bytes, and rechecks both identities before reporting a
+retained survivor. It never creates, moves, or deletes either file. A verified
+copy on the same filesystem can support a manual space-recovery review, but is
+explicitly not presented as an independent backup, retention policy, or restore
+procedure.
+
 ### 4. Interactive Treemap & TUI Reporting
 Interactive visualization color-coded by recoverability class rather than raw directory hierarchy alone.
 
@@ -180,28 +191,31 @@ sanchay /srv --cross-filesystems --plan multi-mount-review.json
 # 4. Recheck that a plan is still valid before any human acts on it
 sanchay --verify-plan cleanup-plan.json
 
-# 5. Save an aggregate local snapshot for a later measured-growth comparison
+# 5. Verify an operator-selected retained archive copy before treating it as a survivor
+sanchay --verify-archive /home/user/downloads/ubuntu.iso /mnt/archive/ubuntu.iso
+
+# 6. Save an aggregate local snapshot for a later measured-growth comparison
 # This requires complete readable-path coverage; SANCHAY reports and withholds
 # the snapshot if an in-scope path cannot be inspected.
 sanchay /home/user --snapshot before.json
 sanchay /home/user --compare before.json
 
-# 6. Fit a local trend once you have multiple earlier snapshots
+# 7. Fit a local trend once you have multiple earlier snapshots
 sanchay /home/user --history day-1.json day-7.json day-14.json
 
-# 7. Generate an interactive Plotly HTML report
+# 8. Generate an interactive Plotly HTML report
 sanchay /home/user --report report.html
 
-# 8. Produce a deterministic local-only narrative for the review set
+# 9. Produce a deterministic local-only narrative for the review set
 sanchay /home/user --explain
 
 # Explicit cloud narrative over opaque IDs and fixed metadata only
 sanchay /home/user --explain --cloud-narrative
 
-# 9. Create a harmless, reproducible final-round demo fixture
+# 10. Create a harmless, reproducible final-round demo fixture
 sanchay-demo /tmp/sanchay-demo
 
-# 10. Launch interactive Textual Terminal Dashboard
+# 11. Launch interactive Textual Terminal Dashboard
 sanchay-ui /home/user
 ```
 
@@ -263,6 +277,10 @@ sanchay-ui .
   survivor, and clean Git HEAD state where applicable. Hardlinked entries are
   never individual cleanup candidates because removing one name releases no
   physical bytes. It never deletes or moves files.
+* **Archive proof boundary**: `--verify-archive` verifies an explicitly chosen
+  separate retained inode with a byte-for-byte comparison and identity recheck.
+  It rejects credential/control and system-managed paths, performs no file
+  action, and never represents a same-filesystem copy as an independent backup.
 
 ---
 
