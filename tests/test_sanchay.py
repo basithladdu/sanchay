@@ -1467,6 +1467,21 @@ class TestSanchay(unittest.TestCase):
             with self.assertRaises(ValueError):
                 demo.create(root)
 
+    def test_demo_rehearsal_proves_boundaries_and_fails_closed(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp) / 'fixture'
+            output = io.StringIO()
+            with contextlib.redirect_stdout(output):
+                status = demo.main([str(root), '--prove'])
+
+        rendered = output.getvalue()
+        self.assertEqual(status, 0)
+        self.assertIn('protected unique -> documents/capstone-thesis.txt stayed out', rendered)
+        self.assertIn('duplicate proof   -> downloads/boss-image-copy.iso retained', rendered)
+        self.assertIn('hardlink boundary -> 2 entries excluded', rendered)
+        self.assertIn('fail-closed check -> a synthetic cache mutation invalidated the plan', rendered)
+        self.assertIn('proof -> PASS; no file was deleted, moved, or transmitted', rendered)
+
     def test_scan_prunes_repository_and_credential_directories(self):
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)

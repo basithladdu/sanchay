@@ -39,6 +39,10 @@ human acts.
 6. The page renders embedded offline chart summaries first. During rehearsal,
    append `?offline=1` to prove its no-CDN state before the optional Plotly
    enhancement is allowed to load.
+7. Before the final, run `sanchay-demo --prove`. It creates only a disposable
+   fixture, checks the protected/duplicate/hardlink boundaries, then changes
+   only the synthetic cache and confirms that the plan fails closed. The command
+   is a rehearsal check, not a substitute for the visible live sequence below.
 
 ## Exact live-demo sequence
 

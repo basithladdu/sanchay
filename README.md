@@ -262,7 +262,11 @@ sanchay /home/user --explain --cloud-narrative
 # 12. Create a harmless, reproducible final-round demo fixture
 sanchay-demo /tmp/sanchay-demo
 
-# 13. Launch interactive Textual Terminal Dashboard
+# 13. Run the complete safety rehearsal against a disposable fixture
+# It proves the protected, duplicate, hardlink, and fail-closed boundaries.
+sanchay-demo --prove
+
+# 14. Launch interactive Textual Terminal Dashboard
 sanchay-ui /home/user
 ```
 
