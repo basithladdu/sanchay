@@ -1296,6 +1296,11 @@ class TestSanchay(unittest.TestCase):
         self.assertIn(f'schema_version: {plan.PLAN_SCHEMA_VERSION}', source_page)
         self.assertIn('scan_coverage: {complete: true', source_page)
         self.assertIn('excluded_credential_control_entries: 0', source_page)
+        self.assertIn('function renderOfflineCharts()', source_page)
+        self.assertIn("get('offline') === '1'", source_page)
+        self.assertIn('Offline visual summary', source_page)
+        self.assertIn("treemapContainer.textContent = ''", source_page)
+        self.assertIn("forecastContainer.textContent = ''", source_page)
 
     def test_cli_history_uses_the_local_linear_trend(self):
         with tempfile.TemporaryDirectory() as tmp:

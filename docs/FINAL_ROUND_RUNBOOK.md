@@ -36,6 +36,9 @@ human acts.
    terminal scrollback.
 5. Open the public page only as a seeded explanatory walkthrough. State that it
    does not scan the visitor's filesystem.
+6. The page renders embedded offline chart summaries first. During rehearsal,
+   append `?offline=1` to prove its no-CDN state before the optional Plotly
+   enhancement is allowed to load.
 
 ## Exact live-demo sequence
 

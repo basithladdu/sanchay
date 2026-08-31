@@ -5,7 +5,6 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>SANCHAY — Regret-Aware Storage Intelligence for Linux</title>
 <meta name="description" content="Review-only, regret-aware storage recommendations for Linux. Built by Zeros and Ones for the C-DAC SSM Hackathon 2026.">
-<script src="https://cdn.plot.ly/plotly-2.35.2.min.js"></script>
 <style>
 :root {
   --bg: #090d16;
@@ -511,6 +510,9 @@ td { border-bottom-color: var(--border); color: var(--text-main); padding: 12px 
 .pill-tracked { color: var(--amber); }
 .pill-unique { color: var(--rose); }
 .locked-badge { color: var(--rose); font-family: ui-monospace, monospace; font-size: 10px; }
+.chart-fallback { background: var(--surface); border: 1px solid var(--border); height: 100%; padding: 10px; }
+.chart-fallback svg { display: block; height: calc(100% - 20px); width: 100%; }
+.chart-fallback-note { color: var(--text-muted); font-family: ui-monospace, monospace; font-size: 10px; line-height: 1.35; margin-top: 5px; }
 footer { border-top-color: var(--border); color: var(--text-muted); font-family: ui-monospace, monospace; font-size: 11px; padding-top: 22px; text-align: left; }
 button:focus-visible, a:focus-visible, input:focus-visible { outline: 3px solid var(--amber); outline-offset: 3px; }
 @media (max-width: 760px) {
@@ -542,6 +544,8 @@ button:focus-visible, a:focus-visible, input:focus-visible { outline: 3px solid 
   td::before { color: var(--text-muted); content: attr(data-label); display: block; font-family: ui-monospace, monospace; font-size: 9px; font-weight: 700; letter-spacing: .06em; margin-bottom: 1px; text-transform: uppercase; }
   #treemapDiv { height: 300px !important; }
   #forecastDiv { height: 270px !important; }
+  .chart-fallback { padding: 7px; }
+  .chart-fallback-note { font-size: 9px; }
 }
 </style>
 </head>
@@ -809,7 +813,6 @@ async function generateDemoPlan() {
   status.textContent = `Seeded ${formatDemoGB(targetGB)} target: ${formatDemoGB(selection.selectedGB)} across ${selection.selectedCount} lowest-risk candidates — ${outcome}. SHA-256 ${fingerprint.slice(0, 16)}… (not a signature); no file action exists in this demo.`;
 }
 
-// Treemap rendering
 const treemapData = [{
   type: "treemap",
   labels: ["Root", "Disposable Caches", "node_modules", "target/debug", "Duplicates", "ubuntu.iso", "Git Tracked", "boot.o", "Irreplaceable Unique", "capstone_thesis", "db_dump.sql"],
@@ -822,42 +825,84 @@ const treemapData = [{
   hoverinfo: "label+value+percent parent"
 }];
 
-Plotly.newPlot('treemapDiv', treemapData, {
-  margin: {l: 0, r: 0, t: 0, b: 0},
-  paper_bgcolor: 'rgba(0,0,0,0)',
-  plot_bgcolor: 'rgba(0,0,0,0)',
-  font: {family: 'ui-monospace, SFMono-Regular, Consolas, monospace', color: '#141713'}
-}, {responsive: true, displayModeBar: false});
-
-// Forecast rendering
 const dates = ['Day 0', 'Day 30', 'Day 60', 'Day 90', 'Day 120', 'Day 150', 'Day 180'];
 const usedGB = [280, 298, 316, 334, 352, 370, 388];
 const limitGB = [388, 388, 388, 388, 388, 388, 388];
 
-Plotly.newPlot('forecastDiv', [
-  {
-    x: dates, y: usedGB,
-    type: 'scatter', mode: 'lines+markers',
-    name: 'Example mtime-based estimate (600 MB/day)',
-    line: {color: '#275f78', width: 3},
-    fill: 'tozeroy',
-    fillcolor: 'rgba(39, 95, 120, 0.12)'
-  },
-  {
-    x: dates, y: limitGB,
-    type: 'scatter', mode: 'lines',
-    name: 'Disk Capacity Limit (388 GB)',
-    line: {color: '#a13e32', width: 2, dash: 'dot'}
+function renderOfflineCharts() {
+  document.getElementById('treemapDiv').innerHTML = `
+    <div class="chart-fallback">
+      <svg viewBox="0 0 800 280" role="img" aria-labelledby="offlineTreemapTitle">
+        <title id="offlineTreemapTitle">Seeded allocated storage by recoverability: verified duplicates 4.80 GB, protected unique files 3.33 GB, regenerable output 2.30 GB, and clean Git output 0.32 GB.</title>
+        <rect x="0" y="0" width="410" height="260" fill="#5a8294"/>
+        <rect x="420" y="0" width="275" height="260" fill="#a13e32"/>
+        <rect x="705" y="0" width="95" height="190" fill="#4f8a66"/>
+        <rect x="705" y="200" width="95" height="60" fill="#9a5c1b"/>
+        <g fill="#fbfaf5" font-family="ui-monospace, monospace" font-size="16">
+          <text x="18" y="34">VERIFIED DUPLICATE</text><text x="18" y="58">4.80 GB</text>
+          <text x="438" y="34">PROTECTED UNIQUE</text><text x="438" y="58">3.33 GB</text>
+          <text x="717" y="28" font-size="11">REGEN.</text><text x="717" y="46" font-size="11">2.30 GB</text>
+          <text x="717" y="223" font-size="10">GIT</text><text x="717" y="240" font-size="10">0.32</text>
+        </g>
+      </svg>
+      <p class="chart-fallback-note">Offline visual summary — evidence classes and seeded values remain available without a chart CDN.</p>
+    </div>`;
+  document.getElementById('forecastDiv').innerHTML = `
+    <div class="chart-fallback">
+      <svg viewBox="0 0 800 280" role="img" aria-labelledby="offlineForecastTitle">
+        <title id="offlineForecastTitle">Seeded capacity orientation rises from 280 GB at day 0 to a 388 GB capacity limit at day 180.</title>
+        <g stroke="#d5d8d0" stroke-width="1"><line x1="55" y1="35" x2="760" y2="35"/><line x1="55" y1="115" x2="760" y2="115"/><line x1="55" y1="195" x2="760" y2="195"/><line x1="55" y1="35" x2="55" y2="220"/><line x1="55" y1="220" x2="760" y2="220"/></g>
+        <line x1="55" y1="35" x2="760" y2="35" stroke="#a13e32" stroke-width="3" stroke-dasharray="7 6"/>
+        <polyline points="55,195 172,168 290,141 408,114 525,87 643,60 760,35" fill="none" stroke="#275f78" stroke-width="5"/>
+        <g fill="#275f78"><circle cx="55" cy="195" r="5"/><circle cx="172" cy="168" r="5"/><circle cx="290" cy="141" r="5"/><circle cx="408" cy="114" r="5"/><circle cx="525" cy="87" r="5"/><circle cx="643" cy="60" r="5"/><circle cx="760" cy="35" r="5"/></g>
+        <g fill="#5d625b" font-family="ui-monospace, monospace" font-size="13"><text x="8" y="199">280</text><text x="8" y="119">334</text><text x="8" y="39">388</text><text x="55" y="246">Day 0</text><text x="690" y="246">Day 180</text><text x="568" y="27" fill="#a13e32">LIMIT 388 GB</text></g>
+      </svg>
+      <p class="chart-fallback-note">Seeded mtime-based orientation — later local snapshots provide the measured trend.</p>
+    </div>`;
+}
+
+function renderPlotlyCharts() {
+  const treemapContainer = document.getElementById('treemapDiv');
+  const forecastContainer = document.getElementById('forecastDiv');
+  treemapContainer.textContent = '';
+  forecastContainer.textContent = '';
+  Plotly.newPlot(treemapContainer, treemapData, {
+    margin: {l: 0, r: 0, t: 0, b: 0},
+    paper_bgcolor: 'rgba(0,0,0,0)',
+    plot_bgcolor: 'rgba(0,0,0,0)',
+    font: {family: 'ui-monospace, SFMono-Regular, Consolas, monospace', color: '#141713'}
+  }, {responsive: true, displayModeBar: false});
+  Plotly.newPlot(forecastContainer, [
+    {x: dates, y: usedGB, type: 'scatter', mode: 'lines+markers', name: 'Example mtime-based estimate (600 MB/day)', line: {color: '#275f78', width: 3}, fill: 'tozeroy', fillcolor: 'rgba(39, 95, 120, 0.12)'},
+    {x: dates, y: limitGB, type: 'scatter', mode: 'lines', name: 'Disk Capacity Limit (388 GB)', line: {color: '#a13e32', width: 2, dash: 'dot'}}
+  ], {
+    margin: {l: 40, r: 56, t: 20, b: 40}, paper_bgcolor: 'rgba(0,0,0,0)', plot_bgcolor: 'rgba(0,0,0,0)',
+    xaxis: {gridcolor: '#d5d8d0', color: '#5d625b'}, yaxis: {title: 'Storage (GB)', gridcolor: '#d5d8d0', color: '#5d625b'},
+    font: {family: 'ui-monospace, SFMono-Regular, Consolas, monospace', color: '#141713'}, legend: {orientation: 'h', y: 1.1}
+  }, {responsive: true, displayModeBar: false});
+}
+
+function loadOptionalPlotly() {
+  if (new URLSearchParams(window.location.search).get('offline') === '1') {
+    return;
   }
-], {
-  margin: {l: 40, r: 56, t: 20, b: 40},
-  paper_bgcolor: 'rgba(0,0,0,0)',
-  plot_bgcolor: 'rgba(0,0,0,0)',
-  xaxis: {gridcolor: '#d5d8d0', color: '#5d625b'},
-  yaxis: {title: 'Storage (GB)', gridcolor: '#d5d8d0', color: '#5d625b'},
-  font: {family: 'ui-monospace, SFMono-Regular, Consolas, monospace', color: '#141713'},
-  legend: {orientation: 'h', y: 1.1}
-}, {responsive: true, displayModeBar: false});
+  if (window.Plotly && typeof window.Plotly.newPlot === 'function') {
+    renderPlotlyCharts();
+    return;
+  }
+  const script = document.createElement('script');
+  script.src = 'https://cdn.plot.ly/plotly-2.35.2.min.js';
+  script.async = true;
+  script.onload = () => {
+    if (window.Plotly && typeof window.Plotly.newPlot === 'function') {
+      renderPlotlyCharts();
+    }
+  };
+  document.head.append(script);
+}
+
+renderOfflineCharts();
+loadOptionalPlotly();
 </script>
 </body>
 </html>

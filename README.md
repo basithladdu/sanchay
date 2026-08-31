@@ -186,6 +186,14 @@ Install the optional Textual extra, then run `sanchay-ui /path/to/scan` for an
 interactive view of reviewable candidates. The dashboard follows the same
 review-only policy as the CLI.
 
+### Seeded Browser Explainer
+
+`index.html` (mirrored in `public/index.html`) is a seeded explanatory page,
+not a device scan. Its embedded SVG chart summaries render immediately without
+a public chart CDN; Plotly is only an optional asynchronous enhancement. Add
+`?offline=1` during rehearsal to force the no-CDN state. No visitor filesystem
+data is read or transmitted.
+
 ### Commands & CLI Subcommands
 ```bash
 # 1. Scan directory and display prioritized reclamation candidates

@@ -127,8 +127,10 @@ Put the command in small monospace text only:
   device-mapper boundary but does not infer pool headroom, encryption state, or
   permission to run LVM commands.
 - Dependency-free Python core; TUI, plots, and the separately opt-in cloud
-  narration are optional. The JSON manifest records observed identity and a
-  SHA-256 integrity checksum (not a signature).
+  narration are optional. The seeded browser explainer renders embedded offline
+  summaries first, then uses Plotly only as an optional enhancement. The JSON
+  manifest records observed identity and a SHA-256 integrity checksum (not a
+  signature).
 
 Phrase this as a product fit inferred from C-DAC's Secure OS context, not a
 claim of C-DAC endorsement or scoring criteria.
