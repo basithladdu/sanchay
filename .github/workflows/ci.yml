@@ -34,3 +34,8 @@ jobs:
     - name: Verify CLI scan
       run: |
         python -m sanchay.cli . --limit 5
+
+    - name: Rehearse final-round safety proof
+      run: |
+        python -m sanchay.demo --prove
+        python -m sanchay.demo --risk-prove
