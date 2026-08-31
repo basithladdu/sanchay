@@ -103,6 +103,56 @@ class TestSanchay(unittest.TestCase):
         self.assertNotIn('/home/user/only-copy.bin',
                          [item['path'] for item in cleanup_plan['recommendations']])
 
+    def test_reclaim_target_uses_exact_lowest_risk_combination_to_avoid_overshoot(self):
+        candidates = [
+            scan.FileInfo('/app/.cache/nine.bin', 9, self.now,
+                          self.now - 86400 * 90, 320),
+            scan.FileInfo('/app/.cache/six.bin', 6, self.now,
+                          self.now - 86400 * 90, 321),
+            scan.FileInfo('/app/.cache/four.bin', 4, self.now,
+                          self.now - 86400 * 90, 322),
+        ]
+        cleanup_plan = plan.build(candidates, [], '/app', now=self.now,
+                                  target_reclaim_bytes=10)
+
+        self.assertEqual(
+            [item['path'] for item in cleanup_plan['recommendations']],
+            ['/app/.cache/six.bin', '/app/.cache/four.bin'])
+        self.assertEqual(cleanup_plan['selection']['selected_reclaim_bytes'], 10)
+        self.assertIn('exact', cleanup_plan['selection']['method'])
+
+    def test_reclaim_target_exact_optimizer_handles_a_multi_file_combination(self):
+        candidates = [
+            scan.FileInfo(f'/app/.cache/{size:02}.bin', size, self.now,
+                          self.now - 86400 * 90, 350 + size)
+            for size in (31, 29, 24, 17, 12, 9)
+        ]
+        cleanup_plan = plan.build(candidates, [], '/app', now=self.now,
+                                  target_reclaim_bytes=50)
+
+        self.assertEqual(
+            {item['logical_size'] for item in cleanup_plan['recommendations']},
+            {9, 12, 29})
+        self.assertEqual(cleanup_plan['selection']['selected_reclaim_bytes'], 50)
+        self.assertEqual(cleanup_plan['selection']['optimizer']['class_steps'][0]['strategy'],
+                         'exact_minimum_excess_subset')
+
+    def test_reclaim_target_records_the_large_class_greedy_boundary(self):
+        candidates = [
+            scan.FileInfo(f'/app/.cache/{index:02}.bin', 1, self.now,
+                          self.now - 86400 * 90, 400 + index)
+            for index in range(plan.EXACT_TARGET_SELECTION_LIMIT + 1)
+        ]
+        cleanup_plan = plan.build(candidates, [], '/app', now=self.now,
+                                  target_reclaim_bytes=10)
+
+        optimizer = cleanup_plan['selection']['optimizer']
+        self.assertEqual(cleanup_plan['selection']['selected_reclaim_bytes'], 10)
+        self.assertEqual(optimizer['exact_class_candidate_limit'],
+                         plan.EXACT_TARGET_SELECTION_LIMIT)
+        self.assertEqual(optimizer['class_steps'][0]['strategy'],
+                         'greedy_fallback_above_exact_limit')
+
     def test_reclaim_target_reports_an_evidence_limited_shortfall(self):
         candidates = [
             scan.FileInfo('/app/.cache/only.bin', 4000, self.now, self.now - 86400 * 90, 304),

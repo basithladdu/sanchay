@@ -175,6 +175,7 @@ endorses SANCHAY or defines the hackathon scoring rubric.
 | Need | SANCHAY decision | Status |
 | --- | --- | --- |
 | Avoid catastrophic loss | No automatic deletion or file movement; write a review-only plan instead. | Implemented |
+| Meet a stated reclaim target without needless review scope | Exhaust lower recovery-risk classes before a higher-risk class. For a same-risk class of 28 or fewer candidates that can meet the remaining target, use an exact minimum-excess subset search; record a deterministic fallback when the class is larger. | Implemented |
 | Make every recommendation auditable | Include class, typed recovery evidence with strength, survivor path for duplicates, observed device/inode/logical-size/allocated-size/mtime-nanoseconds/link count, and a SHA-256 integrity checksum (not a signature). | Implemented |
 | Preserve recovery evidence without inferring source of truth | Keep a deterministic byte-matched evidence peer for duplicate rechecks, but require an operator to choose retention; identify hardlinks by `(device, inode)`, count each inode once, and exclude individual hardlinked paths because one unlink releases no bytes. | Implemented |
 | Avoid treating a path swap as duplicate proof | On Linux, walk from the canonical scan-root descriptor with `openat` plus no-follow flags; reject non-regular files or identity drift before/after a content read. | Implemented |

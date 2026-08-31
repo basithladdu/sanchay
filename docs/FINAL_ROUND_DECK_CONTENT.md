@@ -40,6 +40,10 @@ Each recommendation records the exact size, unchanged-age, regret weight, and
 computed priority behind its decision; the model is inspectable rather than a
 black box.
 
+For an explicit reclaim target, SANCHAY exhausts lower-risk classes first. In a
+same-risk class of at most 28 candidates, its bounded exact subset optimizer
+minimizes excess; a larger class records its deterministic fallback in the plan.
+
 Call out that the default narrative is local. A separately opt-in cloud
 narrative receives opaque candidate IDs plus class, allocated bytes, and age—no
 raw paths or file contents—and cannot add a file, alter an order, or execute an

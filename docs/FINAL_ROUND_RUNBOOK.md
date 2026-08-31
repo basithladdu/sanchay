@@ -147,13 +147,14 @@ a backup; destination durability, retention, and restoration remain operator
 policy.
 
 **What if an operator needs a stated amount of free space?** `--target-reclaim`
-selects from the lowest recovery-risk class first, using the smallest safe
-excess within that class, and reports whether the target is met. If it cannot
-be met safely, it reports a shortfall rather than recommending protected files.
-That capacity claim is deliberately limited to one filesystem. Explicit
-cross-filesystem scans are inventory-only; they reject a shared reclaim target,
-snapshot comparison, and runway forecast because freeing another mount does not
-relieve the filesystem under pressure.
+exhausts lower recovery-risk classes before it considers a higher-risk class.
+For a class of 28 or fewer candidates that can meet the remaining request, a
+bounded exact subset search minimizes excess; a larger class records a
+deterministic greedy fallback. It reports whether the target is met and never
+widens scope to protected files. That capacity claim is deliberately limited to
+one filesystem. Explicit cross-filesystem scans are inventory-only; they reject
+a shared reclaim target, snapshot comparison, and runway forecast because
+freeing another mount does not relieve the filesystem under pressure.
 
 **What if `df` says full but the directory scan does not add up?** On an
 explicit `--capacity-audit`, SANCHAY first requires a complete scan started at

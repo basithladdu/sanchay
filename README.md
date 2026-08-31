@@ -160,10 +160,12 @@ Interactive visualization color-coded by recoverability class rather than raw di
 ---
 
 ### 5. Intent-Aware, Evidence-Bounded Reclamation
-When an operator needs a specific amount of space, `--target-reclaim 5G` selects
-from the lowest recovery-risk class first, using the smallest safe excess within
-that class. If the recovery-evidence gate cannot meet the target, SANCHAY
-reports the shortfall instead of widening scope to protected files.
+When an operator needs a specific amount of space, `--target-reclaim 5G` first
+exhausts lower recovery-risk classes. Where one class can meet the remaining
+request with 28 or fewer candidates, a bounded exact subset search minimizes
+safe excess; a larger class uses a recorded deterministic greedy fallback. If
+the recovery-evidence gate cannot meet the target, SANCHAY reports the shortfall
+instead of widening scope to protected files.
 
 ---
 

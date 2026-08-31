@@ -156,13 +156,15 @@ not been read: access timestamps are mount-policy dependent and hashing can
 touch them.
 
 An operator can also state a reclaim target such as `--target-reclaim 5G`.
-SANCHAY first selects from the lowest recovery-risk class, then uses the
-smallest safe excess within that class to meet the request. If the
-recovery-evidence gate cannot meet the target, it reports the shortfall rather
-than expanding into protected files. This target is intentionally scoped to one
-filesystem: explicit cross-filesystem traversal is inventory-only and rejects a
-combined target because releasing space on another mount does not relieve the
-filesystem under pressure. A plan written in that mode carries an explicit
+SANCHAY exhausts lower recovery-risk classes before it considers a higher-risk
+class. Within a class of 28 or fewer candidates that can meet the remaining
+request, a bounded exact subset search chooses the minimum excess; a larger
+class uses a recorded deterministic greedy fallback. If the recovery-evidence
+gate cannot meet the target, it reports the shortfall rather than expanding into
+protected files. This target is intentionally scoped to one filesystem:
+explicit cross-filesystem traversal is inventory-only and rejects a combined
+target because releasing space on another mount does not relieve the filesystem
+under pressure. A plan written in that mode carries an explicit
 `cross_filesystem_inventory` scope and capacity-boundary note.
 
 **4. Estimates storage runway.** Normally this needs weeks of snapshots. On a

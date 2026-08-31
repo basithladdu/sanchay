@@ -6,6 +6,7 @@ manifest that can be inspected and independently rechecked before any
 separate cleanup action is taken.
 """
 from datetime import datetime, timezone
+from bisect import bisect_left
 import hmac
 import hashlib
 import json
@@ -17,6 +18,7 @@ from . import dedup, managed, regret, scan, storage
 
 
 PLAN_SCHEMA_VERSION = 9
+EXACT_TARGET_SELECTION_LIMIT = 28
 IDENTITY_FIELDS = (
     "device", "inode", "size", "allocated_size", "mtime", "mtime_ns", "nlink",
 )
@@ -84,32 +86,130 @@ def _candidate_order(item):
     return (-row["priority"], row["path"].replace("\\", "/"))
 
 
-def _select_for_target(eligible, target_reclaim_bytes):
-    """Choose a deterministic, recovery-risk-first target set.
+def _normalized_path(item):
+    return item[0]["path"].replace("\\", "/")
 
-    The normal table remains priority-ranked. A stated reclaim target has a
-    different objective: take the lowest recovery-risk class first, then choose
-    the smallest member that clears the remaining target (or the largest member
-    that reduces it). This avoids using a large, higher-risk duplicate merely
-    because its size makes its general review priority high.
+
+def _mask_tie_key(items, mask):
+    """Keep equal-size subset choices stable and minimally burdensome."""
+    paths = tuple(sorted(
+        _normalized_path(item) for index, item in enumerate(items)
+        if mask & (1 << index)))
+    return (mask.bit_count(), paths)
+
+
+def _subset_states(items):
+    """Return the best deterministic subset mask for each attainable byte sum."""
+    states = {0: 0}
+    for index, item in enumerate(items):
+        size = item[0]["size"]
+        next_states = dict(states)
+        bit = 1 << index
+        for total, mask in states.items():
+            candidate_total = total + size
+            candidate_mask = mask | bit
+            prior_mask = next_states.get(candidate_total)
+            if (prior_mask is None
+                    or _mask_tie_key(items, candidate_mask)
+                    < _mask_tie_key(items, prior_mask)):
+                next_states[candidate_total] = candidate_mask
+        states = next_states
+    return states
+
+
+def _items_for_mask(items, mask):
+    return [item for index, item in enumerate(items) if mask & (1 << index)]
+
+
+def _exact_minimum_excess_subset(items, target_reclaim_bytes):
+    """Find the least-overshooting subset for one small recovery-risk class.
+
+    This meet-in-the-middle search is deliberately bounded. It makes the
+    selection claim exact for a normal-size same-risk candidate set without
+    turning a large endpoint scan into an unbounded combinatorial task.
     """
+    middle = len(items) // 2
+    left_items = items[:middle]
+    right_items = items[middle:]
+    left_states = _subset_states(left_items)
+    right_states = _subset_states(right_items)
+    right_sums = sorted(right_states)
+    best = None
+    best_key = None
+    for left_total, left_mask in left_states.items():
+        right_index = bisect_left(right_sums, target_reclaim_bytes - left_total)
+        if right_index == len(right_sums):
+            continue
+        right_total = right_sums[right_index]
+        selected = (_items_for_mask(left_items, left_mask)
+                    + _items_for_mask(right_items, right_states[right_total]))
+        candidate_key = (
+            left_total + right_total,
+            len(selected),
+            tuple(sorted(_normalized_path(item) for item in selected)),
+        )
+        if best_key is None or candidate_key < best_key:
+            best = selected
+            best_key = candidate_key
+    return sorted(best or (), key=_candidate_order)
+
+
+def _greedy_same_risk_subset(items, target_reclaim_bytes):
+    """Bound runtime for unusually large same-risk candidate classes."""
     remaining = target_reclaim_bytes
-    pool = list(eligible)
+    pool = list(items)
     selected = []
     while pool and remaining > 0:
-        lowest_regret = min(row["regret"] for row, _ in pool)
-        safest = [item for item in pool if item[0]["regret"] == lowest_regret]
-        enough = [item for item in safest if item[0]["size"] >= remaining]
+        enough = [item for item in pool if item[0]["size"] >= remaining]
         if enough:
             choice = min(enough, key=lambda item: (item[0]["size"],
                                                     *_candidate_order(item)))
         else:
-            choice = min(safest, key=lambda item: (-item[0]["size"],
-                                                    *_candidate_order(item)))
+            choice = min(pool, key=lambda item: (-item[0]["size"],
+                                                  *_candidate_order(item)))
         selected.append(choice)
         pool.remove(choice)
         remaining -= choice[0]["size"]
-    return selected
+    return sorted(selected, key=_candidate_order)
+
+
+def _select_for_target(eligible, target_reclaim_bytes):
+    """Choose a deterministic, recovery-risk-first target set.
+
+    The evidence gate runs before this optimizer. It exhausts a lower-risk
+    class before moving to a higher-risk class. Within a class that can meet
+    the remaining target, it uses an exact minimum-excess subset search for up
+    to ``EXACT_TARGET_SELECTION_LIMIT`` candidates; a larger class falls back
+    to the prior deterministic greedy selection and records that boundary.
+    """
+    remaining = target_reclaim_bytes
+    selected = []
+    steps = []
+    for regret_weight in sorted({row["regret"] for row, _ in eligible}):
+        if remaining <= 0:
+            break
+        safest = [item for item in eligible if item[0]["regret"] == regret_weight]
+        available_bytes = sum(item[0]["size"] for item in safest)
+        if available_bytes < remaining:
+            chosen = list(safest)
+            strategy = "all_lower_risk_candidates"
+        elif len(safest) <= EXACT_TARGET_SELECTION_LIMIT:
+            chosen = _exact_minimum_excess_subset(safest, remaining)
+            strategy = "exact_minimum_excess_subset"
+        else:
+            chosen = _greedy_same_risk_subset(safest, remaining)
+            strategy = "greedy_fallback_above_exact_limit"
+        chosen_bytes = sum(item[0]["size"] for item in chosen)
+        selected.extend(chosen)
+        steps.append({
+            "regret_weight": regret_weight,
+            "candidate_count": len(safest),
+            "available_reclaim_bytes": available_bytes,
+            "selected_reclaim_bytes": chosen_bytes,
+            "strategy": strategy,
+        })
+        remaining = max(0, remaining - chosen_bytes)
+    return sorted(selected, key=_candidate_order), steps
 
 
 def _fingerprint(document):
@@ -185,8 +285,9 @@ def build(files, duplicate_groups, root, now=None, limit=25,
 
     eligible.sort(key=_candidate_order)
     selected = eligible[:limit]
+    selection_steps = ()
     if target_reclaim_bytes is not None:
-        selected = _select_for_target(eligible, target_reclaim_bytes)
+        selected, selection_steps = _select_for_target(eligible, target_reclaim_bytes)
 
     recommendations = []
     for row, info in selected:
@@ -267,7 +368,22 @@ def build(files, duplicate_groups, root, now=None, limit=25,
             "selected_reclaim_bytes": selected_bytes,
             "target_met": selected_bytes >= target_reclaim_bytes,
             "shortfall_bytes": max(0, target_reclaim_bytes - selected_bytes),
-            "method": "deterministic lowest-recovery-risk selection with minimal safe excess after the evidence gate; no file action is executed",
+            "method": (
+                "deterministic lowest-recovery-risk selection with exact "
+                "minimum-excess subset search for same-risk classes of up to "
+                f"{EXACT_TARGET_SELECTION_LIMIT} candidates; larger classes use "
+                "a recorded greedy fallback after the evidence gate; no file "
+                "action is executed"
+            ),
+            "optimizer": {
+                "objective": (
+                    "prefer lower recovery risk, then minimize selected bytes "
+                    "at or above the remaining target, then minimize review "
+                    "count and normalized path order"
+                ),
+                "exact_class_candidate_limit": EXACT_TARGET_SELECTION_LIMIT,
+                "class_steps": selection_steps,
+            },
         }
     document["fingerprint_sha256"] = _fingerprint(document)
     return document
