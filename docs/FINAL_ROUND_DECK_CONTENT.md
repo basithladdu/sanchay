@@ -69,9 +69,12 @@ Three claims only:
 
 Show two stages, not a fake exact date:
 
-1. An initial mtime-based estimate gives immediate orientation.
-2. Aggregate local snapshots fit an explainable linear trend that reports
-   bytes/day and, from the third snapshot onward, R-squared fit quality.
+1. An initial readable-inventory mtime estimate gives immediate orientation.
+2. Schema-5 local snapshots record mounted filesystem total, used, and free
+   bytes separately from the readable inventory. The explainable trend uses the
+   mounted-filesystem used-byte series, requires the same root/device, and
+   waits for a 24-hour first-to-latest span before reporting bytes/day or
+   R-squared from the third snapshot onward.
 3. If `/proc` shows a deleted regular file still held open, identify its PID and
    allocated bytes as a separate advisory, never as a cleanup recommendation.
 4. Record the root mount context. Btrfs, overlay, and device-mapper sources
@@ -89,8 +92,12 @@ Show two stages, not a fake exact date:
 8. If any in-scope path is unreadable, record only count-level coverage,
    label the output readable-file inventory, and withhold forecast/snapshot
    claims rather than treating a partial scan as complete.
+9. Explicitly supplied SANCHAY snapshots, plans, reports, and briefs are
+   excluded from the readable inventory if stored beneath the root; their bytes
+   remain in the mount metric, but they cannot become self-referential cleanup
+   candidates.
 
-Footer: “A first scan is an estimate; observed history is stronger evidence.”
+Footer: “A first scan is an inventory estimate; same-mount observed history is stronger evidence.”
 
 ## Slide 6 — Live proof, not an uncontrolled machine demo
 

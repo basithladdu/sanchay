@@ -95,6 +95,11 @@ endorses SANCHAY or defines the hackathon scoring rubric.
   SANCHAY records count-only coverage evidence instead of silently treating a
   permission-limited walk as a complete inventory. Source: [Python `os.walk`
   documentation](https://docs.python.org/3/library/os.html#os.walk).
+- Python documents that `shutil.disk_usage(path)` returns the mounted path's
+  total, used, and free space in bytes. SANCHAY records those values separately
+  from its readable inventory in schema-5 snapshots, then trends only the used
+  series after confirming the same selected root and filesystem device. Source:
+  [Python `shutil.disk_usage`](https://docs.python.org/3/library/shutil.html#shutil.disk_usage).
 - GNU `du` documents that it estimates filesystem use and returns nonzero on
   failure. That is a useful baseline: a storage estimate must preserve its
   failure boundary rather than silently report a misleading total. Source:
@@ -172,7 +177,8 @@ endorses SANCHAY or defines the hackathon scoring rubric.
 | Keep scan coverage honest | Count unreadable in-scope directories/files without serialising their paths. Mark the view as readable-file inventory and withhold mtime forecasts plus snapshots/history when coverage is incomplete. | Implemented |
 | Contain the optional LLM | Keep narration local by default. Require a separate cloud opt-in and send only opaque candidate IDs with fixed class/size/age metadata; deterministic code retains all decision and action boundaries. | Implemented |
 | Avoid crossing a governance boundary silently | Scan one filesystem by default; cross-filesystem traversal requires an explicit flag and is inventory-only across mounts. | Implemented |
-| Keep forecasting honest | Label the first pass an mtime-derived estimate; capture aggregate local snapshots for observed growth and an explainable local linear trend. Cross-mount scans refuse shared targets and capacity forecasts. | Implemented |
+| Keep forecasting honest | Label the first pass a readable-inventory mtime estimate. Schema-5 snapshots retain that inventory separately but trend the selected mounted filesystem's reported used bytes; reject legacy or different-device snapshots, and withhold a rate until the history spans 24 hours, rather than mixing metrics or annualising seconds of background activity. Cross-mount scans refuse shared targets and capacity forecasts. | Implemented |
+| Prevent tool output from becoming a cleanup candidate | Exclude explicitly supplied SANCHAY snapshots, plans, reports, and briefs from the readable inventory when they sit under the scan root, while retaining their physical bytes in the mounted-filesystem measurement. | Implemented |
 | Support government/BOSS deployment | Keep the core local, dependency-light, inspectable, and suitable for an offline terminal workflow. | Implemented |
 | Support monitored secure endpoints without exporting path metadata | Keep the detailed plan and HTML report local. Add a separately requested `--operator-brief` that contains only aggregate evidence, capacity, and operational-advisory counts; it excludes paths, names, process IDs/names, mount/device sources, and content, and makes no network call. | Implemented |
 | Improve inclusivity | Add Hindi and other BOSS-language UI strings only after native-speaker review; do not machine-claim localisation. | Planned |

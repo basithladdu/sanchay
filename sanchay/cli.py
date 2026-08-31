@@ -50,6 +50,23 @@ def _visualization_dependency_missing(feature, exc):
     return True
 
 
+def _invocation_artifact_paths(args):
+    """Return canonical paths explicitly supplied as SANCHAY artifacts.
+
+    A plan, report, brief, or snapshot saved beneath the selected root must not
+    become a future cleanup candidate simply because the same invocation reads
+    or rewrites it. The mounted-filesystem measurement remains unchanged: it
+    correctly includes every physical byte on that filesystem.
+    """
+    paths = [args.snapshot, args.compare, args.plan, args.report,
+             args.operator_brief]
+    if args.history:
+        paths.extend(args.history)
+    return frozenset(
+        os.path.normcase(os.path.realpath(os.path.abspath(path)))
+        for path in paths if path)
+
+
 def main(argv=None):
     ap = argparse.ArgumentParser(prog="sanchay", description=__doc__)
     ap.add_argument("root", nargs="?")
@@ -72,12 +89,12 @@ def main(argv=None):
     ap.add_argument("--capacity-audit", action="store_true",
                     help="compare a complete mount-root readable inventory with filesystem used space; never remediates a gap")
     ap.add_argument("--snapshot", metavar="OUT.json",
-                    help="save aggregate local usage for a later observed-growth comparison")
+                    help="save local mount usage plus inventory aggregates for a later observed-growth comparison")
     forecast_group = ap.add_mutually_exclusive_group()
     forecast_group.add_argument("--compare", metavar="SNAPSHOT.json",
-                                help="compare this scan with a prior SANCHAY snapshot")
+                                help="compare this mounted filesystem with a prior SANCHAY snapshot")
     forecast_group.add_argument("--history", metavar="SNAPSHOT.json", nargs="+",
-                                help="fit a local linear trend to prior snapshots and this scan")
+                                help="fit a mounted-filesystem linear trend to prior snapshots and this scan")
     ap.add_argument("--verify-plan", metavar="PLAN.json",
                     help="recheck a review-only plan; never deletes or moves files")
     ap.add_argument("--verify-archive", metavar=("SOURCE", "RETAINED_COPY"),
@@ -189,6 +206,18 @@ def main(argv=None):
             args.root, cross_filesystems=args.cross_filesystems)
     except ValueError as exc:
         ap.error(str(exc))
+    artifact_paths = _invocation_artifact_paths(args)
+    artifact_entries = [
+        info for info in files
+        if os.path.normcase(os.path.abspath(info.path))
+        in artifact_paths
+    ]
+    if artifact_entries:
+        files = [
+            info for info in files
+            if os.path.normcase(os.path.abspath(info.path))
+            not in artifact_paths
+        ]
     scan_coverage = coverage_record.as_dict()
     total = storage.physical_bytes(files)
     logical_total = storage.logical_bytes(files)
@@ -208,6 +237,10 @@ def main(argv=None):
         print(f"{human(logical_total)} logical length; sparse allocation is not overstated")
     if aliases:
         print(f"{aliases:,} hardlink aliases are not double-counted")
+    if artifact_entries:
+        noun = "file" if len(artifact_entries) == 1 else "files"
+        print(f"{len(artifact_entries):,} SANCHAY artifact {noun} supplied to this command "
+              "excluded from readable inventory")
     if filesystem_context:
         print(f"filesystem: {filesystem_context['filesystem']} at "
               f"{filesystem_context['mount_point']} "
@@ -305,41 +338,73 @@ def main(argv=None):
             print("  boundary: " + block_availability["boundary"])
         else:
             print("block availability: not assessed; " + block_availability["reason"])
-    current_snapshot = (
-        snapshot.capture(files, args.root, free, scan_coverage=scan_coverage)
-        if free is not None and scan_coverage["complete"] else None)
+    needs_snapshot = bool(args.snapshot or args.compare or args.history)
+    current_snapshot = None
+    snapshot_error = None
+    if needs_snapshot and usage is not None and scan_coverage["complete"]:
+        try:
+            current_snapshot = snapshot.capture(
+                files, args.root,
+                filesystem_total_bytes=usage.total,
+                filesystem_used_bytes=usage.used,
+                filesystem_free_bytes=usage.free,
+                filesystem_device=os.stat(args.root).st_dev,
+                scan_coverage=scan_coverage)
+        except (AttributeError, OSError, ValueError) as exc:
+            snapshot_error = str(exc)
+
     observed = None
     trend = None
+    growth_error = None
     if args.compare and current_snapshot is not None:
-        observed = snapshot.observed_growth(snapshot.read(args.compare), current_snapshot)
+        try:
+            observed = snapshot.observed_growth(
+                snapshot.read(args.compare), current_snapshot)
+        except (OSError, ValueError) as exc:
+            growth_error = str(exc)
     elif args.history and current_snapshot is not None:
-        history = [snapshot.read(path) for path in args.history]
-        trend = snapshot.linear_trend(history + [current_snapshot])
+        try:
+            history = [snapshot.read(path) for path in args.history]
+            trend = snapshot.linear_trend(history + [current_snapshot])
+        except (OSError, ValueError) as exc:
+            growth_error = str(exc)
+    elif (args.compare or args.history) and snapshot_error:
+        growth_error = snapshot_error
 
     if args.cross_filesystems:
         print("growth:     not calculated across multiple filesystems; scan one "
               "filesystem for a capacity forecast")
     elif not scan_coverage["complete"]:
         print("growth:     not calculated; scan coverage is incomplete")
+    elif growth_error:
+        print("growth:     not calculated; " + growth_error)
+    elif trend and trend["bytes_per_day"] is None:
+        print("growth:     not calculated; snapshot history spans "
+              f"{trend['elapsed_seconds'] / 3600:.1f} hours; wait for at least "
+              f"{trend['minimum_span_seconds'] / 3600:.0f} hours")
     elif trend and trend["bytes_per_day"] > 0:
         days = free / trend["bytes_per_day"]
         fit = (f", R² {trend['r_squared']:.2f}"
                if trend["r_squared"] is not None else "")
-        print(f"growth:     {human(trend['bytes_per_day'])}/day local linear trend from "
+        print(f"growth:     {human(trend['bytes_per_day'])}/day mounted-filesystem trend from "
               f"{trend['sample_count']} snapshots{fit}, full in {forecast.runway_label(days)}")
     elif trend:
-        print(f"growth:     {human(trend['bytes_per_day'])}/day local linear trend from "
+        print(f"growth:     {human(trend['bytes_per_day'])}/day mounted-filesystem trend from "
               f"{trend['sample_count']} snapshots; no projected exhaustion")
+    elif observed and observed["bytes_per_day"] is None:
+        print("growth:     not calculated; snapshots are "
+              f"{observed['elapsed_seconds'] / 3600:.1f} hours apart; wait for at least "
+              f"{observed['minimum_span_seconds'] / 3600:.0f} hours")
     elif observed and observed["bytes_per_day"] > 0:
         days = free / observed["bytes_per_day"]
-        print(f"growth:     {human(observed['bytes_per_day'])}/day observed over "
+        print(f"growth:     {human(observed['bytes_per_day'])}/day observed mounted-filesystem use over "
               f"{observed['elapsed_seconds'] / 86400:.1f} days, full in {forecast.runway_label(days)}")
     elif observed:
-        print(f"growth:     {human(observed['bytes_per_day'])}/day observed over "
+        print(f"growth:     {human(observed['bytes_per_day'])}/day observed mounted-filesystem use over "
               f"{observed['elapsed_seconds'] / 86400:.1f} days; no projected exhaustion")
     else:
         days = forecast.days_until_full(files, free)
-        print(f"growth:     {human(forecast.rate(files))}/day mtime estimate, "
+        print(f"growth:     {human(forecast.rate(files))}/day readable-inventory mtime estimate, "
               + (f"full in {forecast.runway_label(days)}" if days else "no measurable growth")
               + "; save a snapshot to measure future net growth")
 
@@ -405,7 +470,9 @@ def main(argv=None):
 
     if args.snapshot:
         if current_snapshot is None:
-            print("snapshot: not written; complete scan coverage is required")
+            reason = ("complete scan coverage is required" if not scan_coverage["complete"]
+                      else snapshot_error or "mounted filesystem usage is unavailable")
+            print("snapshot: not written; " + reason)
         else:
             print("snapshot -> " + snapshot.write(current_snapshot, args.snapshot))
 
@@ -426,6 +493,8 @@ def main(argv=None):
 
     if (not scan_coverage["complete"]
             and (args.snapshot or args.compare or args.history)):
+        return 2
+    if snapshot_error or growth_error:
         return 2
 
 

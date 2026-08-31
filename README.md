@@ -2,7 +2,7 @@
 
 # SANCHAY: Regret-Aware Intelligent Storage Optimizer for Linux
 
-**AI-Assisted Storage Reclamation with Review-Only Cleanup Plans & Mtime-Based Runway Estimates**
+**AI-Assisted Storage Reclamation with Review-Only Cleanup Plans & Mount-Scoped Runway Measurement**
 
 [![CI Status](https://github.com/basithladdu/sanchay/actions/workflows/ci.yml/badge.svg)](https://github.com/basithladdu/sanchay/actions)
 [![Python Version](https://img.shields.io/badge/python-3.9%20%7C%203.10%20%7C%203.11%20%7C%203.12-blue)](https://www.python.org/)
@@ -66,7 +66,7 @@ changes; it is not a digital signature. SANCHAY never deletes or moves files
 itself.
 
 ### 2. Two-Stage Runway Measurement
-SANCHAY derives an initial storage-growth estimate from the **inode modification time distribution (`mtime`) on run #1**. It is directional, not a guaranteed exhaustion date. A later aggregate local snapshot measures actual net growth; with multiple snapshots, an explainable local linear trend reports bytes/day, and with three or more snapshots it also reports fit quality. Usage, snapshots, forecasts, and treemaps count each physical `(device, inode)` once, and use allocated blocks (`st_blocks × 512`) where the filesystem exposes them, so neither hardlink aliases nor sparse logical length inflate the result.
+SANCHAY derives an initial storage-growth estimate from the **readable-inventory inode modification-time distribution (`mtime`) on run #1**. It is directional, not a guaranteed exhaustion date. A later local snapshot records the selected mounted filesystem's total, used, and free bytes separately from the readable inventory. Comparisons and local linear trends use only the mounted-filesystem used-byte series; they require complete readable coverage, the same resolved root and filesystem device, and at least a 24-hour first-to-latest observation span. The gate prevents seconds of ordinary background activity from becoming a fictional runway. With three or more snapshots, SANCHAY also reports fit quality. The readable inventory, review plan, and treemap count each physical `(device, inode)` once and use allocated blocks (`st_blocks × 512`) where the filesystem exposes them, so hardlink aliases and sparse logical length do not inflate those diagnostic totals. Snapshot schema 5 deliberately rejects earlier inventory-only snapshot files: recapture a fresh baseline rather than mixing metrics.
 
 ### Capacity Boundary Across Mounts
 
@@ -235,13 +235,13 @@ sanchay --verify-plan cleanup-plan.json
 # 5. Verify an operator-selected retained archive copy before treating it as a survivor
 sanchay --verify-archive /home/user/downloads/ubuntu.iso /mnt/archive/ubuntu.iso
 
-# 6. Save an aggregate local snapshot for a later measured-growth comparison
-# This requires complete readable-path coverage; SANCHAY reports and withholds
-# the snapshot if an in-scope path cannot be inspected.
+# 6. Save a mount-scoped local snapshot for a later measured-growth comparison.
+# It records mounted total/used/free bytes plus a separate readable-inventory
+# aggregate. Complete readable-path coverage and a 24-hour comparison span are required.
 sanchay /home/user --snapshot before.json
 sanchay /home/user --compare before.json
 
-# 7. Fit a local trend once you have multiple earlier snapshots
+# 7. Fit a mounted-filesystem trend once you have multiple earlier snapshots
 sanchay /home/user --history day-1.json day-7.json day-14.json
 
 # 8. Generate an interactive Plotly HTML report (requires .[viz])
@@ -265,6 +265,12 @@ sanchay-demo /tmp/sanchay-demo
 # 13. Launch interactive Textual Terminal Dashboard
 sanchay-ui /home/user
 ```
+
+If an explicitly supplied snapshot, plan, report, or operator brief lives under
+the selected root, SANCHAY excludes that artifact from the readable inventory
+and review plan. It does **not** subtract it from the mounted-filesystem usage:
+the physical bytes still exist, but SANCHAY must not recommend its own state for
+review.
 
 ---
 

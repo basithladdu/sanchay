@@ -57,9 +57,11 @@ identity change between scan and read is rejected rather than becoming content
 evidence.
 Hardlinks pointing at the same inode are not counted as duplicates, because
 deleting one of them frees no space. SANCHAY counts that inode once in disk
-usage, snapshot, forecast, and treemap metrics, using allocated blocks rather
-than sparse logical length where Linux exposes `st_blocks`, and excludes every
-individual hardlinked path from the review plan.
+inventory and treemap metrics, using allocated blocks rather than sparse logical
+length where Linux exposes `st_blocks`, and excludes every individual hardlinked
+path from the review plan. Snapshots retain that inventory as a diagnostic, but
+their observed-growth and trend calculations use a separate mounted-filesystem
+used-byte series.
 
 **1a. Separates tool-owned system storage.** On Debian-derived BOSS, APT
 archives in `/var/cache/apt/archives/` and persistent systemd journals in
@@ -163,14 +165,26 @@ filesystem under pressure. A plan written in that mode carries an explicit
 
 **4. Estimates storage runway.** Normally this needs weeks of snapshots. On a
 first run, SANCHAY derives an initial bytes-per-day estimate from the
-distribution of modification times across the scan and compares it with current
-free space. It reports this as an estimate, not a guaranteed exhaustion date:
-later writes, deletes, and workload changes can alter it.
+distribution of modification times across the readable inventory and compares
+it with current free space. It reports this as an estimate, not a guaranteed
+exhaustion date: later writes, deletes, and workload changes can alter it.
 
-After two or more time-separated aggregate snapshots, SANCHAY can also fit an
-explainable local linear trend. It reports the learned bytes-per-day slope; with
-three or more snapshots it also reports R-squared fit quality, giving the user
-a measurable forecast without uploading file names or contents.
+Each schema-5 snapshot records the selected mounted filesystem's total, used,
+and free bytes, its filesystem device, and a separate readable-inventory
+aggregate. After two or more time-separated snapshots from the same resolved
+root and filesystem device, SANCHAY fits its explainable local linear trend to
+the **mounted-filesystem used-byte** series. It reports the learned bytes-per-day
+slope; with three or more snapshots it also reports R-squared fit quality,
+giving the user a measurable forecast without uploading file names or contents.
+Older inventory-only snapshots are rejected with a recapture instruction rather
+than being mixed into a capacity forecast. SANCHAY also withholds a rate until
+the first and latest snapshots are at least 24 hours apart, so seconds of
+ordinary background filesystem activity do not become a fictional exhaustion
+forecast.
+When an explicitly supplied snapshot, plan, report, or operator brief is stored
+under the selected root, SANCHAY fences it out of the readable inventory and
+review plan on that invocation. Its physical bytes remain in the mounted
+filesystem measurement; only the self-referential cleanup candidate is removed.
 Cross-filesystem inventories do not produce a shared runway or aggregate
 snapshot, comparison, or history claim.
 
@@ -232,12 +246,13 @@ evidence for review". Files classified as irreplaceable are structurally exclude
 from the candidate manifest, regardless of size or age; the tool then requires
 human review and never performs deletion itself.
 
-Two smaller original pieces support it. The first scan offers an mtime-derived
-runway estimate, while later aggregate snapshots drive an explainable local
-linear trend with a visible fit quality. This gives immediate orientation
-without pretending a single instant is a guaranteed exhaustion date. The
-treemap is coloured by recoverability rather than by logical size and uses
-allocated-byte physical-inode accounting, which turns the safety model into something visible
+Two smaller original pieces support it. The first scan offers a
+readable-inventory mtime-derived runway estimate, while later mount-scoped
+snapshots drive an explainable local linear trend from filesystem-used bytes
+with a visible fit quality. This gives immediate orientation without pretending
+a single instant is a guaranteed exhaustion date. The treemap is coloured by
+recoverability rather than by logical size and uses allocated-byte
+physical-inode accounting, which turns the safety model into something visible
 instead of something buried in a table.
 
 ---
@@ -312,8 +327,10 @@ that can be printed and challenged. A trained classifier would need labelled
 ground truth and a validation story before it could safely influence this gate.
 
 For capacity forecasting, the tool also learns an on-device linear trend from
-the user's aggregate snapshots and reports its slope and R-squared value. This
-is deliberately a small, inspectable statistical model: the user can see the
+the user's mounted-filesystem snapshots and reports its slope and R-squared
+value. It preserves the readable inventory separately and rejects a legacy or
+different-filesystem snapshot rather than combining unlike inputs. This is
+deliberately a small, inspectable statistical model: the user can see the
 inputs, the fit quality, and the exact limitation of the forecast.
 
 An optional separate large language model (Claude, accessed via the Anthropic

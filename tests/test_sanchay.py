@@ -29,6 +29,18 @@ class TestSanchay(unittest.TestCase):
             scan.FileInfo('/home/user/thesis_final.pdf', 50000000, self.now - 86400 * 500, self.now - 86400 * 500, 104),
         ]
 
+    def _capture_snapshot(self, files, root='/app', *, used=100000000,
+                          free=1000000, device=17, now=None,
+                          scan_coverage=None):
+        return snapshot.capture(
+            files, root,
+            filesystem_total_bytes=used + free,
+            filesystem_used_bytes=used,
+            filesystem_free_bytes=free,
+            filesystem_device=device,
+            now=now,
+            scan_coverage=scan_coverage)
+
     def test_classification_disposable(self):
         self.assertEqual(regret.classify(self.files[0], duplicated=False), 'disposable')
         self.assertEqual(regret.classify(self.files[1], duplicated=False), 'disposable')
@@ -1109,14 +1121,16 @@ class TestSanchay(unittest.TestCase):
             files = scan.scan(root)
 
             measured_at = source.stat().st_mtime
-            captured = snapshot.capture(files, root, 1000, now=100)
+            captured = self._capture_snapshot(
+                files, root, used=409600, free=1000, now=100)
             self.assertEqual(storage.physical_bytes(files), 4096)
             self.assertEqual(storage.hardlink_alias_count(files), 1)
-            self.assertEqual(captured['schema_version'], 4)
-            self.assertEqual(captured['used_bytes'], 4096)
-            self.assertEqual(captured['logical_bytes'], 4096)
-            self.assertEqual(captured['physical_file_count'], 1)
-            self.assertEqual(captured['hardlink_alias_count'], 1)
+            self.assertEqual(captured['schema_version'], 5)
+            self.assertEqual(captured['filesystem_used_bytes'], 409600)
+            self.assertEqual(captured['readable_inventory_allocated_bytes'], 4096)
+            self.assertEqual(captured['readable_inventory_logical_bytes'], 4096)
+            self.assertEqual(captured['readable_physical_file_count'], 1)
+            self.assertEqual(captured['readable_hardlink_alias_count'], 1)
             self.assertTrue(captured['scan_coverage']['complete'])
             self.assertEqual(forecast.daily_growth(files, now=measured_at)[0], 4096)
 
@@ -1149,32 +1163,30 @@ class TestSanchay(unittest.TestCase):
         self.assertEqual(rows[sparse.path]['decision_trace']['inputs']
                          ['logical_size_bytes'], 1024 ** 3)
 
-        captured = snapshot.capture(files, '/app', 1000, now=100)
-        self.assertEqual(captured['schema_version'], 4)
-        self.assertEqual(captured['used_bytes'], 12288)
-        self.assertEqual(captured['logical_bytes'], 1024 ** 3 + 8192)
+        captured = self._capture_snapshot(files, used=500000, free=1000, now=100)
+        self.assertEqual(captured['schema_version'], 5)
+        self.assertEqual(captured['filesystem_used_bytes'], 500000)
+        self.assertEqual(captured['readable_inventory_allocated_bytes'], 12288)
+        self.assertEqual(captured['readable_inventory_logical_bytes'], 1024 ** 3 + 8192)
         self.assertEqual(forecast.daily_growth(files, now=self.now)[30], 12288)
 
-    def test_snapshots_measure_observed_net_growth(self):
-        previous = snapshot.capture(self.files, '/app', 1000, now=100)
-        later_files = self.files + [
-            scan.FileInfo('/app/.cache/new-build', 86400, self.now, self.now, 99)]
-        current = snapshot.capture(later_files, '/app', 500, now=100 + 86400)
+    def test_snapshots_measure_mounted_filesystem_growth_not_inventory_delta(self):
+        previous = self._capture_snapshot(self.files, used=1000000, now=100)
+        current = self._capture_snapshot(
+            self.files, used=1086400, free=913600, now=100 + 86400)
 
         observed = snapshot.observed_growth(previous, current)
         self.assertEqual(observed['net_bytes'], 86400)
         self.assertEqual(observed['bytes_per_day'], 86400)
+        self.assertEqual(previous['readable_inventory_allocated_bytes'],
+                         current['readable_inventory_allocated_bytes'])
 
-    def test_snapshots_fit_a_local_linear_growth_trend(self):
-        first = snapshot.capture(self.files, '/app', 1000, now=100)
-        second = snapshot.capture(
-            self.files + [scan.FileInfo('/app/.cache/day-one', 86400,
-                                        self.now, self.now, 98)],
-            '/app', 900, now=100 + 86400)
-        third = snapshot.capture(
-            self.files + [scan.FileInfo('/app/.cache/day-two', 172800,
-                                        self.now, self.now, 97)],
-            '/app', 800, now=100 + 172800)
+    def test_snapshots_fit_a_mounted_filesystem_growth_trend(self):
+        first = self._capture_snapshot(self.files, used=1000000, now=100)
+        second = self._capture_snapshot(
+            self.files, used=1086400, free=913600, now=100 + 86400)
+        third = self._capture_snapshot(
+            self.files, used=1172800, free=827200, now=100 + 172800)
 
         trend = snapshot.linear_trend([first, second, third])
         self.assertEqual(trend['sample_count'], 3)
@@ -1184,20 +1196,56 @@ class TestSanchay(unittest.TestCase):
         two_point_trend = snapshot.linear_trend([first, second])
         self.assertIsNone(two_point_trend['r_squared'])
 
+    def test_snapshots_with_less_than_a_day_of_history_withhold_a_rate(self):
+        previous = self._capture_snapshot(self.files, used=1000000, now=100)
+        current = self._capture_snapshot(self.files, used=1000100, now=100 + 3600)
+
+        observed = snapshot.observed_growth(previous, current)
+        trend = snapshot.linear_trend([previous, current])
+
+        self.assertIsNone(observed['bytes_per_day'])
+        self.assertIsNone(trend['bytes_per_day'])
+        self.assertEqual(observed['minimum_span_seconds'], 86400)
+        self.assertEqual(trend['minimum_span_seconds'], 86400)
+
     def test_incomplete_coverage_cannot_create_a_snapshot(self):
         coverage = scan.ScanCoverage(unreadable_directories=1)
         with self.assertRaisesRegex(ValueError, 'incomplete scan coverage'):
-            snapshot.capture(self.files, '/app', 1000, scan_coverage=coverage)
+            self._capture_snapshot(self.files, scan_coverage=coverage)
 
     def test_snapshot_comparisons_require_coverage_evidence(self):
-        previous = snapshot.capture(self.files, '/app', 1000, now=100)
-        current = snapshot.capture(self.files, '/app', 900, now=100 + 86400)
+        previous = self._capture_snapshot(self.files, now=100)
+        current = self._capture_snapshot(self.files, now=100 + 86400)
         previous.pop('scan_coverage')
 
         with self.assertRaisesRegex(ValueError, 'complete SANCHAY scan coverage'):
             snapshot.observed_growth(previous, current)
         with self.assertRaisesRegex(ValueError, 'complete SANCHAY scan coverage'):
             snapshot.linear_trend([previous, current])
+
+    def test_snapshot_comparisons_reject_a_changed_mounted_filesystem(self):
+        previous = self._capture_snapshot(self.files, device=17, now=100)
+        current = self._capture_snapshot(
+            self.files, device=18, now=100 + 86400)
+
+        with self.assertRaisesRegex(ValueError, 'filesystem does not match'):
+            snapshot.observed_growth(previous, current)
+        with self.assertRaisesRegex(ValueError, 'same mounted filesystem'):
+            snapshot.linear_trend([previous, current])
+
+    def test_legacy_snapshot_requires_a_fresh_mount_accounting_baseline(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            legacy_path = Path(tmp) / 'legacy.json'
+            malformed_path = Path(tmp) / 'malformed.json'
+            snapshot.write({'schema_version': 4}, legacy_path)
+            snapshot.write([], malformed_path)
+
+            with self.assertRaisesRegex(
+                    ValueError, 'recapture it with mounted-filesystem accounting'):
+                snapshot.read(legacy_path)
+            with self.assertRaisesRegex(
+                    ValueError, 'recapture it with mounted-filesystem accounting'):
+                snapshot.read(malformed_path)
 
     def test_cleanup_plan_verification_rechecks_manifest_and_duplicate(self):
         with tempfile.TemporaryDirectory() as tmp:
@@ -1554,13 +1602,52 @@ class TestSanchay(unittest.TestCase):
         self.assertIn('FILE-ENTRY CAPACITY', source_page)
         self.assertIn('LOCAL CLI ONLY', source_page)
 
+    def test_cli_reports_legacy_snapshot_without_a_traceback(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = demo.create(Path(tmp) / 'fixture')
+            legacy_path = Path(tmp) / 'legacy.json'
+            snapshot.write({'schema_version': 4}, legacy_path)
+            output = io.StringIO()
+
+            with contextlib.redirect_stdout(output):
+                status = cli.main([str(root), '--compare', str(legacy_path),
+                                   '--limit', '1'])
+
+        self.assertEqual(status, 2)
+        self.assertIn('growth:     not calculated; Unsupported SANCHAY snapshot;',
+                      output.getvalue())
+        self.assertNotIn('Traceback', output.getvalue())
+
+    def test_cli_excludes_a_supplied_snapshot_inside_the_scan_root(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = demo.create(Path(tmp) / 'fixture')
+            baseline_path = root / 'baseline.json'
+            with contextlib.redirect_stdout(io.StringIO()):
+                status = cli.main([str(root), '--snapshot', str(baseline_path),
+                                   '--limit', '1'])
+            output = io.StringIO()
+            with contextlib.redirect_stdout(output):
+                status = cli.main([str(root), '--compare', str(baseline_path),
+                                   '--limit', '1'])
+
+        self.assertIsNone(status)
+        self.assertIn('6 file entries', output.getvalue())
+        self.assertIn('1 SANCHAY artifact file supplied to this command excluded '
+                      'from readable inventory', output.getvalue())
+        self.assertNotIn('baseline.json', output.getvalue())
+
     def test_cli_history_uses_the_local_linear_trend(self):
         with tempfile.TemporaryDirectory() as tmp:
             root = demo.create(Path(tmp) / 'fixture')
             files = scan.scan(root)
+            usage = shutil.disk_usage(root)
             previous = snapshot.capture(
-                files, root, shutil.disk_usage(root).free, now=time.time() - 86400)
-            previous['used_bytes'] -= 1024
+                files, root,
+                filesystem_total_bytes=usage.total,
+                filesystem_used_bytes=usage.used - 1024,
+                filesystem_free_bytes=usage.free + 1024,
+                filesystem_device=os.stat(root).st_dev,
+                now=time.time() - 86400)
             previous_path = Path(tmp) / 'previous.json'
             snapshot.write(previous, previous_path)
 
@@ -1568,7 +1655,7 @@ class TestSanchay(unittest.TestCase):
             with contextlib.redirect_stdout(output):
                 cli.main([str(root), '--history', str(previous_path), '--limit', '1'])
 
-            self.assertIn('local linear trend from 2 snapshots', output.getvalue())
+            self.assertIn('mounted-filesystem trend from 2 snapshots', output.getvalue())
 
 
 if __name__ == '__main__':

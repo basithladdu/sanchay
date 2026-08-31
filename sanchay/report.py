@@ -180,7 +180,8 @@ def build(files, root, free_bytes, out="sanchay-report.html", limit=50,
     runway_note = ("not calculated; scan coverage is incomplete" if not coverage["complete"]
                    else "not calculated across multiple filesystems; scan one filesystem "
                    "for a capacity forecast" if cross_filesystems
-                   else f"{human(forecast.rate(files))}/day from mtime; capture snapshots for observed growth")
+                   else f"{human(forecast.rate(files))}/day from readable-inventory mtime; "
+                   "capture same-mount snapshots for observed growth")
     selection = cleanup_plan.get("selection")
     review_note = f"top {len(rows)} recommendations; human review required"
     if selection:

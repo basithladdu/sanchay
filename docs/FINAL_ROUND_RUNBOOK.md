@@ -64,9 +64,10 @@ Point out these concrete facts, not a generic dashboard:
   an independent backup.
 - `hardlinks/source.bin` and `hardlinks/alias.bin` are not reclaimable
   duplicates because they share one `(device, inode)` identity. They count as
-  one physical file in the allocated on-disk total, forecast, snapshot, and
-  treemap. Where Linux exposes block allocation, sparse-file logical length is
-  also not treated as freeable storage.
+  one physical file in the readable allocated-inventory total and treemap;
+  mount-scoped forecast snapshots separately measure filesystem-used bytes.
+  Where Linux exposes block allocation, sparse-file logical length is also not
+  treated as freeable storage.
 - `workspace/node_modules/.cache/bundle.bin` is a reviewable regenerable-output
   candidate, not an automatically deleted file.
 - `--explain` produces a deterministic local narrative and says no candidate
@@ -96,11 +97,12 @@ important fail-closed evidence in the live demonstration.
 ## Concise jury answers
 
 **Where is the AI?** The decision layer is intentionally explainable: a local
-recoverability model ranks eligible candidates, and aggregate snapshots fit a
-local linear bytes/day trend. We do not claim this is a trained black box. The
-default narration is local. A separately opt-in cloud LLM receives opaque
-candidate IDs plus class, allocated bytes, and unchanged age—not raw paths or
-file contents—and cannot promote protected files or execute actions.
+recoverability model ranks eligible candidates, and mount-scoped snapshots fit
+a local linear bytes/day trend from filesystem-used bytes. We do not claim this
+is a trained black box. The default narration is local. A separately opt-in
+cloud LLM receives opaque candidate IDs plus class, allocated bytes, and
+unchanged age—not raw paths or file contents—and cannot promote protected files
+or execute actions.
 
 **Why is the cloud narrative not automatic?** A storage scan can contain
 sensitive path names, and file-derived text is untrusted input for an LLM. The
@@ -188,10 +190,13 @@ no-follow descriptor traversal; a symlink component or identity drift produces
 no evidence rather than reading a substituted path. Hardlinks are not counted
 as reclaimable copies.
 
-**How reliable is the forecast?** A single scan is labelled as an mtime-based
-estimate. Later aggregate snapshots produce a local linear trend with an
-explicit slope and, from three observations onward, R-squared, rather than an
-invented exact full-disk date.
+**How reliable is the forecast?** A single scan is labelled as a
+readable-inventory mtime estimate. Later schema-5 snapshots compare the same
+mounted filesystem's reported used bytes, require the same root/device, and
+require a 24-hour first-to-latest history before producing a local linear trend
+with an explicit slope and, from three observations onward, R-squared—rather
+than turning seconds of background activity into an invented full-disk date.
+Legacy inventory-only snapshots are rejected and must be recaptured.
 
 **Why does this fit a sovereign secure OS?** The core is inspectable,
 dependency-light, local by default, and stays on one filesystem unless the

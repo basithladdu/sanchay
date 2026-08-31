@@ -2,7 +2,7 @@
 
 Modification times can offer a first-run hint about recent write activity, but
 they do not measure future net growth. A later SANCHAY snapshot is required for
-an observed growth rate.
+an observed mounted-filesystem growth rate.
 """
 import time
 from collections import defaultdict
