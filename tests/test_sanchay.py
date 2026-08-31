@@ -1665,6 +1665,24 @@ class TestSanchay(unittest.TestCase):
         self.assertIn('fail-closed check -> a synthetic cache mutation invalidated the plan', rendered)
         self.assertIn('proof -> PASS; no file was deleted, moved, or transmitted', rendered)
 
+    def test_demo_capacity_risk_proof_is_transparent_and_withholds_after_resize(self):
+        output = io.StringIO()
+        with contextlib.redirect_stdout(output):
+            status = demo.main(['--risk-prove'])
+
+        rendered = output.getvalue()
+        self.assertEqual(status, 0)
+        self.assertIn(
+            'risk telemetry -> synthetic aggregate mounted-filesystem snapshots; '
+            'not endpoint data', rendered)
+        self.assertIn('risk evidence -> 7 complete same-capacity snapshots over 7 days', rendered)
+        self.assertIn('risk estimate -> ', rendered)
+        self.assertIn('capacity-hit probability within 7 days under the local model', rendered)
+        self.assertIn('risk guard -> a synthetic capacity resize withheld the risk estimate',
+                      rendered)
+        self.assertIn('proof -> PASS; no endpoint file, alert, volume, or network was changed',
+                      rendered)
+
     def test_scan_prunes_repository_and_credential_directories(self):
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)

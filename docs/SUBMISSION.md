@@ -191,6 +191,9 @@ interval is at least twelve hours, and observed mount capacity is unchanged.
 It otherwise prints why the probability is withheld. This is a model-conditional
 decision-support signal, not a capacity guarantee, cleanup instruction, volume
 action, alert, or network operation.
+`sanchay-demo --risk-prove` is a deterministic, clearly labelled synthetic
+aggregate rehearsal of that evidence and capacity-change gate; it is never
+presented as a live endpoint forecast.
 
 When an explicitly supplied snapshot, plan, report, or operator brief is stored
 under the selected root, SANCHAY fences it out of the readable inventory and

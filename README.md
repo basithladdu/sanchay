@@ -310,7 +310,11 @@ sanchay-demo /tmp/sanchay-demo
 # It proves the protected, duplicate, hardlink, and fail-closed boundaries.
 sanchay-demo --prove
 
-# 14. Launch interactive Textual Terminal Dashboard
+# 14. Rehearse capacity-risk gating from synthetic aggregate snapshots only.
+# This proves code gating, never a live endpoint forecast.
+sanchay-demo --risk-prove
+
+# 15. Launch interactive Textual Terminal Dashboard
 sanchay-ui /home/user
 ```
 

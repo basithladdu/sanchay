@@ -43,6 +43,10 @@ human acts.
    fixture, checks the protected/duplicate/hardlink boundaries, then changes
    only the synthetic cache and confirms that the plan fails closed. The command
    is a rehearsal check, not a substitute for the visible live sequence below.
+8. If the jury asks how capacity-risk withholding works, run
+   `sanchay-demo --risk-prove`. Its first line explicitly identifies synthetic
+   aggregate snapshots, not endpoint telemetry. It proves the seven-snapshot
+   and changed-capacity gates, not a forecast for the demo machine.
 
 ## Exact live-demo sequence
 
@@ -79,6 +83,9 @@ Point out these concrete facts, not a generic dashboard:
 - `--explain` produces a deterministic local narrative and says no candidate
   data left the machine. Do not use `--cloud-narrative` in the final demo unless
   the team has separately approved it and configured an API key.
+- `sanchay-demo --risk-prove` is available only as a transparent synthetic
+  aggregate rehearsal: it demonstrates that a qualifying seven-snapshot model
+  result is withheld after a capacity resize. It is not a live-device forecast.
 - The explicit `600K` reclaim request selects 712 KB of reviewable evidence;
   it does not broaden into the thesis or hardlinked entries to meet a target.
 - `cleanup-plan.json` has a SHA-256 integrity checksum (not a signature),

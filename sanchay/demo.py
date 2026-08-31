@@ -127,14 +127,79 @@ def rehearse(root=None):
     }
 
 
+def rehearse_capacity_risk():
+    """Exercise the capacity-risk evidence gate with synthetic aggregates.
+
+    This does not create a fixture, scan a root, or query an endpoint. The
+    empty file list and supplied accounting values create schema-valid, wholly
+    in-memory snapshots so a final-round rehearsal can show the model's
+    evidence threshold and its capacity-change withholding behavior honestly.
+    """
+    from . import snapshot
+
+    total_bytes = 35_000_000
+    days = (0, 1, 2, 3, 4, 5, 7)
+    used_bytes = (20_000_000, 21_100_000, 22_000_000, 23_300_000,
+                  24_100_000, 25_400_000, 26_500_000)
+    synthetic_root = "sanchay-synthetic-capacity-risk-fixture"
+    records = [
+        snapshot.capture(
+            [], synthetic_root,
+            filesystem_total_bytes=total_bytes,
+            filesystem_used_bytes=used,
+            filesystem_free_bytes=total_bytes - used,
+            filesystem_device=42,
+            now=100 + day * 86400)
+        for day, used in zip(days, used_bytes)
+    ]
+    estimate = snapshot.capacity_risk(records, 7)
+    if (not estimate["assessed"]
+            or not 0 <= estimate["risk_probability"] <= 1):
+        raise RuntimeError("Synthetic capacity-risk evidence did not assess safely")
+
+    resized_records = [dict(record) for record in records]
+    resized_records[-1]["filesystem_total_bytes"] += 4096
+    resized_records[-1]["filesystem_free_bytes"] += 4096
+    withheld = snapshot.capacity_risk(resized_records, 7)
+    if (withheld["assessed"]
+            or "capacity changed" not in withheld["reason"]):
+        raise RuntimeError("A synthetic capacity resize did not withhold risk")
+
+    return {
+        "horizon_days": estimate["horizon_days"],
+        "sample_count": estimate["sample_count"],
+        "elapsed_seconds": estimate["elapsed_seconds"],
+        "risk_probability": estimate["risk_probability"],
+        "model": estimate["model"],
+        "withheld_reason": withheld["reason"],
+    }
+
+
 def main(argv=None):
     parser = argparse.ArgumentParser(
         prog="sanchay-demo",
         description="create a disposable SANCHAY demonstration fixture")
     parser.add_argument("root", nargs="?", help="empty directory for the fixture")
-    parser.add_argument("--prove", action="store_true",
-                        help="run the full safety rehearsal against the disposable fixture")
+    mode = parser.add_mutually_exclusive_group()
+    mode.add_argument("--prove", action="store_true",
+                      help="run the full safety rehearsal against the disposable fixture")
+    mode.add_argument("--risk-prove", action="store_true",
+                      help="rehearse capacity-risk gates with synthetic aggregate snapshots")
     args = parser.parse_args(argv)
+    if args.risk_prove:
+        if args.root:
+            parser.error("--risk-prove does not accept a fixture root")
+        result = rehearse_capacity_risk()
+        print("risk telemetry -> synthetic aggregate mounted-filesystem snapshots; not endpoint data")
+        print("risk evidence -> "
+              f"{result['sample_count']} complete same-capacity snapshots over "
+              f"{result['elapsed_seconds'] / 86400:.0f} days")
+        print("risk estimate -> "
+              f"{result['risk_probability'] * 100:.1f}% capacity-hit probability within "
+              f"{result['horizon_days']} days under the local model")
+        print("risk guard -> a synthetic capacity resize withheld the risk estimate")
+        print("proof -> PASS; no endpoint file, alert, volume, or network was changed")
+        return 0
     if args.prove:
         result = rehearse(args.root)
         print(f"rehearsal fixture -> {result['fixture']}")

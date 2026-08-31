@@ -127,6 +127,8 @@ Use the deterministic SANCHAY fixture and terminal output:
   review a service lifecycle—not permission for SANCHAY to stop or alter it;
 - `--explain` produces a local narrative and explicitly says that no candidate
   data left the machine;
+- `sanchay-demo --risk-prove` labels its aggregate input as synthetic and
+  demonstrates capacity-change withholding, not a live endpoint forecast;
 - a 600 KB target is met only with reviewable evidence-backed candidates;
 - a build cache is reviewable, not deleted;
 - --verify-plan passes before change and fails closed after a synthetic fixture
