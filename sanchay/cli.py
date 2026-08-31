@@ -91,14 +91,17 @@ def main(argv=None):
     except ValueError as exc:
         ap.error(str(exc))
     total = storage.physical_bytes(files)
+    logical_total = storage.logical_bytes(files)
     aliases = storage.hardlink_alias_count(files)
-    print(f"{len(files):,} file entries, {human(total)} physical storage")
+    print(f"{len(files):,} file entries, {human(total)} allocated storage")
+    if logical_total != total:
+        print(f"{human(logical_total)} logical length; sparse allocation is not overstated")
     if aliases:
         print(f"{aliases:,} hardlink aliases are not double-counted")
     print()
 
     groups = dedup.duplicates(files)
-    print(f"duplicates: {len(groups)} groups, {human(dedup.reclaimable(groups))} potential duplicate bytes")
+    print(f"duplicates: {len(groups)} groups, {human(dedup.reclaimable(groups))} potential allocated reclaim")
 
     free = shutil.disk_usage(args.root).free
     current_snapshot = snapshot.capture(files, args.root, free)
@@ -149,7 +152,7 @@ def main(argv=None):
               f"{human(selection['selected_reclaim_bytes'])} selected ({state})")
     print()
 
-    print(f"{'size':>10}  {'kind':<11} {'unchanged':>9}  path")
+    print(f"{'reclaim':>10}  {'kind':<11} {'unchanged':>9}  path")
     print("-" * 78)
     for r in rows:
         print(f"{human(r['size']):>10}  {r['kind']:<11} "

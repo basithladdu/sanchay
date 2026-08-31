@@ -6,9 +6,6 @@
 <title>SANCHAY — Regret-Aware Storage Intelligence for Linux</title>
 <meta name="description" content="Review-only, regret-aware storage recommendations for Linux. Built by Zeros and Ones for the C-DAC SSM Hackathon 2026.">
 <script src="https://cdn.plot.ly/plotly-2.35.2.min.js"></script>
-<link rel="preconnect" href="https://fonts.googleapis.com">
-<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
 <style>
 :root {
   --bg: #090d16;
@@ -27,13 +24,13 @@
 body {
   background: var(--bg);
   color: var(--text-main);
-  font-family: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, sans-serif;
+  font-family: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, sans-serif;
   line-height: 1.6;
   padding: 0;
   margin: 0;
   -webkit-font-smoothing: antialiased;
 }
-.mono { font-family: 'JetBrains Mono', monospace; }
+.mono { font-family: ui-monospace, SFMono-Regular, Consolas, monospace; }
 .container {
   max-width: 1240px;
   margin: 0 auto;
@@ -308,7 +305,7 @@ footer {
 }
 .manifest-status {
   color: var(--text-muted);
-  font-family: 'JetBrains Mono', monospace;
+  font-family: ui-monospace, SFMono-Regular, Consolas, monospace;
   font-size: 12px;
 }
 .target-control {
@@ -355,6 +352,197 @@ button:focus-visible, a:focus-visible, input:focus-visible {
   #treemapDiv { height: 310px !important; }
   #forecastDiv { height: 290px !important; }
 }
+
+/* Evidence-console visual system: deliberately restrained and operational. */
+:root {
+  --bg: #f1f0ea;
+  --surface: #fbfaf5;
+  --surface-subtle: #e7e8df;
+  --border: #bec3ba;
+  --text-main: #141713;
+  --text-muted: #5d625b;
+  --cyan: #275f78;
+  --emerald: #27664b;
+  --amber: #9a5c1b;
+  --rose: #a13e32;
+}
+body {
+  background: var(--bg);
+  color: var(--text-main);
+  font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+}
+.mono { font-family: ui-monospace, SFMono-Regular, Consolas, "Liberation Mono", monospace; }
+.container { max-width: 1180px; padding: 24px 24px 56px; }
+header {
+  border-bottom: 1px solid var(--border);
+  border-top: 4px solid var(--text-main);
+  margin-bottom: 0;
+  padding: 14px 0 16px;
+}
+.brand { gap: 10px; }
+.logo-badge {
+  background: transparent;
+  border: 2px solid var(--text-main);
+  border-radius: 0;
+  box-shadow: none;
+  color: var(--text-main);
+  font-family: ui-monospace, monospace;
+  font-size: 15px;
+  height: 30px;
+  width: 30px;
+}
+.brand-title h1 { font-size: 18px; letter-spacing: .06em; }
+.brand-title p { color: var(--text-muted); font-family: ui-monospace, monospace; font-size: 10px; letter-spacing: .03em; }
+.header-links { gap: 8px; }
+.btn {
+  border: 1px solid var(--text-main);
+  border-radius: 0;
+  box-shadow: none;
+  font-family: ui-monospace, monospace;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: .02em;
+  padding: 9px 12px;
+  transition: background .15s ease, color .15s ease;
+}
+.btn-primary { background: var(--text-main); color: var(--surface); }
+.btn-primary:hover { background: var(--emerald); box-shadow: none; transform: none; }
+.btn-outline { background: transparent; border-color: var(--border); color: var(--text-main); }
+.btn-outline:hover { background: var(--surface-subtle); border-color: var(--text-main); color: var(--text-main); }
+.hero {
+  align-items: end;
+  border-bottom: 1px solid var(--border);
+  display: grid;
+  gap: 40px;
+  grid-template-columns: minmax(0, 1.7fr) minmax(240px, .7fr);
+  margin: 0;
+  max-width: none;
+  padding: 58px 0 48px;
+  text-align: left;
+}
+.kicker {
+  background: transparent;
+  border: 0;
+  border-bottom: 1px solid var(--text-main);
+  border-radius: 0;
+  color: var(--text-main);
+  display: inline-block;
+  font-family: ui-monospace, monospace;
+  font-size: 10px;
+  letter-spacing: .08em;
+  margin-bottom: 20px;
+  padding: 0 0 5px;
+}
+.hero h2 {
+  background: none;
+  color: var(--text-main);
+  font-size: clamp(36px, 5vw, 62px);
+  -webkit-text-fill-color: currentColor;
+  letter-spacing: -.055em;
+  line-height: .98;
+  margin-bottom: 20px;
+  max-width: 760px;
+}
+.hero p { color: var(--text-muted); font-size: 16px; max-width: 720px; }
+.hero-brief {
+  border-left: 3px solid var(--emerald);
+  color: var(--text-muted);
+  font-size: 13px;
+  line-height: 1.55;
+  padding: 2px 0 2px 16px;
+}
+.hero-brief strong { color: var(--text-main); display: block; font-family: ui-monospace, monospace; font-size: 12px; margin: 7px 0; }
+.hero-brief span { color: var(--emerald); font-family: ui-monospace, monospace; font-size: 10px; font-weight: 700; letter-spacing: .08em; }
+.grid-4 { gap: 0; grid-template-columns: repeat(4, 1fr); margin: 0 0 34px; }
+.card {
+  background: transparent;
+  border: 0;
+  border-bottom: 1px solid var(--border);
+  border-radius: 0;
+  border-right: 1px solid var(--border);
+  min-height: 176px;
+  overflow: visible;
+  padding: 22px 20px 22px 0;
+}
+.card + .card { padding-left: 20px; }
+.card:last-child { border-right: 0; }
+.card::before { display: none; }
+.card h3 { color: var(--text-main); font-family: ui-monospace, monospace; font-size: 12px; letter-spacing: .01em; margin-bottom: 12px; }
+.card h3 span { color: var(--emerald); margin-right: 8px; }
+.card p { color: var(--text-muted); font-size: 13px; line-height: 1.55; }
+.formula-box {
+  background: var(--surface-subtle);
+  border: 1px solid var(--border);
+  border-left: 4px solid var(--text-main);
+  border-radius: 0;
+  margin-bottom: 34px;
+  padding: 16px 18px;
+}
+.formula-code { color: var(--text-main); font-size: 15px; letter-spacing: -.025em; }
+.formula-badge { background: transparent; border: 1px solid var(--emerald); border-radius: 0; color: var(--emerald); font-family: ui-monospace, monospace; font-size: 10px; padding: 5px 7px; }
+.interactive-panel {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 0;
+  box-shadow: none;
+  margin-bottom: 28px;
+  padding: 26px;
+}
+#interactive { border-top: 4px solid var(--text-main); }
+.section-title { color: var(--text-main); font-size: 21px; letter-spacing: -.035em; margin-bottom: 5px; }
+.section-desc { color: var(--text-muted); font-size: 13px; margin-bottom: 20px; }
+.demo-boundary { background: #f1eadc; border: 1px solid #d2b984; border-left: 3px solid var(--amber); border-radius: 0; color: #5b4829; font-size: 12px; margin-bottom: 18px; padding: 11px 12px; }
+.demo-boundary strong { color: #77501b; }
+.manifest-controls { align-items: start; border-bottom: 1px solid var(--border); gap: 12px; margin-bottom: 20px; padding-bottom: 18px; }
+.target-control { gap: 9px; }
+.target-control label { color: var(--text-main); font-family: ui-monospace, monospace; font-size: 11px; }
+.target-input { background: var(--surface); border: 1px solid var(--text-main); border-radius: 0; color: var(--text-main); font-family: ui-monospace, monospace; padding: 8px; width: 80px; }
+.manifest-status { color: var(--text-muted); flex: 1 1 280px; font-family: ui-monospace, monospace; font-size: 11px; line-height: 1.55; padding: 3px 0; }
+.filter-tabs { border-bottom: 1px solid var(--border); gap: 0; margin-bottom: 16px; }
+.tab { background: transparent; border: 0; border-bottom: 2px solid transparent; border-radius: 0; color: var(--text-muted); font-family: ui-monospace, monospace; font-size: 10px; margin: 0 14px 0 0; padding: 8px 0; }
+.tab.active, .tab:hover { background: transparent; border-bottom-color: var(--text-main); color: var(--text-main); }
+.table-scroll { overflow-x: auto; }
+table { font-size: 12px; }
+th { color: var(--text-muted); font-family: ui-monospace, monospace; font-size: 10px; padding: 10px 8px; }
+td { border-bottom-color: var(--border); color: var(--text-main); padding: 12px 8px; vertical-align: top; }
+.pill { background: transparent; border: 1px solid currentColor; border-radius: 0; font-family: ui-monospace, monospace; font-size: 10px; padding: 3px 5px; }
+.pill-disposable { color: var(--emerald); }
+.pill-duplicate { color: var(--cyan); }
+.pill-tracked { color: var(--amber); }
+.pill-unique { color: var(--rose); }
+.locked-badge { color: var(--rose); font-family: ui-monospace, monospace; font-size: 10px; }
+footer { border-top-color: var(--border); color: var(--text-muted); font-family: ui-monospace, monospace; font-size: 11px; padding-top: 22px; text-align: left; }
+button:focus-visible, a:focus-visible, input:focus-visible { outline: 3px solid var(--amber); outline-offset: 3px; }
+@media (max-width: 760px) {
+  .container { padding: 16px 16px 42px; }
+  header { align-items: flex-start; padding: 12px 0 14px; }
+  .header-links { width: auto; }
+  .header-links .btn { flex: initial; }
+  .hero { display: block; padding: 38px 0 34px; }
+  .hero h2 { font-size: 39px; }
+  .hero-brief { margin-top: 30px; }
+  .grid-4 { grid-template-columns: 1fr; margin-bottom: 26px; }
+  .card, .card + .card { border-right: 0; min-height: auto; padding: 17px 0; }
+  .formula-box, .interactive-panel { padding: 16px; }
+  .formula-box { margin-bottom: 26px; }
+  .formula-code { font-size: 13px; overflow-wrap: anywhere; }
+  .manifest-controls { display: grid; grid-template-columns: 1fr; }
+  .target-control { justify-content: space-between; width: 100%; }
+  .target-input { width: 148px; }
+  .manifest-controls .btn { justify-content: center; width: 100%; }
+  .manifest-status { padding: 0; }
+  .filter-tabs { display: block; }
+  .tab { margin-right: 12px; }
+  .table-scroll { overflow: visible; }
+  table, tbody, tr, td { display: block; width: 100%; }
+  table { min-width: 0; }
+  thead { display: none; }
+  tr { border-bottom: 1px solid var(--border); padding: 10px 0; }
+  td { border: 0; padding: 4px 0; }
+  td::before { color: var(--text-muted); content: attr(data-label); display: block; font-family: ui-monospace, monospace; font-size: 9px; font-weight: 700; letter-spacing: .06em; margin-bottom: 1px; text-transform: uppercase; }
+  #treemapDiv { height: 300px !important; }
+  #forecastDiv { height: 270px !important; }
+}
 </style>
 </head>
 <body>
@@ -374,41 +562,48 @@ button:focus-visible, a:focus-visible, input:focus-visible {
   </header>
 
   <section class="hero">
-    <span class="kicker">Track 2: AI at Application Level</span>
-    <h2>Storage Recommendations That Preserve the Human Decision</h2>
-    <p>SANCHAY identifies storage candidates, records the type and strength of recovery evidence for each recommendation, and produces a <strong>review-only plan</strong>. It never deletes or moves a user file.</p>
+    <div class="hero-copy">
+      <span class="kicker">Track 2 · AI at Application Level</span>
+      <h2>Reclaim space without gambling on files.</h2>
+      <p>SANCHAY ranks only candidates with visible recovery evidence, writes a <strong>review-only plan</strong>, and keeps the irreversible decision with the operator.</p>
+    </div>
+    <aside class="hero-brief" aria-label="Operating boundary">
+      <span>OPERATING BOUNDARY</span>
+      <strong>LOCAL SCAN · HUMAN REVIEW · NO DELETION</strong>
+      File bytes stay on the machine except when duplicate candidates are compared locally. The browser page below is seeded demo data, not a device scan.
+    </aside>
   </section>
 
   <div class="grid-4">
     <div class="card">
-      <h3>Protected-File Gate</h3>
+      <h3><span>01</span>Protected-file gate</h3>
       <p>Unique, untracked, uncached files are excluded from the plan before ranking.</p>
     </div>
     <div class="card">
-      <h3>Two-Stage Runway</h3>
+      <h3><span>02</span>Measured runway</h3>
       <p>First-run mtime estimate, followed by measured net growth from later local snapshots.</p>
     </div>
     <div class="card">
-      <h3>Tiered Duplicate Evidence</h3>
-      <p>Size -> 64 KB prefix -> full BLAKE2b-256 -> byte comparison, with hardlink aliases excluded from cleanup and physical-byte totals, and a named survivor retained.</p>
+      <h3><span>03</span>Duplicate proof</h3>
+      <p>Size -> 64 KB prefix -> full BLAKE2b-256 -> byte comparison, with hardlink aliases excluded from cleanup and allocated-byte totals, and a named survivor retained.</p>
     </div>
     <div class="card">
-      <h3>Local by Default</h3>
+      <h3><span>04</span>Local by default</h3>
       <p>Metadata stays local; file bytes are read locally only to confirm duplicate candidates.</p>
     </div>
   </div>
 
   <div class="formula-box">
     <div>
-      <div style="font-size: 11px; text-transform: uppercase; color: var(--text-muted); font-weight: 700;">Review Priority</div>
-      <div class="formula-code mono">Priority = Size × Unchanged Age × (1 − Regret)</div>
+      <div style="font-size: 11px; text-transform: uppercase; color: var(--text-muted); font-weight: 700;">Review priority model</div>
+      <div class="formula-code mono">Priority = Reclaimable Allocation × Unchanged Age × (1 − Regret)</div>
     </div>
     <div class="formula-badge">Unique files are excluded before ranking</div>
   </div>
 
   <section class="interactive-panel" id="interactive">
-    <h3 class="section-title">Seeded Review-Plan Walkthrough</h3>
-    <p class="section-desc">A browser-only example of the same recommendation structure generated by the local CLI.</p>
+    <h3 class="section-title">Review-plan sandbox</h3>
+    <p class="section-desc">Seeded evidence only. The local CLI creates the real filesystem plan.</p>
     <div class="demo-boundary" role="note"><strong>Seeded demo data.</strong> This page does not scan your device. Run <span class="mono">sanchay /path --target-reclaim 5G --plan cleanup-plan.json</span> for a local filesystem plan.</div>
     <div class="manifest-controls">
       <div class="target-control">
@@ -433,9 +628,9 @@ button:focus-visible, a:focus-visible, input:focus-visible {
           <th>Category</th>
           <th>Regret Score</th>
           <th>File Path</th>
-          <th>Size</th>
+          <th>Allocated reclaim</th>
           <th>Unchanged</th>
-          <th>Review action / evidence</th>
+          <th>Recovery proof</th>
         </tr>
       </thead>
       <tbody id="fileTable">
@@ -492,14 +687,14 @@ button:focus-visible, a:focus-visible, input:focus-visible {
   </section>
 
   <section class="interactive-panel">
-    <h3 class="section-title">Interactive Recoverability Treemap</h3>
-    <p class="section-desc">Visualizing space by recoverability instead of raw bytes alone.</p>
+    <h3 class="section-title">Recoverability map</h3>
+    <p class="section-desc">Allocated bytes, coloured by evidence—not merely by directory size.</p>
     <div id="treemapDiv" style="height: 380px;"></div>
   </section>
 
   <section class="interactive-panel">
-    <h3 class="section-title">First-Scan Runway Estimate</h3>
-    <p class="section-desc">Example only: an mtime-based first estimate becomes a measured net-growth rate after a later local snapshot.</p>
+    <h3 class="section-title">Capacity orientation</h3>
+    <p class="section-desc">A first mtime-based orientation becomes measured net growth after a later local snapshot.</p>
     <div id="forecastDiv" style="height: 340px;"></div>
   </section>
 
@@ -525,11 +720,20 @@ function filterCategory(cat, button) {
   });
 }
 
+const demoColumnLabels = [
+  'Category', 'Regret score', 'File path', 'Allocated reclaim', 'Unchanged',
+  'Recovery proof'
+];
+document.querySelectorAll('#fileTable tr').forEach(row => {
+  [...row.cells].forEach((cell, index) => cell.dataset.label = demoColumnLabels[index]);
+});
+
 const demoPlan = {
-  schema_version: 3,
+  schema_version: 4,
   execution: {automatic_deletion: false, requires_human_review: true},
   safety: {protected_unique_files: 2, candidate_count: 4, excluded_hardlink_entries: 0},
   integrity: {algorithm: 'SHA-256', purpose: 'detects accidental plan changes; not a signature'},
+  decision_model: {name: 'regret_aware_priority', version: 2, formula: 'priority = reclaimable_allocated_bytes × unchanged_age × (1 - regret_weight)'},
   recommendations: [
     {kind: 'disposable', path: '/app/node_modules/.cache/webpack.pack', recovery_evidence: {type: 'known_regenerable_path', strength: 'heuristic'}},
     {kind: 'duplicate', path: '/home/user/downloads/ubuntu-24.04-live.iso', survivor: '/var/lib/iso/ubuntu-24.04-live.iso', recovery_evidence: {type: 'byte_for_byte_match', strength: 'direct'}},
@@ -592,7 +796,8 @@ async function generateDemoPlan() {
       target_reclaim_bytes: targetBytes,
       selected_reclaim_bytes: selectedBytes,
       target_met: selection.targetMet,
-      shortfall_bytes: Math.max(0, targetBytes - selectedBytes)
+      shortfall_bytes: Math.max(0, targetBytes - selectedBytes),
+      method: 'deterministic lowest-recovery-risk selection with minimal safe excess after the evidence gate; no file action is executed'
     }
   };
   status.textContent = 'Calculating seeded integrity checksum…';
@@ -611,7 +816,7 @@ const treemapData = [{
   parents: ["", "Root", "Disposable Caches", "Disposable Caches", "Root", "Duplicates", "Root", "Git Tracked", "Root", "Irreplaceable Unique", "Irreplaceable Unique"],
   values: [0, 2300, 1450, 850, 4800, 4800, 320, 320, 3325, 125, 3200],
   marker: {
-    colors: ["#111827", "#059669", "#10b981", "#34d399", "#0284c7", "#38bdf8", "#d97706", "#fbbf24", "#dc2626", "#ef4444", "#f87171"]
+    colors: ["#f1f0ea", "#27664b", "#4f8a66", "#72a685", "#275f78", "#5a8294", "#9a5c1b", "#c38a41", "#a13e32", "#bd5c50", "#d48379"]
   },
   textinfo: "label+value",
   hoverinfo: "label+value+percent parent"
@@ -621,7 +826,7 @@ Plotly.newPlot('treemapDiv', treemapData, {
   margin: {l: 0, r: 0, t: 0, b: 0},
   paper_bgcolor: 'rgba(0,0,0,0)',
   plot_bgcolor: 'rgba(0,0,0,0)',
-  font: {family: 'Plus Jakarta Sans', color: '#f8fafc'}
+  font: {family: 'ui-monospace, SFMono-Regular, Consolas, monospace', color: '#141713'}
 }, {responsive: true, displayModeBar: false});
 
 // Forecast rendering
@@ -634,23 +839,23 @@ Plotly.newPlot('forecastDiv', [
     x: dates, y: usedGB,
     type: 'scatter', mode: 'lines+markers',
     name: 'Example mtime-based estimate (600 MB/day)',
-    line: {color: '#38bdf8', width: 3},
+    line: {color: '#275f78', width: 3},
     fill: 'tozeroy',
-    fillcolor: 'rgba(56, 189, 248, 0.1)'
+    fillcolor: 'rgba(39, 95, 120, 0.12)'
   },
   {
     x: dates, y: limitGB,
     type: 'scatter', mode: 'lines',
     name: 'Disk Capacity Limit (388 GB)',
-    line: {color: '#f87171', width: 2, dash: 'dot'}
+    line: {color: '#a13e32', width: 2, dash: 'dot'}
   }
 ], {
   margin: {l: 40, r: 20, t: 20, b: 40},
   paper_bgcolor: 'rgba(0,0,0,0)',
   plot_bgcolor: 'rgba(0,0,0,0)',
-  xaxis: {gridcolor: '#1f293d', color: '#94a3b8'},
-  yaxis: {title: 'Storage (GB)', gridcolor: '#1f293d', color: '#94a3b8'},
-  font: {family: 'Plus Jakarta Sans', color: '#f8fafc'},
+  xaxis: {gridcolor: '#d5d8d0', color: '#5d625b'},
+  yaxis: {title: 'Storage (GB)', gridcolor: '#d5d8d0', color: '#5d625b'},
+  font: {family: 'ui-monospace, SFMono-Regular, Consolas, monospace', color: '#141713'},
   legend: {orientation: 'h', y: 1.1}
 }, {responsive: true, displayModeBar: false});
 </script>

@@ -29,7 +29,7 @@ human review.
 To a naive tool, a 2 GB regenerable build cache (`node_modules/.cache`) and a 2 GB irreplaceable capstone project database dump look identical. When a user runs out of disk space, automated cleaners or hurried users delete unique personal files, causing catastrophic, irrecoverable data loss.
 
 **SANCHAY** (संचय) introduces **Regret-Aware Storage Intelligence**. It models the *cost of recovery* for every candidate file before calculating cleanup priority:
-**Priority = size × unchanged-age × (1 − regret)**
+**Priority = reclaimable allocated bytes × unchanged-age × (1 − regret)**
 
 For irreplaceable unique files, regret is 1.00, so priority is 0.0 and they are excluded from SANCHAY's **review-only recommendation plan**.
 
@@ -66,7 +66,7 @@ changes; it is not a digital signature. SANCHAY never deletes or moves files
 itself.
 
 ### 2. Two-Stage Runway Measurement
-SANCHAY derives an initial storage-growth estimate from the **inode modification time distribution (`mtime`) on run #1**. It is directional, not a guaranteed exhaustion date. A later aggregate local snapshot measures actual net growth; with multiple snapshots, an explainable local linear trend reports bytes/day, and with three or more snapshots it also reports fit quality. Usage, snapshots, forecasts, and treemaps count each physical `(device, inode)` once, so a hardlink alias cannot inflate the result.
+SANCHAY derives an initial storage-growth estimate from the **inode modification time distribution (`mtime`) on run #1**. It is directional, not a guaranteed exhaustion date. A later aggregate local snapshot measures actual net growth; with multiple snapshots, an explainable local linear trend reports bytes/day, and with three or more snapshots it also reports fit quality. Usage, snapshots, forecasts, and treemaps count each physical `(device, inode)` once, and use allocated blocks (`st_blocks × 512`) where the filesystem exposes them, so neither hardlink aliases nor sparse logical length inflate the result.
 
 ### 3. Tiered Fast Content Hashing
 Deduplicating large files can saturate I/O. SANCHAY uses a 3-tier cascade:
@@ -158,9 +158,9 @@ sanchay-ui .
   private-key formats, and local credential vaults are excluded before metadata
   collection or duplicate hashing.
 * **Inspectable evidence policy**: Every plan item records its classification,
-  observed identity, typed recovery evidence with its strength, and frozen
-  decision-model inputs (size, unchanged age, regret weight, and computed
-  priority); files classified as unique are excluded before ranking.
+  logical and reclaimable allocated sizes, observed identity, typed recovery
+  evidence with its strength, and frozen decision-model inputs; files
+  classified as unique are excluded before ranking.
 * **Review gate**: `--verify-plan` rechecks the integrity checksum (not a
   digital signature), candidate identity including link count, duplicate
   survivor, and clean Git HEAD state where applicable. Hardlinked entries are

@@ -13,10 +13,10 @@ from pathlib import Path
 from . import regret, storage
 
 COLOURS = {
-    "disposable": "#22c55e",   # a build tool regenerates it
-    "duplicate": "#84cc16",    # another copy survives
-    "tracked": "#eab308",      # committed somewhere
-    "unique": "#ef4444",       # nothing gets it back
+    "disposable": "#4f8a66",   # a build tool regenerates it
+    "duplicate": "#5a8294",    # another copy survives
+    "tracked": "#c38a41",      # committed somewhere
+    "unique": "#bd5c50",       # nothing gets it back
 }
 DEPTH = 4
 
@@ -31,7 +31,7 @@ def _relative_parts(path, root):
 
 
 def figure(files, dup_paths=frozenset(), limit=4000, root=None):
-    top = sorted(storage.physical_records(files), key=lambda f: f.size,
+    top = sorted(storage.physical_records(files), key=storage.allocated_bytes,
                  reverse=True)[:limit]
     rows = []
     for f in top:
@@ -39,7 +39,7 @@ def figure(files, dup_paths=frozenset(), limit=4000, root=None):
         level = (parts[-DEPTH:] + [""] * DEPTH)[:DEPTH]
         rows.append({
             **{f"L{i}": p or "." for i, p in enumerate(level)},
-            "size": f.size,
+            "size": storage.allocated_bytes(f),
             "kind": regret.classify(f, f.path in dup_paths),
         })
 
@@ -47,11 +47,11 @@ def figure(files, dup_paths=frozenset(), limit=4000, root=None):
     fig = px.treemap(df, path=[f"L{i}" for i in range(DEPTH)], values="size",
                      color="kind", color_discrete_map=COLOURS,
                      title="Disk usage by recoverability evidence")
-    fig.update_traces(marker_line_width=0.5, marker_line_color="white")
+    fig.update_traces(marker_line_width=0.5, marker_line_color="#fbfaf5")
     fig.update_layout(margin=dict(t=10, l=0, r=0, b=0),
                       paper_bgcolor="rgba(0,0,0,0)",
                       plot_bgcolor="rgba(0,0,0,0)",
-                      font_color="#94a3b8", title=None)
+                      font_color="#141713", title=None)
     return fig
 
 

@@ -33,9 +33,9 @@ matter how large it is, and no matter how long it has remained unchanged.
 
 ## Description
 
-SANCHAY walks the disk once and collects only metadata for each file: size,
-last-access time, last-modified time, and inode number. No file contents are
-read at this stage.
+SANCHAY walks the disk once and collects only metadata for each file: logical
+size, allocated block count where the filesystem exposes it, last-access time,
+last-modified time, and inode number. No file contents are read at this stage.
 
 It then does six things.
 
@@ -50,8 +50,9 @@ also compares that file with its named survivor byte for byte. Files whose
 sizes do not collide are never opened.
 Hardlinks pointing at the same inode are not counted as duplicates, because
 deleting one of them frees no space. SANCHAY counts that inode once in disk
-usage, snapshot, forecast, and treemap metrics, and excludes every individual
-hardlinked path from the review plan.
+usage, snapshot, forecast, and treemap metrics, using allocated blocks rather
+than sparse logical length where Linux exposes `st_blocks`, and excludes every
+individual hardlinked path from the review plan.
 
 **2. Works out how recoverable each file is.** This is the core of the tool.
 Every file lands in one of four classes:
@@ -69,7 +70,8 @@ Every file lands in one of four classes:
 Files in the unique class are dropped from consideration entirely, before any
 ranking happens.
 
-**3. Ranks what survives.** priority = size × unchanged-age × (1 − regret),
+**3. Ranks what survives.** priority = reclaimable allocated bytes ×
+unchanged-age × (1 − regret),
 where unchanged-age runs from 0 for a file modified today up to 1 for a file
 unchanged for a year, and regret is a fixed weight per class (0.02 disposable,
 0.10 duplicate, 0.20 tracked). It deliberately does not claim that a file has
@@ -94,7 +96,7 @@ three or more snapshots it also reports R-squared fit quality, giving the user
 a measurable forecast without uploading file names or contents.
 
 **5. Writes a review-only plan.** Each eligible recommendation records its
-classification, observed device/inode/size/mtime/link-count identity, and typed recovery
+classification, observed device/inode/logical-size/allocated-size/mtime/link-count identity, and typed recovery
 evidence with a visible strength: direct full-content match for duplicates,
 repository-state evidence for clean Git files, or a clearly labelled heuristic
 for conventional cache paths. Duplicate candidates name the copy that will
@@ -105,12 +107,13 @@ and clean Git HEAD state where applicable. A changed link count invalidates the
 plan, because it changes whether a path can release physical storage. SANCHAY
 never deletes or moves files.
 
-The plan also freezes the decision trace for every recommendation: the exact
-size, unchanged-age factor, regret weight, formula, and computed priority. A
+The plan also freezes the decision trace for every recommendation: logical
+size, reclaimable allocated bytes, unchanged-age factor, regret weight,
+formula, and computed priority. A
 reviewer can inspect the model inputs instead of accepting an opaque score.
 
-**6. Shows and explains.** A treemap is drawn with one block per physical inode,
-coloured by recoverability rather than size — green for disposable, red for
+**6. Shows and explains.** A treemap is drawn with one block per physical inode
+sized by allocated bytes, coloured by recoverability rather than logical size — green for disposable, red for
 irreplaceable — so hardlink aliases do not overstate disk use. A language
 model then writes the findings up in plain English.
 
@@ -142,8 +145,8 @@ Two smaller original pieces support it. The first scan offers an mtime-derived
 runway estimate, while later aggregate snapshots drive an explainable local
 linear trend with a visible fit quality. This gives immediate orientation
 without pretending a single instant is a guaranteed exhaustion date. The
-treemap is coloured by recoverability rather than by size and uses
-physical-inode accounting, which turns the safety model into something visible
+treemap is coloured by recoverability rather than by logical size and uses
+allocated-byte physical-inode accounting, which turns the safety model into something visible
 instead of something buried in a table.
 
 ---

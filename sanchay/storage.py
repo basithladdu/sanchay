@@ -1,9 +1,28 @@
-"""Account for physical storage rather than directory-entry appearances.
+"""Account for allocated storage rather than directory-entry appearances.
 
 Two hardlink paths name the same inode. They are useful paths to show a user,
 but they do not consume two copies of the file's bytes. These helpers keep disk
 totals, growth estimates, and duplicate decisions honest about that distinction.
+On Linux, ``st_blocks * 512`` also avoids treating a sparse file's logical byte
+length as if it were all allocated on disk.
 """
+
+
+def allocated_bytes(info):
+    """Return the filesystem allocation for one file, with a safe fallback.
+
+    Python exposes POSIX ``st_blocks`` as units of 512 bytes where available.
+    The scanner records that allocation. Platforms without that field fall
+    back to the logical byte length instead of fabricating a block count.
+    """
+    allocated = getattr(info, "allocated_size", None)
+    return info.size if allocated is None else allocated
+
+
+def allocated_bytes_from_stat(stat_result):
+    """Read the portable allocation measure from an ``os.stat`` result."""
+    blocks = getattr(stat_result, "st_blocks", None)
+    return stat_result.st_size if blocks is None else blocks * 512
 
 
 def inode_identity(info):
@@ -26,7 +45,12 @@ def physical_records(files):
 
 
 def physical_bytes(files):
-    """Count every physical inode at most once."""
+    """Count allocated bytes for every physical inode at most once."""
+    return sum(allocated_bytes(info) for info in physical_records(files))
+
+
+def logical_bytes(files):
+    """Count logical lengths for every physical inode at most once."""
     return sum(info.size for info in physical_records(files))
 
 

@@ -16,7 +16,7 @@ def capture(files, root, free_bytes, now=None):
     captured_at = now if now is not None else time.time()
     physical = storage.physical_records(files)
     return {
-        "schema_version": 2,
+        "schema_version": 3,
         "root": str(Path(root).resolve()),
         "captured_at": captured_at,
         "captured_at_iso": datetime.fromtimestamp(
@@ -24,7 +24,8 @@ def capture(files, root, free_bytes, now=None):
         "file_count": len(files),
         "physical_file_count": len(physical),
         "hardlink_alias_count": len(files) - len(physical),
-        "used_bytes": sum(file.size for file in physical),
+        "used_bytes": storage.physical_bytes(files),
+        "logical_bytes": storage.logical_bytes(files),
         "free_bytes": free_bytes,
     }
 
@@ -38,16 +39,16 @@ def write(snapshot, out):
 def read(path):
     document = json.loads(Path(path).read_text(encoding="utf-8"))
     required = {"schema_version", "root", "captured_at", "used_bytes",
-                "physical_file_count", "hardlink_alias_count"}
-    if document.get("schema_version") != 2 or not required.issubset(document):
-        raise ValueError("Unsupported or incomplete SANCHAY snapshot; capture a new physical-byte snapshot")
+                "logical_bytes", "physical_file_count", "hardlink_alias_count"}
+    if document.get("schema_version") != 3 or not required.issubset(document):
+        raise ValueError("Unsupported or incomplete SANCHAY snapshot; capture a new allocated-byte snapshot")
     return document
 
 
 def observed_growth(previous, current):
     """Return a measured net-growth rate, or None for incompatible snapshots."""
-    if previous.get("schema_version") != 2 or current.get("schema_version") != 2:
-        raise ValueError("Snapshots must use SANCHAY physical-byte accounting")
+    if previous.get("schema_version") != 3 or current.get("schema_version") != 3:
+        raise ValueError("Snapshots must use SANCHAY allocated-byte accounting")
     if Path(previous["root"]) != Path(current["root"]):
         raise ValueError("Snapshot root does not match the current scan root")
     elapsed = current["captured_at"] - previous["captured_at"]

@@ -16,7 +16,7 @@ def daily_growth(files, window=180, now=None):
     for f in storage.physical_records(files):
         age = (now - f.mtime) / 86400
         if 0 <= age <= window:
-            per_day[int(age)] += f.size
+            per_day[int(age)] += storage.allocated_bytes(f)
     return per_day
 
 

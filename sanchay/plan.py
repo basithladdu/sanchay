@@ -24,8 +24,8 @@ ACTION = {
 
 DECISION_MODEL = {
     "name": "regret_aware_priority",
-    "version": 1,
-    "formula": "priority = size_bytes × unchanged_age × (1 - regret_weight)",
+    "version": 2,
+    "formula": "priority = reclaimable_allocated_bytes × unchanged_age × (1 - regret_weight)",
     "boundary": "unique and hardlinked entries are excluded before ranking",
 }
 
@@ -58,7 +58,8 @@ def _decision_trace(row):
     return {
         **DECISION_MODEL,
         "inputs": {
-            "size_bytes": row["size"],
+            "reclaimable_allocated_bytes": row["size"],
+            "logical_size_bytes": row["logical_size"],
             "unchanged_age": row["staleness"],
             "regret_weight": row["regret"],
         },
@@ -110,6 +111,7 @@ def _identity(info):
         "device": getattr(info, "device", 0),
         "inode": info.inode,
         "size": info.size,
+        "allocated_size": storage.allocated_bytes(info),
         "mtime": info.mtime,
         "nlink": getattr(info, "nlink", 1),
     }
@@ -144,7 +146,7 @@ def build(files, duplicate_groups, root, now=None, limit=25,
         row = regret.score(info, info.path in duplicate_of, now)
         if row["kind"] == "unique":
             protected_count += 1
-            protected_bytes += info.size
+            protected_bytes += storage.allocated_bytes(info)
             continue
         eligible.append((row, info))
 
@@ -170,7 +172,7 @@ def build(files, duplicate_groups, root, now=None, limit=25,
         recommendations.append(item)
 
     document = {
-        "schema_version": 3,
+        "schema_version": 4,
         "generated_at": datetime.now(timezone.utc).isoformat(),
         "root": str(Path(root).resolve()),
         "execution": {
@@ -245,7 +247,7 @@ def read(path):
                        "logical_file_entries", "physical_file_count",
                        "excluded_hardlink_entries", "excluded_hardlink_physical_bytes",
                        "candidate_count", "candidate_bytes", "rule"}
-    if (document.get("schema_version") != 3 or not required.issubset(document)
+    if (document.get("schema_version") != 4 or not required.issubset(document)
             or not isinstance(document["root"], str)
             or not isinstance(document["execution"], dict)
             or not isinstance(document["safety"], dict)
@@ -267,6 +269,7 @@ def _current_identity(path):
         "device": observed.st_dev,
         "inode": observed.st_ino,
         "size": observed.st_size,
+        "allocated_size": storage.allocated_bytes_from_stat(observed),
         "mtime": observed.st_mtime,
         "nlink": observed.st_nlink,
     }, None
@@ -278,7 +281,7 @@ def _identity_check(path, expected, role):
     actual, error = _current_identity(path)
     if error:
         return error
-    for field in ("device", "inode", "size", "mtime", "nlink"):
+    for field in ("device", "inode", "size", "allocated_size", "mtime", "nlink"):
         if actual[field] != expected.get(field):
             return f"{role} {field} changed since the plan was created"
     return None

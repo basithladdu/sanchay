@@ -8,6 +8,8 @@ import os
 import stat
 from dataclasses import dataclass
 
+from . import storage
+
 
 # These contain repository internals or credential material rather than user
 # storage candidates. Prune them before metadata collection and before any
@@ -32,6 +34,10 @@ class FileInfo:
     inode: int
     device: int = 0
     nlink: int = 1
+    # Logical byte length remains necessary for duplicate matching. The
+    # allocated size is what a filesystem can actually return on deletion.
+    # It is None only when the platform does not expose block allocation.
+    allocated_size: int = None
 
 
 def _is_protected_file(name):
@@ -94,5 +100,6 @@ def scan(root, skip=DEFAULT_SKIP_DIRS,
             if not stat.S_ISREG(st.st_mode):
                 continue
             files.append(FileInfo(path, st.st_size, st.st_atime, st.st_mtime,
-                                  st.st_ino, st.st_dev, st.st_nlink))
+                                  st.st_ino, st.st_dev, st.st_nlink,
+                                  storage.allocated_bytes_from_stat(st)))
     return files

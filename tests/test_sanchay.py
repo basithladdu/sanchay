@@ -9,6 +9,7 @@ import copy
 import contextlib
 import io
 import shutil
+from types import SimpleNamespace
 from pathlib import Path
 
 from sanchay import cli, dedup, demo, forecast, plan, regret, report, scan, snapshot, storage
@@ -211,8 +212,10 @@ class TestSanchay(unittest.TestCase):
             self.assertEqual(item['recovery_evidence']['strength'], 'direct')
             self.assertIn(str(duplicate_a), item['recovery_evidence']['detail'])
             self.assertEqual(item['observed_identity']['size'], 4096)
+            self.assertEqual(item['observed_identity']['allocated_size'], 4096)
             self.assertEqual(item['decision_trace']['name'], 'regret_aware_priority')
-            self.assertEqual(item['decision_trace']['inputs']['size_bytes'], 4096)
+            self.assertEqual(item['decision_trace']['inputs']['reclaimable_allocated_bytes'], 4096)
+            self.assertEqual(item['decision_trace']['inputs']['logical_size_bytes'], 4096)
             self.assertEqual(item['decision_trace']['computed_priority'], item['priority'])
             self.assertEqual(
                 plan.duplicate_evidence_paths(cleanup_plan),
@@ -281,11 +284,47 @@ class TestSanchay(unittest.TestCase):
             captured = snapshot.capture(files, root, 1000, now=100)
             self.assertEqual(storage.physical_bytes(files), 4096)
             self.assertEqual(storage.hardlink_alias_count(files), 1)
-            self.assertEqual(captured['schema_version'], 2)
+            self.assertEqual(captured['schema_version'], 3)
             self.assertEqual(captured['used_bytes'], 4096)
+            self.assertEqual(captured['logical_bytes'], 4096)
             self.assertEqual(captured['physical_file_count'], 1)
             self.assertEqual(captured['hardlink_alias_count'], 1)
             self.assertEqual(forecast.daily_growth(files, now=measured_at)[0], 4096)
+
+    def test_allocated_bytes_prevent_sparse_files_from_overstating_reclaim(self):
+        sparse = scan.FileInfo('/app/.cache/sparse-image.bin', 1024 ** 3,
+                               self.now, self.now - 86400 * 30, 901,
+                               allocated_size=4096)
+        normal = scan.FileInfo('/app/.cache/normal-cache.bin', 8192,
+                               self.now, self.now - 86400 * 30, 902,
+                               allocated_size=8192)
+        files = [sparse, normal]
+
+        self.assertEqual(storage.logical_bytes(files), 1024 ** 3 + 8192)
+        self.assertEqual(storage.physical_bytes(files), 12288)
+        self.assertEqual(storage.allocated_bytes(sparse), 4096)
+        self.assertEqual(storage.allocated_bytes(
+            scan.FileInfo('/app/.cache/fallback.bin', 4096, self.now,
+                          self.now, 903)), 4096)
+        self.assertEqual(storage.allocated_bytes_from_stat(
+            SimpleNamespace(st_size=1024 ** 3, st_blocks=8)), 4096)
+        self.assertEqual(storage.allocated_bytes_from_stat(
+            SimpleNamespace(st_size=4096)), 4096)
+
+        cleanup_plan = plan.build(files, [], '/app', now=self.now)
+        rows = {item['path']: item for item in cleanup_plan['recommendations']}
+        self.assertEqual(rows[sparse.path]['size'], 4096)
+        self.assertEqual(rows[sparse.path]['logical_size'], 1024 ** 3)
+        self.assertEqual(rows[sparse.path]['decision_trace']['inputs']
+                         ['reclaimable_allocated_bytes'], 4096)
+        self.assertEqual(rows[sparse.path]['decision_trace']['inputs']
+                         ['logical_size_bytes'], 1024 ** 3)
+
+        captured = snapshot.capture(files, '/app', 1000, now=100)
+        self.assertEqual(captured['schema_version'], 3)
+        self.assertEqual(captured['used_bytes'], 12288)
+        self.assertEqual(captured['logical_bytes'], 1024 ** 3 + 8192)
+        self.assertEqual(forecast.daily_growth(files, now=self.now)[30], 12288)
 
     def test_snapshots_measure_observed_net_growth(self):
         previous = snapshot.capture(self.files, '/app', 1000, now=100)

@@ -70,6 +70,26 @@ td::before{content:attr(data-label);display:block;color:var(--mute);font-size:10
 td.p{word-break:break-word}
 .evidence{max-width:none}
 }
+
+/* Evidence-console override: a local forensic report, not a generic dashboard. */
+:root{--bg:#f1f0ea;--panel:#fbfaf5;--panel-sub:#e7e8df;--ink:#141713;--mute:#5d625b;--line:#bec3ba;--green:#27664b;--lime:#5a8294;--amber:#9a5c1b;--red:#a13e32;--accent:#275f78}
+body{background:var(--bg);color:var(--ink);font:13px/1.55 ui-sans-serif,system-ui,-apple-system,"Segoe UI",sans-serif;padding:24px 20px}
+.wrap{max-width:1180px}
+header{align-items:flex-start;border-bottom:1px solid var(--line);border-top:4px solid var(--ink);margin-bottom:0;padding:14px 0 16px}
+h1{font-size:19px;letter-spacing:.06em}
+.badge-regret{background:transparent;border:1px solid var(--green);border-radius:0;color:var(--green);font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:9px;padding:3px 5px}
+.sub{color:var(--mute);font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:10px;margin-top:4px}
+.cards{border-bottom:1px solid var(--line);gap:0;grid-template-columns:repeat(4,1fr);margin-bottom:28px}
+.card{background:transparent;border:0;border-bottom:0;border-radius:0;border-right:1px solid var(--line);padding:20px}
+.card:first-child{padding-left:0}.card:last-child{border-right:0;padding-right:0}
+.card .k{color:var(--mute);font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:9px}.card .v{color:var(--ink)!important;font-size:24px;margin:5px 0 2px}.card .n{color:var(--mute);font-size:11px}
+.panel{background:var(--panel);border:1px solid var(--line);border-radius:0;margin-bottom:24px;overflow-x:auto;padding:22px}
+.panel h2{color:var(--ink);font-size:18px;letter-spacing:-.03em}.panel .h{color:var(--mute);font-size:12px;margin-bottom:16px}
+.formula-box{background:var(--panel-sub);border:1px solid var(--line);border-left:4px solid var(--ink);border-radius:0;font-size:12px;padding:12px 14px}.formula-tag{color:var(--ink);font-size:10px}
+.controls{border-bottom:1px solid var(--line);gap:8px;padding-bottom:12px}.search-box{background:var(--panel);border:1px solid var(--ink);border-radius:0;color:var(--ink);font-size:12px;padding:8px 10px}.filter-btn{background:transparent;border:0;border-bottom:2px solid transparent;border-radius:0;color:var(--mute);font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:10px;padding:7px 0}.filter-btn:hover,.filter-btn.active{background:transparent;border-bottom-color:var(--ink);color:var(--ink)}
+table{font-size:12px}th{color:var(--mute);font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:9px;padding:10px 8px}td{border-bottom-color:var(--line);color:var(--ink);padding:11px 8px}td.p{color:var(--mute);font-size:11px}.tag{background:transparent;border:1px solid currentColor;border-radius:0;font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:9px;padding:3px 5px}.disposable{color:var(--green)}.duplicate{color:var(--accent)}.tracked{color:var(--amber)}.evidence{color:var(--mute);font-size:11px}
+.guard{background:#f1eadc;border:1px solid #d2b984;border-left:3px solid var(--amber);border-radius:0;color:#5b4829;padding:12px 14px}.guard b{color:#77501b}.guard code{overflow-wrap:anywhere}
+@media (max-width:600px){body{padding:16px 12px}.cards{grid-template-columns:1fr}.card,.card:first-child,.card:last-child{border-bottom:1px solid var(--line);border-right:0;padding:15px 0}.panel{padding:16px}.formula-box{padding:12px}.search-box{min-width:0}.filter-btn{flex:1 1 42%}td::before{color:var(--mute);font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:9px}.guard{font-size:12px}}
 """
 
 
@@ -136,7 +156,7 @@ def build(files, root, free_bytes, out="sanchay-report.html", limit=50,
     table_rows = []
     for r in rows:
         table_rows.append(
-            f'<tr data-kind="{r["kind"]}"><td class="num font-bold" data-label="Size">{human(r["size"])}</td>'
+            f'<tr data-kind="{r["kind"]}"><td class="num font-bold" data-label="Allocated reclaim">{human(r["size"])}</td>'
             f'<td data-label="Category"><span class="tag {r["kind"]}">{r["kind"]}</span></td>'
             f'<td class="num" data-label="Unchanged">{r["staleness"] * 365:.0f} d</td>'
             f'<td class="p" data-label="Relative path">{html.escape(_display_path(r["path"], root))}</td>'
@@ -161,15 +181,15 @@ def build(files, root, free_bytes, out="sanchay-report.html", limit=50,
   </header>
 
   <div class="cards">
-    {_card("Scanned on disk", human(total), f"{len(files):,} entries; {aliases:,} hardlink aliases not double-counted")}
-    {_card("Duplicate candidates", human(dedup.reclaimable(groups)), f"{len(groups):,} content groups; individual review only", "#84cc16")}
+    {_card("Allocated on disk", human(total), f"{len(files):,} entries; {aliases:,} hardlink aliases not double-counted")}
+    {_card("Duplicate candidates", human(dedup.reclaimable(groups)), f"{len(groups):,} content groups; allocated reclaim only", "#84cc16")}
     {_card("Reviewable candidates", human(reviewable), review_note, "#10b981")}
     {_card("First-run runway estimate", forecast.runway_label(days), f"{human(forecast.rate(files))}/day from mtime; capture snapshots for observed growth", "#3b82f6")}
   </div>
 
   <div class="panel">
     <h2>Storage Recoverability Treemap</h2>
-    <p class="h">One block represents one physical inode. Blocks are coloured by recoverability evidence: green has cache or byte-confirmed duplicate evidence; red has no known recovery proof.</p>
+    <p class="h">One block represents one physical inode sized by allocated bytes. Blocks are coloured by recoverability evidence: green has cache or byte-confirmed duplicate evidence; red has no known recovery proof.</p>
     {chart}
   </div>
 
@@ -179,7 +199,7 @@ def build(files, root, free_bytes, out="sanchay-report.html", limit=50,
     
     <div class="formula-box">
       <span class="formula-tag">Objective:</span>
-      <span>Priority = Size &times; Unchanged Age &times; (1 &minus; Regret) &nbsp;|&nbsp; Regret Weights: 0.02 (Disposable), 0.10 (Duplicate), 0.20 (Tracked Git)</span>
+      <span>Priority = Reclaimable Allocated Bytes &times; Unchanged Age &times; (1 &minus; Regret) &nbsp;|&nbsp; Regret Weights: 0.02 (Disposable), 0.10 (Duplicate), 0.20 (Tracked Git)</span>
     </div>
 
     <div class="controls">
@@ -193,7 +213,7 @@ def build(files, root, free_bytes, out="sanchay-report.html", limit=50,
     <table id="candidateTable">
       <thead>
         <tr>
-          <th style="width: 110px;">Size</th>
+          <th style="width: 110px;">Allocated reclaim</th>
           <th style="width: 120px;">Category</th>
           <th class="num" style="width: 90px;">Unchanged</th>
           <th>Relative Path</th>

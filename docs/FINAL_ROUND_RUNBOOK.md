@@ -56,7 +56,9 @@ Point out these concrete facts, not a generic dashboard:
   `archive/boss-image.iso` is explicitly named as its retained survivor.
 - `hardlinks/source.bin` and `hardlinks/alias.bin` are not reclaimable
   duplicates because they share one `(device, inode)` identity. They count as
-  one physical file in the on-disk total, forecast, snapshot, and treemap.
+  one physical file in the allocated on-disk total, forecast, snapshot, and
+  treemap. Where Linux exposes block allocation, sparse-file logical length is
+  also not treated as freeable storage.
 - `workspace/node_modules/.cache/bundle.bin` is a reviewable regenerable-output
   candidate, not an automatically deleted file.
 - The explicit `600K` reclaim request selects 712 KB of reviewable evidence;
@@ -64,7 +66,8 @@ Point out these concrete facts, not a generic dashboard:
 - `cleanup-plan.json` has a SHA-256 integrity checksum (not a signature),
   candidate identity including link count, typed recovery evidence, and a
   human-review requirement. Each recommendation also carries its frozen
-  size/age/regret decision trace and computed priority.
+  logical-size/allocated-reclaim/age/regret decision trace and computed
+  priority.
 
 ## Fail-closed proof
 

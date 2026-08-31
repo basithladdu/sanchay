@@ -18,6 +18,8 @@ import os
 import subprocess
 import time
 
+from . import storage
+
 # Narrow, high-confidence paths whose contents are ordinarily cache or build
 # output. Whole dependency trees and environments are deliberately excluded:
 # their presence alone is not proof that reinstalling them is possible.
@@ -112,13 +114,18 @@ def score(info, duplicated=False, now=None):
     kind = classify(info, duplicated)
     regret = REGRET[kind]
     stale = staleness(info, now)
+    reclaimable = storage.allocated_bytes(info)
     return {
         "path": info.path,
-        "size": info.size,
+        # ``size`` remains the ranking/reclaim quantity for compatibility;
+        # ``logical_size`` is retained because duplicate matching is based on
+        # file contents and therefore logical length.
+        "size": reclaimable,
+        "logical_size": info.size,
         "kind": kind,
         "regret": regret,
         "staleness": round(stale, 3),
-        "priority": info.size * stale * (1 - regret),
+        "priority": reclaimable * stale * (1 - regret),
     }
 
 

@@ -84,7 +84,7 @@ def reclaimable(groups):
     A hardlinked path has more than one name for the same inode. Removing one
     name frees no storage, so only standalone physical copies count here.
     """
-    return sum(candidate.size
+    return sum(storage.allocated_bytes(candidate)
                for group in groups
                for candidate, _ in _reviewable_duplicate_pairs(group))
 

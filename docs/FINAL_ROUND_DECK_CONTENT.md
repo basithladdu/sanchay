@@ -52,8 +52,9 @@ confirmation → named survivor → identity recheck
 
 Three claims only:
 
-- hardlinks share a (device, inode) identity, count once in physical-byte
-  metrics, and are not reclaimable copies;
+- hardlinks share a (device, inode) identity, count once in allocated-byte
+  metrics, and are not reclaimable copies; sparse logical length is not
+  presented as reclaimable allocation where Linux exposes block counts;
 - every duplicate recommendation names its retained survivor;
 - revalidation rechecks both files and their matching contents.
 
