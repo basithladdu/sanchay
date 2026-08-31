@@ -106,8 +106,9 @@ Show one terminal capture from the deterministic fixture, in this order:
 - the target optimizer reports lower-risk-first selection;
 - `--verify-plan` passes, then fails closed after one synthetic cache mutation.
 
-Use `sanchay-demo --prove` for the rehearsal check. It creates a disposable
-fixture only; it never deletes, moves, or transmits a file.
+Use `python -m sanchay.demo --prove` from the repository root for the rehearsal
+check. It creates a disposable fixture only; it never deletes, moves, or
+transmits a file.
 
 ### Slide 7 - Designed for a secure Linux operating model
 

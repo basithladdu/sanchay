@@ -30,7 +30,9 @@ human acts.
 ## Pre-flight
 
 1. Use a BOSS/Linux machine or a Linux VM with Python 3.9+ and Git available.
-2. From the repository root, run `python -m pip install -e .`.
+2. Run the exact module commands below from the repository root; they work
+   without installing console scripts. `python -m pip install -e .` is optional
+   if the team prefers the shorter `sanchay` and `sanchay-demo` commands.
 3. For the terminal dashboard only, run `python -m pip install -e ".[tui]"`.
 4. Run `python -m unittest discover tests` and keep the passing output in the
    terminal scrollback.
@@ -39,27 +41,32 @@ human acts.
 6. The page renders embedded offline chart summaries first. During rehearsal,
    append `?offline=1` to prove its no-CDN state before the optional Plotly
    enhancement is allowed to load.
-7. Before the final, run `sanchay-demo --prove`. It creates only a disposable
+7. Before the final, run `python -m sanchay.demo --prove`. It creates only a disposable
    fixture, checks the protected/duplicate/hardlink boundaries, then changes
    only the synthetic cache and confirms that the plan fails closed. The command
    is a rehearsal check, not a substitute for the visible live sequence below.
 8. If the jury asks how capacity-risk withholding works, run
-   `sanchay-demo --risk-prove`. Its first line explicitly identifies synthetic
+   `python -m sanchay.demo --risk-prove`. Its first line explicitly identifies synthetic
    aggregate snapshots, not endpoint telemetry. It proves the seven-snapshot
    and changed-capacity gates, not a forecast for the demo machine.
 
 ## Exact live-demo sequence
 
 ```bash
+PYTHON=python3
 DEMO_ROOT="$(mktemp -d /tmp/sanchay-demo.XXXXXX)"
-sanchay-demo "$DEMO_ROOT"
+EVIDENCE_ROOT="$(mktemp -d /tmp/sanchay-evidence.XXXXXX)"
+"$PYTHON" -m sanchay.demo "$DEMO_ROOT"
 
-sanchay --verify-archive "$DEMO_ROOT/downloads/boss-image-copy.iso" "$DEMO_ROOT/archive/boss-image.iso"
-sanchay "$DEMO_ROOT" --target-reclaim 600K --limit 10 --plan cleanup-plan.json --snapshot baseline.json --explain
-sanchay --verify-snapshot baseline.json
-python -m json.tool cleanup-plan.json | less
-sanchay --verify-plan cleanup-plan.json
+"$PYTHON" -m sanchay.cli --verify-archive "$DEMO_ROOT/downloads/boss-image-copy.iso" "$DEMO_ROOT/archive/boss-image.iso"
+"$PYTHON" -m sanchay.cli "$DEMO_ROOT" --target-reclaim 600K --limit 10 --plan "$EVIDENCE_ROOT/cleanup-plan.json" --snapshot "$EVIDENCE_ROOT/baseline.json" --explain
+"$PYTHON" -m sanchay.cli --verify-snapshot "$EVIDENCE_ROOT/baseline.json"
+"$PYTHON" -m json.tool "$EVIDENCE_ROOT/cleanup-plan.json" | less
+"$PYTHON" -m sanchay.cli --verify-plan "$EVIDENCE_ROOT/cleanup-plan.json"
 ```
+
+Keep the two temporary directories open through questions, then remove them
+manually. They contain only the disposable fixture and its generated evidence.
 
 Point out these concrete facts, not a generic dashboard:
 
