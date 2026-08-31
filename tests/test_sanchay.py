@@ -1,3 +1,4 @@
+import errno
 import subprocess
 import tempfile
 import time
@@ -253,6 +254,25 @@ class TestSanchay(unittest.TestCase):
         self.assertIn('Btrfs capacity boundary', page)
         self.assertIn('Btrfs snapshots can retain shared extents.', page)
 
+    @unittest.skipUnless(importlib.util.find_spec('pandas'),
+                         'requires the optional report dependencies')
+    def test_report_marks_incomplete_scan_coverage(self):
+        files = [
+            scan.FileInfo('/home/user/.cache/build.bin', 4000, self.now,
+                          self.now - 86400 * 90, 718),
+        ]
+        coverage = scan.ScanCoverage(unreadable_directories=2,
+                                     unreadable_files=1)
+        with tempfile.TemporaryDirectory() as tmp:
+            output = Path(tmp) / 'report.html'
+            report.build(files, '/', 1000000, output, scan_coverage=coverage)
+            page = output.read_text(encoding='utf-8')
+
+        self.assertIn('Scan coverage boundary', page)
+        self.assertIn('2 directory(ies) and 1 file(s) could not be inspected', page)
+        self.assertIn('not calculated; scan coverage is incomplete', page)
+        self.assertIn('Readable inventory only; inaccessible paths are not included', page)
+
     def test_cli_labels_managed_storage_as_deferred_not_reclaimable(self):
         files = [
             scan.FileInfo('/home/user/.cache/build.bin', 4000, self.now,
@@ -265,7 +285,8 @@ class TestSanchay(unittest.TestCase):
                           self.now - 86400 * 90, 724),
         ]
         output = io.StringIO()
-        with mock.patch.object(scan, 'scan', return_value=files), \
+        with mock.patch.object(scan, 'scan_with_coverage',
+                               return_value=(files, scan.ScanCoverage())), \
                 mock.patch.object(shutil, 'disk_usage',
                                   return_value=SimpleNamespace(free=1000000)), \
                 contextlib.redirect_stdout(output):
@@ -290,7 +311,8 @@ class TestSanchay(unittest.TestCase):
                 pid=4321, process='service', fd='9',
                 path='/var/log/service.log (deleted)'),))
         output = io.StringIO()
-        with mock.patch.object(scan, 'scan', return_value=files), \
+        with mock.patch.object(scan, 'scan_with_coverage',
+                               return_value=(files, scan.ScanCoverage())), \
                 mock.patch.object(processes, 'deleted_open_files', return_value=[held]), \
                 mock.patch.object(shutil, 'disk_usage',
                                   return_value=SimpleNamespace(free=1000000)), \
@@ -303,6 +325,32 @@ class TestSanchay(unittest.TestCase):
         self.assertIn('not in file cleanup plan', rendered)
         self.assertIn('pid 4321 (service) fd 9', rendered)
         self.assertIn('never signals, restarts, truncates, or deletes', rendered)
+
+    def test_cli_marks_incomplete_coverage_and_withholds_snapshot(self):
+        files = [
+            scan.FileInfo('/home/user/.cache/build.bin', 4000, self.now,
+                          self.now - 86400 * 90, 726),
+        ]
+        coverage = scan.ScanCoverage(unreadable_directories=1,
+                                     unreadable_files=2)
+        output = io.StringIO()
+        with tempfile.TemporaryDirectory() as tmp:
+            snapshot_path = Path(tmp) / 'baseline.json'
+            with mock.patch.object(scan, 'scan_with_coverage',
+                                   return_value=(files, coverage)), \
+                    mock.patch.object(processes, 'deleted_open_files', return_value=[]), \
+                    mock.patch.object(shutil, 'disk_usage',
+                                      return_value=SimpleNamespace(free=1000000)), \
+                    contextlib.redirect_stdout(output):
+                status = cli.main(['/', '--snapshot', str(snapshot_path)])
+
+            self.assertFalse(snapshot_path.exists())
+
+        rendered = output.getvalue()
+        self.assertEqual(status, 2)
+        self.assertIn('coverage: incomplete; 1 directory(ies) and 2 file(s)', rendered)
+        self.assertIn('growth:     not calculated; scan coverage is incomplete', rendered)
+        self.assertIn('snapshot: not written; complete scan coverage is required', rendered)
 
     def test_mount_context_selects_the_most_specific_procfs_mount(self):
         mountinfo = (
@@ -355,7 +403,8 @@ class TestSanchay(unittest.TestCase):
         output = io.StringIO()
         with tempfile.TemporaryDirectory() as tmp:
             plan_path = Path(tmp) / 'cleanup-plan.json'
-            with mock.patch.object(scan, 'scan', return_value=files), \
+            with mock.patch.object(scan, 'scan_with_coverage',
+                                   return_value=(files, scan.ScanCoverage())), \
                     mock.patch.object(mounts, 'capacity_context', return_value=context), \
                     mock.patch.object(shutil, 'disk_usage',
                                       return_value=SimpleNamespace(free=1000000)), \
@@ -369,6 +418,7 @@ class TestSanchay(unittest.TestCase):
         self.assertIn('not a host-wide capacity measurement', rendered)
         self.assertIn('Confirm the backing filesystem', rendered)
         self.assertEqual(document['safety']['filesystem_context'], context)
+        self.assertTrue(document['safety']['scan_coverage']['complete'])
 
     def test_local_narrative_never_uses_a_configured_cloud_model(self):
         rows = [{
@@ -435,7 +485,8 @@ class TestSanchay(unittest.TestCase):
                           self.now - 86400 * 90, 732, device=202),
         ]
         output = io.StringIO()
-        with mock.patch.object(scan, 'scan', return_value=files), \
+        with mock.patch.object(scan, 'scan_with_coverage',
+                               return_value=(files, scan.ScanCoverage())), \
                 mock.patch.object(shutil, 'disk_usage',
                                   side_effect=AssertionError('must not use root free space')), \
                 contextlib.redirect_stdout(output):
@@ -587,7 +638,8 @@ class TestSanchay(unittest.TestCase):
             self.assertIn(str(duplicate_a), item['recovery_evidence']['detail'])
             self.assertEqual(item['observed_identity']['size'], 4096)
             self.assertEqual(item['observed_identity']['allocated_size'], 4096)
-            self.assertEqual(cleanup_plan['schema_version'], 6)
+            self.assertEqual(cleanup_plan['schema_version'], 7)
+            self.assertTrue(cleanup_plan['safety']['scan_coverage']['complete'])
             self.assertIn('mtime_ns', item['observed_identity'])
             self.assertEqual(item['decision_trace']['name'], 'regret_aware_priority')
             self.assertEqual(item['decision_trace']['inputs']['reclaimable_allocated_bytes'], 4096)
@@ -692,11 +744,12 @@ class TestSanchay(unittest.TestCase):
             captured = snapshot.capture(files, root, 1000, now=100)
             self.assertEqual(storage.physical_bytes(files), 4096)
             self.assertEqual(storage.hardlink_alias_count(files), 1)
-            self.assertEqual(captured['schema_version'], 3)
+            self.assertEqual(captured['schema_version'], 4)
             self.assertEqual(captured['used_bytes'], 4096)
             self.assertEqual(captured['logical_bytes'], 4096)
             self.assertEqual(captured['physical_file_count'], 1)
             self.assertEqual(captured['hardlink_alias_count'], 1)
+            self.assertTrue(captured['scan_coverage']['complete'])
             self.assertEqual(forecast.daily_growth(files, now=measured_at)[0], 4096)
 
     def test_allocated_bytes_prevent_sparse_files_from_overstating_reclaim(self):
@@ -729,7 +782,7 @@ class TestSanchay(unittest.TestCase):
                          ['logical_size_bytes'], 1024 ** 3)
 
         captured = snapshot.capture(files, '/app', 1000, now=100)
-        self.assertEqual(captured['schema_version'], 3)
+        self.assertEqual(captured['schema_version'], 4)
         self.assertEqual(captured['used_bytes'], 12288)
         self.assertEqual(captured['logical_bytes'], 1024 ** 3 + 8192)
         self.assertEqual(forecast.daily_growth(files, now=self.now)[30], 12288)
@@ -762,6 +815,21 @@ class TestSanchay(unittest.TestCase):
 
         two_point_trend = snapshot.linear_trend([first, second])
         self.assertIsNone(two_point_trend['r_squared'])
+
+    def test_incomplete_coverage_cannot_create_a_snapshot(self):
+        coverage = scan.ScanCoverage(unreadable_directories=1)
+        with self.assertRaisesRegex(ValueError, 'incomplete scan coverage'):
+            snapshot.capture(self.files, '/app', 1000, scan_coverage=coverage)
+
+    def test_snapshot_comparisons_require_coverage_evidence(self):
+        previous = snapshot.capture(self.files, '/app', 1000, now=100)
+        current = snapshot.capture(self.files, '/app', 900, now=100 + 86400)
+        previous.pop('scan_coverage')
+
+        with self.assertRaisesRegex(ValueError, 'complete SANCHAY scan coverage'):
+            snapshot.observed_growth(previous, current)
+        with self.assertRaisesRegex(ValueError, 'complete SANCHAY scan coverage'):
+            snapshot.linear_trend([previous, current])
 
     def test_cleanup_plan_verification_rechecks_manifest_and_duplicate(self):
         with tempfile.TemporaryDirectory() as tmp:
@@ -914,6 +982,39 @@ class TestSanchay(unittest.TestCase):
             for name in ('.ssh', '.docker', '.azure', '.oci', '.terraform.d'):
                 with self.subTest(name=name), self.assertRaises(ValueError):
                     scan.scan(root / name)
+
+    def test_scan_with_coverage_records_unreadable_entries_without_paths(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            unreadable_dir = root / 'private'
+            unreadable_file = root / 'vanished.bin'
+
+            def inaccessible_walk(top, topdown=True, onerror=None,
+                                  followlinks=False):
+                onerror(PermissionError(errno.EACCES, 'Permission denied',
+                                        str(unreadable_dir)))
+                yield str(root), [], [unreadable_file.name]
+
+            original_lstat = scan.os.lstat
+
+            def inaccessible_lstat(path):
+                if str(path) == str(unreadable_file):
+                    raise PermissionError(errno.EACCES, 'Permission denied',
+                                          str(unreadable_file))
+                return original_lstat(path)
+
+            with mock.patch.object(scan.os, 'walk', inaccessible_walk), \
+                    mock.patch.object(scan.os, 'lstat', side_effect=inaccessible_lstat):
+                files, coverage = scan.scan_with_coverage(root)
+
+        summary = coverage.as_dict()
+        self.assertEqual(files, [])
+        self.assertFalse(summary['complete'])
+        self.assertEqual(summary['unreadable_directories'], 1)
+        self.assertEqual(summary['unreadable_files'], 1)
+        self.assertIn('readable files', summary['boundary'])
+        self.assertNotIn(str(unreadable_dir), str(summary))
+        self.assertNotIn(str(unreadable_file), str(summary))
 
     def test_scan_excludes_common_secret_files_before_metadata_or_hashing(self):
         with tempfile.TemporaryDirectory() as tmp:

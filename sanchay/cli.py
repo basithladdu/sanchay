@@ -104,9 +104,11 @@ def main(argv=None):
         return tui.run(args.root)
 
     try:
-        files = scan.scan(args.root, cross_filesystems=args.cross_filesystems)
+        files, coverage_record = scan.scan_with_coverage(
+            args.root, cross_filesystems=args.cross_filesystems)
     except ValueError as exc:
         ap.error(str(exc))
+    scan_coverage = coverage_record.as_dict()
     total = storage.physical_bytes(files)
     logical_total = storage.logical_bytes(files)
     aliases = storage.hardlink_alias_count(files)
@@ -132,6 +134,12 @@ def main(argv=None):
         if filesystem_context.get("advisory"):
             print(f"capacity: {filesystem_context['advisory']}")
             print(f"  review: {filesystem_context['review_action']}")
+    if not scan_coverage["complete"]:
+        print("coverage: incomplete; "
+              f"{scan_coverage['unreadable_directories']:,} directory(ies) and "
+              f"{scan_coverage['unreadable_files']:,} file(s) could not be inspected")
+        print("  inventory and growth claims apply only to readable files; "
+              "snapshots are withheld")
     print()
 
     groups = dedup.duplicates(managed.content_candidates(files), root=args.root)
@@ -157,19 +165,22 @@ def main(argv=None):
               "restarts, truncates, or deletes process-held storage")
 
     free = None if args.cross_filesystems else shutil.disk_usage(args.root).free
-    current_snapshot = (snapshot.capture(files, args.root, free)
-                        if free is not None else None)
+    current_snapshot = (
+        snapshot.capture(files, args.root, free, scan_coverage=scan_coverage)
+        if free is not None and scan_coverage["complete"] else None)
     observed = None
     trend = None
-    if args.compare:
+    if args.compare and current_snapshot is not None:
         observed = snapshot.observed_growth(snapshot.read(args.compare), current_snapshot)
-    elif args.history:
+    elif args.history and current_snapshot is not None:
         history = [snapshot.read(path) for path in args.history]
         trend = snapshot.linear_trend(history + [current_snapshot])
 
     if args.cross_filesystems:
         print("growth:     not calculated across multiple filesystems; scan one "
               "filesystem for a capacity forecast")
+    elif not scan_coverage["complete"]:
+        print("growth:     not calculated; scan coverage is incomplete")
     elif trend and trend["bytes_per_day"] > 0:
         days = free / trend["bytes_per_day"]
         fit = (f", R² {trend['r_squared']:.2f}"
@@ -195,7 +206,8 @@ def main(argv=None):
     cleanup_plan = plan.build(files, groups, args.root, limit=args.limit,
                               target_reclaim_bytes=args.target_reclaim,
                               cross_filesystems=args.cross_filesystems,
-                              filesystem_context=filesystem_context)
+                              filesystem_context=filesystem_context,
+                              scan_coverage=scan_coverage)
     rows = cleanup_plan["recommendations"]
     excluded = cleanup_plan["safety"]["protected_unique_files"]
     print(f"candidates: {len(rows)} shown, {cleanup_plan['safety']['candidate_count']:,} eligible, "
@@ -231,13 +243,17 @@ def main(argv=None):
                                            target_reclaim_bytes=args.target_reclaim,
                                            cross_filesystems=args.cross_filesystems,
                                            process_held=held_deleted,
-                                           filesystem_context=filesystem_context))
+                                           filesystem_context=filesystem_context,
+                                           scan_coverage=scan_coverage))
 
     if args.plan:
         print("plan -> " + plan.write(cleanup_plan, args.plan))
 
     if args.snapshot:
-        print("snapshot -> " + snapshot.write(current_snapshot, args.snapshot))
+        if current_snapshot is None:
+            print("snapshot: not written; complete scan coverage is required")
+        else:
+            print("snapshot -> " + snapshot.write(current_snapshot, args.snapshot))
 
     if args.viz:
         from . import viz
@@ -245,6 +261,10 @@ def main(argv=None):
 
     if args.explain:
         print("\n" + explain.explain(rows, allow_cloud=args.cloud_narrative))
+
+    if (not scan_coverage["complete"]
+            and (args.snapshot or args.compare or args.history)):
+        return 2
 
 
 if __name__ == "__main__":

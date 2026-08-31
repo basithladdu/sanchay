@@ -44,6 +44,60 @@ class FileInfo:
     mtime_ns: int = None
 
 
+@dataclass(frozen=True)
+class ScanCoverage:
+    """Counts eligible paths that could not be inspected during a scan.
+
+    The counts deliberately avoid storing inaccessible path names. They make an
+    incomplete inventory visible without adding potentially sensitive system
+    paths to a plan, snapshot, or report.
+    """
+    unreadable_directories: int = 0
+    unreadable_files: int = 0
+
+    @property
+    def complete(self):
+        return not (self.unreadable_directories or self.unreadable_files)
+
+    def as_dict(self):
+        return coverage_summary(self)
+
+
+def coverage_summary(coverage=None):
+    """Return a serialisable, internally consistent scan-coverage record."""
+    if coverage is None:
+        directories = files = 0
+    elif isinstance(coverage, ScanCoverage):
+        directories = coverage.unreadable_directories
+        files = coverage.unreadable_files
+    elif isinstance(coverage, dict):
+        directories = coverage.get("unreadable_directories", 0)
+        files = coverage.get("unreadable_files", 0)
+    else:
+        raise ValueError("Scan coverage must be a ScanCoverage record or mapping")
+
+    if (isinstance(directories, bool) or isinstance(files, bool)
+            or not isinstance(directories, int) or not isinstance(files, int)
+            or directories < 0 or files < 0):
+        raise ValueError("Scan coverage counts must be non-negative integers")
+
+    complete = not (directories or files)
+    if isinstance(coverage, dict) and "complete" in coverage:
+        if coverage["complete"] is not complete:
+            raise ValueError("Scan coverage completeness does not match its counts")
+    return {
+        "complete": complete,
+        "unreadable_directories": directories,
+        "unreadable_files": files,
+        "boundary": (
+            "all in-scope, non-sensitive paths were inspected"
+            if complete else
+            "some in-scope paths could not be inspected; inventory and growth "
+            "claims apply only to readable files"
+        ),
+    }
+
+
 def _is_protected_file(name):
     """Keep common credential material out of metadata and hash passes."""
     normalized = name.lower()
@@ -53,13 +107,15 @@ def _is_protected_file(name):
             and normalized not in {".env.example", ".env.sample"})
 
 
-def scan(root, skip=DEFAULT_SKIP_DIRS,
-         cross_filesystems=False):
-    """Return regular files below *root* without following symlinks.
+def scan_with_coverage(root, skip=DEFAULT_SKIP_DIRS,
+                       cross_filesystems=False):
+    """Return regular files plus honest coverage evidence for one tree.
 
     A default scan stays on the root filesystem. This prevents a workstation
     cleanup pass from silently traversing mounted network shares, removable
-    media, or a separately governed system volume.
+    media, or a separately governed system volume. Credential/control paths are
+    intentionally pruned under a separate safety policy; coverage reports only
+    unexpected traversal or metadata failures for otherwise in-scope paths.
     """
     # Canonicalise the user-supplied root once.  All emitted paths then share
     # one stable root for later descriptor-relative content reads.
@@ -72,7 +128,14 @@ def scan(root, skip=DEFAULT_SKIP_DIRS,
         raise ValueError(f"Cannot scan {root}: {exc}") from exc
 
     files = []
-    for dirpath, dirnames, filenames in os.walk(root, onerror=lambda e: None):
+    unreadable_directories = 0
+    unreadable_files = 0
+
+    def record_directory_error(_error):
+        nonlocal unreadable_directories
+        unreadable_directories += 1
+
+    for dirpath, dirnames, filenames in os.walk(root, onerror=record_directory_error):
         # Prune at the parent so os.walk never descends into sensitive or
         # control directories. `skip` accepts directory basenames to keep this
         # policy portable across Linux and Windows paths.
@@ -83,6 +146,7 @@ def scan(root, skip=DEFAULT_SKIP_DIRS,
                     dirnames[:] = []
                     continue
             except OSError:
+                unreadable_directories += 1
                 dirnames[:] = []
                 continue
             # Avoid entering a mounted child at all, rather than only
@@ -93,6 +157,7 @@ def scan(root, skip=DEFAULT_SKIP_DIRS,
                     if os.stat(os.path.join(dirpath, name)).st_dev == root_device:
                         same_filesystem.append(name)
                 except OSError:
+                    unreadable_directories += 1
                     continue
             dirnames[:] = same_filesystem
         for name in filenames:
@@ -102,6 +167,7 @@ def scan(root, skip=DEFAULT_SKIP_DIRS,
             try:
                 st = os.lstat(path)
             except OSError:
+                unreadable_files += 1
                 continue
             if not stat.S_ISREG(st.st_mode):
                 continue
@@ -109,4 +175,15 @@ def scan(root, skip=DEFAULT_SKIP_DIRS,
                                   st.st_ino, st.st_dev, st.st_nlink,
                                   storage.allocated_bytes_from_stat(st),
                                   getattr(st, "st_mtime_ns", None)))
-    return files
+    return files, ScanCoverage(unreadable_directories, unreadable_files)
+
+
+def scan(root, skip=DEFAULT_SKIP_DIRS,
+         cross_filesystems=False):
+    """Return regular files below *root* without following symlinks.
+
+    This compatibility API returns only files. Call :func:`scan_with_coverage`
+    when an operator-visible completeness boundary is required.
+    """
+    return scan_with_coverage(root, skip=skip,
+                              cross_filesystems=cross_filesystems)[0]

@@ -128,6 +128,13 @@ thin-pool headroom. SANCHAY reads Linux mount metadata and marks Btrfs,
 container-overlay, and device-mapper boundaries as read-only advisory evidence.
 It does not run `lvs`, resize a volume, balance Btrfs, or delete a snapshot.
 
+**What if the scan cannot read part of the selected tree?** SANCHAY does not
+pretend that an unprivileged walk is complete. It records count-only coverage
+evidence, labels the result as readable-file inventory, and withholds mtime
+forecast and snapshot/history claims. It still permits an operator to review
+the evidence-backed candidates it actually saw; it never asks for elevated
+access or records inaccessible path names in the plan.
+
 **Why not remove a duplicate under `/usr` or `/etc`?** A content match only
 proves matching bytes; it does not establish that a boot component,
 configuration file, package-managed file, log, or service state is disposable.
@@ -158,7 +165,10 @@ APT archives and persistent journals as tool-owned operational storage. When
 they exist, Docker, containerd, and Flatpak stores receive the same treatment;
 SANCHAY also fences boot, configuration, package/cache, log, backup, and
 service/spool paths before duplicate content reads. It does not convert any of
-them into raw file-deletion candidates or target-reclaim bytes.
+them into raw file-deletion candidates or target-reclaim bytes. If normal
+endpoint policy makes part of the scan unreadable, it reports a count-only
+coverage boundary and withholds growth and snapshot claims rather than implying
+a whole-tree capacity result.
 
 ## What not to claim
 

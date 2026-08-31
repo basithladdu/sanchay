@@ -9,14 +9,32 @@ import json
 from pathlib import Path
 import time
 
-from . import storage
+from . import scan, storage
 
 
-def capture(files, root, free_bytes, now=None):
+SNAPSHOT_SCHEMA_VERSION = 4
+
+
+def _require_complete_coverage(document):
+    """Reject direct snapshot records that lack a complete coverage proof."""
+    try:
+        coverage = document["scan_coverage"]
+        normalized = scan.coverage_summary(coverage)
+        if coverage != normalized or not normalized["complete"]:
+            raise ValueError
+    except (KeyError, TypeError, ValueError):
+        raise ValueError("Snapshots must have complete SANCHAY scan coverage") from None
+    return normalized
+
+
+def capture(files, root, free_bytes, now=None, scan_coverage=None):
+    coverage = scan.coverage_summary(scan_coverage)
+    if not coverage["complete"]:
+        raise ValueError("Cannot capture a growth snapshot from incomplete scan coverage")
     captured_at = now if now is not None else time.time()
     physical = storage.physical_records(files)
     return {
-        "schema_version": 3,
+        "schema_version": SNAPSHOT_SCHEMA_VERSION,
         "root": str(Path(root).resolve()),
         "captured_at": captured_at,
         "captured_at_iso": datetime.fromtimestamp(
@@ -27,6 +45,7 @@ def capture(files, root, free_bytes, now=None):
         "used_bytes": storage.physical_bytes(files),
         "logical_bytes": storage.logical_bytes(files),
         "free_bytes": free_bytes,
+        "scan_coverage": coverage,
     }
 
 
@@ -39,16 +58,25 @@ def write(snapshot, out):
 def read(path):
     document = json.loads(Path(path).read_text(encoding="utf-8"))
     required = {"schema_version", "root", "captured_at", "used_bytes",
-                "logical_bytes", "physical_file_count", "hardlink_alias_count"}
-    if document.get("schema_version") != 3 or not required.issubset(document):
+                "logical_bytes", "physical_file_count", "hardlink_alias_count",
+                "scan_coverage"}
+    if (document.get("schema_version") != SNAPSHOT_SCHEMA_VERSION
+            or not required.issubset(document)):
         raise ValueError("Unsupported or incomplete SANCHAY snapshot; capture a new allocated-byte snapshot")
+    try:
+        _require_complete_coverage(document)
+    except ValueError:
+        raise ValueError("Snapshot does not have complete SANCHAY scan coverage") from None
     return document
 
 
 def observed_growth(previous, current):
     """Return a measured net-growth rate, or None for incompatible snapshots."""
-    if previous.get("schema_version") != 3 or current.get("schema_version") != 3:
+    if (previous.get("schema_version") != SNAPSHOT_SCHEMA_VERSION
+            or current.get("schema_version") != SNAPSHOT_SCHEMA_VERSION):
         raise ValueError("Snapshots must use SANCHAY allocated-byte accounting")
+    _require_complete_coverage(previous)
+    _require_complete_coverage(current)
     if Path(previous["root"]) != Path(current["root"]):
         raise ValueError("Snapshot root does not match the current scan root")
     elapsed = current["captured_at"] - previous["captured_at"]
@@ -71,6 +99,10 @@ def linear_trend(snapshots):
     """
     if len(snapshots) < 2:
         return None
+    if any(item.get("schema_version") != SNAPSHOT_SCHEMA_VERSION for item in snapshots):
+        raise ValueError("Snapshots must have complete SANCHAY scan coverage")
+    for item in snapshots:
+        _require_complete_coverage(item)
     roots = {str(Path(item["root"])) for item in snapshots}
     if len(roots) != 1:
         raise ValueError("Snapshots must have the same scan root")

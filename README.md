@@ -78,6 +78,16 @@ space on the filesystem under pressure, so SANCHAY makes no combined capacity or
 runway claim. The review plan records this as
 `scan_scope: cross_filesystem_inventory` with the same capacity boundary.
 
+### Scan-Coverage Boundary
+
+A secure endpoint can correctly deny an ordinary user access to part of a tree.
+SANCHAY records only counts of unreadable directories and files; it does not put
+their paths into a plan, snapshot, or shareable report. If any in-scope path
+cannot be inspected, the output is explicitly labelled a readable-file
+inventory. Candidate evidence remains limited to files actually seen, while
+mtime forecasts, comparable snapshots, and trend claims are withheld rather
+than treating a partial tree as complete.
+
 ### 3. Tiered Fast Content Hashing
 Deduplicating large files can saturate I/O. SANCHAY uses a 3-tier cascade:
 1. File size grouping (avoids hashing files whose sizes do not collide)
@@ -171,6 +181,8 @@ sanchay /srv --cross-filesystems --plan multi-mount-review.json
 sanchay --verify-plan cleanup-plan.json
 
 # 5. Save an aggregate local snapshot for a later measured-growth comparison
+# This requires complete readable-path coverage; SANCHAY reports and withholds
+# the snapshot if an in-scope path cannot be inspected.
 sanchay /home/user --snapshot before.json
 sanchay /home/user --compare before.json
 
@@ -236,6 +248,10 @@ sanchay-ui .
   containerd, Flatpak, and generic system-reserved OS paths are reported as
   managed operational storage, not raw file cleanup candidates, duplicate-read
   inputs, or target-reclaim bytes.
+* **Scan-coverage boundary**: Unreadable in-scope paths are counted without
+  recording their names. An incomplete traversal is labelled readable-file
+  inventory only; SANCHAY withholds its mtime forecast and snapshots rather
+  than claiming a complete capacity view.
 * **Inspectable evidence policy**: Every plan item records its classification,
   logical and reclaimable allocated sizes, observed identity, typed recovery
   evidence with its strength, and frozen decision-model inputs; files

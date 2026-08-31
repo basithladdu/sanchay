@@ -139,17 +139,19 @@ def _holder_summary(record):
 
 def build(files, root, free_bytes, out="sanchay-report.html", limit=50,
           target_reclaim_bytes=None, cross_filesystems=False, process_held=None,
-          filesystem_context=None):
+          filesystem_context=None, scan_coverage=None):
     from . import viz
 
     groups = dedup.duplicates(managed.content_candidates(files), root=root)
     cleanup_plan = plan.build(files, groups, root, limit=limit,
                               target_reclaim_bytes=target_reclaim_bytes,
                               cross_filesystems=cross_filesystems,
-                              filesystem_context=filesystem_context)
+                              filesystem_context=filesystem_context,
+                              scan_coverage=scan_coverage)
     rows = cleanup_plan["recommendations"]
     protected_count = cleanup_plan["safety"]["protected_unique_files"]
     managed_storage = cleanup_plan["safety"]["managed_operational_storage"]
+    coverage = cleanup_plan["safety"]["scan_coverage"]
     dup_paths = plan.duplicate_evidence_paths(cleanup_plan)
 
     physical = storage.physical_records(files)
@@ -157,7 +159,8 @@ def build(files, root, free_bytes, out="sanchay-report.html", limit=50,
     aliases = storage.hardlink_alias_count(files)
     reviewable = sum(r["size"] for r in rows)
     filesystem_count = len({getattr(info, "device", None) for info in physical})
-    allocation_title = ("Allocated inventory" if cross_filesystems
+    allocation_title = ("Readable allocated inventory" if not coverage["complete"]
+                        else "Allocated inventory" if cross_filesystems
                         else "Allocated on disk")
     allocation_note = (
         f"{len(files):,} entries across {filesystem_count:,} filesystem"
@@ -166,12 +169,15 @@ def build(files, root, free_bytes, out="sanchay-report.html", limit=50,
         f"{len(files):,} entries; {aliases:,} hardlink aliases not double-counted"
     )
     header_scope = (
+        "Readable inventory only; inaccessible paths are not included"
+        if not coverage["complete"] else
         "Cross-filesystem inventory; no aggregate free-space or reclaim target"
         if cross_filesystems else "Selected local root"
     )
-    days = (None if cross_filesystems
+    days = (None if cross_filesystems or not coverage["complete"]
             else forecast.days_until_full(files, free_bytes))
-    runway_note = ("not calculated across multiple filesystems; scan one filesystem "
+    runway_note = ("not calculated; scan coverage is incomplete" if not coverage["complete"]
+                   else "not calculated across multiple filesystems; scan one filesystem "
                    "for a capacity forecast" if cross_filesystems
                    else f"{human(forecast.rate(files))}/day from mtime; capture snapshots for observed growth")
     selection = cleanup_plan.get("selection")
@@ -215,6 +221,15 @@ def build(files, root, free_bytes, out="sanchay-report.html", limit=50,
       <thead><tr><th>System area</th><th class="num">Allocated storage</th><th class="num">Entries</th><th>Human review</th></tr></thead>
       <tbody>{"".join(managed_rows)}</tbody>
     </table>
+  </div>
+"""
+
+    coverage_panel = ""
+    if not coverage["complete"]:
+        coverage_panel = f"""
+  <div class="panel">
+    <h2>Scan coverage boundary</h2>
+    <p class="h">{coverage['unreadable_directories']:,} directory(ies) and {coverage['unreadable_files']:,} file(s) could not be inspected. This report inventories only readable in-scope files; it does not calculate a growth forecast or create a comparable snapshot from this partial view.</p>
   </div>
 """
 
@@ -325,6 +340,7 @@ def build(files, root, free_bytes, out="sanchay-report.html", limit=50,
     </div>
   </div>
   {managed_panel}
+  {coverage_panel}
   {process_panel}
   {mount_panel}
 </div>

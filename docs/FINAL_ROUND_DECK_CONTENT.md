@@ -74,6 +74,9 @@ Show two stages, not a fake exact date:
 4. Record the root mount context. Btrfs, overlay, and device-mapper sources
    change what a free-space figure proves; SANCHAY labels that boundary rather
    than invoking a filesystem or volume-management action.
+5. If any in-scope path is unreadable, record only count-level coverage,
+   label the output readable-file inventory, and withhold forecast/snapshot
+   claims rather than treating a partial scan as complete.
 
 Footer: “A first scan is an estimate; observed history is stronger evidence.”
 
@@ -109,6 +112,9 @@ Put the command in small monospace text only:
 - Boot, configuration, package/cache, log, backup, and service/spool paths are
   fenced before duplicate-content reads. A content match under `/usr` or `/etc`
   is never treated as permission to remove an OS file.
+- Access-denied paths are not hidden: SANCHAY reports count-only incomplete
+  coverage and refuses to turn a partial scan into a capacity forecast or
+  snapshot history.
 - C-DAC describes Secure BOSS as LVM-encrypted. SANCHAY records a visible
   device-mapper boundary but does not infer pool headroom, encryption state, or
   permission to run LVM commands.

@@ -107,11 +107,13 @@ class Sanchay(App):
 
     @work(thread=True)
     def scan_disk(self):
-        files = scan.scan(self.root)
+        files, coverage_record = scan.scan_with_coverage(self.root)
+        scan_coverage = coverage_record.as_dict()
         groups = dedup.duplicates(managed.content_candidates(files), root=self.root)
         filesystem_context = mounts.capacity_context(self.root)
         cleanup_plan = plan.build(files, groups, self.root, limit=500,
-                                  filesystem_context=filesystem_context)
+                                  filesystem_context=filesystem_context,
+                                  scan_coverage=scan_coverage)
         rows = cleanup_plan["recommendations"]
         protected = cleanup_plan["safety"]["protected_unique_files"]
         hardlinks = cleanup_plan["safety"]["excluded_hardlink_entries"]
@@ -121,10 +123,11 @@ class Sanchay(App):
         held_deleted = processes.deleted_open_files(
             {device for device in devices if device is not None})
         self.call_from_thread(self.show, files, groups, rows, protected, hardlinks,
-                              managed_storage, held_deleted, filesystem_context)
+                              managed_storage, held_deleted, filesystem_context,
+                              scan_coverage)
 
     def show(self, files, groups, rows, protected, hardlinks, managed_storage,
-             held_deleted, filesystem_context):
+             held_deleted, filesystem_context, scan_coverage):
         self.all_rows = rows
         self.rows = list(rows)
         stats = self.query(Stat)
@@ -132,13 +135,16 @@ class Sanchay(App):
                      f"{len(files):,} entries; {storage.hardlink_alias_count(files):,} aliases")
         stats[1].set(human(dedup.reclaimable(groups)), f"{len(groups):,} groups")
         stats[2].set(human(sum(r['size'] for r in rows)), f"{len(rows):,} reviewable")
-        try:
-            import shutil
-            days = forecast.days_until_full(files, shutil.disk_usage(self.root).free)
-        except OSError:
-            days = None
-        stats[3].set(forecast.runway_label(days),
-                     f"{human(forecast.rate(files))}/day mtime estimate")
+        if not scan_coverage["complete"]:
+            stats[3].set("not calculated", "incomplete scan coverage")
+        else:
+            try:
+                import shutil
+                days = forecast.days_until_full(files, shutil.disk_usage(self.root).free)
+            except OSError:
+                days = None
+            stats[3].set(forecast.runway_label(days),
+                         f"{human(forecast.rate(files))}/day mtime estimate")
 
         self.update_status_bar()
         guard = Text.assemble(
@@ -161,6 +167,12 @@ class Sanchay(App):
             guard.append(
                 f" {filesystem_context['label']}: {filesystem_context['advisory']}",
                 style="dim")
+        if not scan_coverage["complete"]:
+            guard.append(
+                f" {scan_coverage['unreadable_directories']:,} directory(ies) and "
+                f"{scan_coverage['unreadable_files']:,} file(s) could not be inspected; "
+                "inventory and growth claims apply only to readable files.",
+                style="bold yellow")
         self.query_one("#guard", Static).update(guard)
         self.fill()
 

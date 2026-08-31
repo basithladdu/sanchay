@@ -90,6 +90,15 @@ endorses SANCHAY or defines the hackathon scoring rubric.
   available extents. SANCHAY therefore does not infer thin-pool headroom from a
   mounted filesystem's free-space value. Source: [Red Hat LVM thin
   provisioning](https://docs.redhat.com/en/documentation/red_hat_enterprise_linux/6/html/logical_volume_manager_administration/thinly_provisioned_volume_creation).
+- Python documents that `os.walk()` ignores `scandir()` errors by default and
+  exposes the failed filename only through an explicit `onerror` callback.
+  SANCHAY records count-only coverage evidence instead of silently treating a
+  permission-limited walk as a complete inventory. Source: [Python `os.walk`
+  documentation](https://docs.python.org/3/library/os.html#os.walk).
+- GNU `du` documents that it estimates filesystem use and returns nonzero on
+  failure. That is a useful baseline: a storage estimate must preserve its
+  failure boundary rather than silently report a misleading total. Source:
+  [GNU Coreutils `du`](https://www.gnu.org/software/coreutils/manual/html_node/du-invocation.html).
 
 ### AI security boundary
 
@@ -133,6 +142,7 @@ endorses SANCHAY or defines the hackathon scoring rubric.
 | Protect generic OS state | Fence boot, configuration, package/cache, log, backup, and service/spool paths before duplicate-content reads. Keep them as measured advisories, not raw deletion candidates; preserve narrower tool-specific guidance where available. | Implemented |
 | Explain process-held deleted storage | On Linux, report visible deleted regular files held through `/proc` only as an operational advisory; never signal, restart, truncate, delete, or include them in a reclaim target. | Implemented |
 | Keep capacity claims mount-aware | Record the selected Linux mount context. Label Btrfs, overlay, and device-mapper boundaries instead of inferring host-wide, snapshot-aware, or volume-pool capacity; run no filesystem or LVM command. | Implemented |
+| Keep scan coverage honest | Count unreadable in-scope directories/files without serialising their paths. Mark the view as readable-file inventory and withhold mtime forecasts plus snapshots/history when coverage is incomplete. | Implemented |
 | Contain the optional LLM | Keep narration local by default. Require a separate cloud opt-in and send only opaque candidate IDs with fixed class/size/age metadata; deterministic code retains all decision and action boundaries. | Implemented |
 | Avoid crossing a governance boundary silently | Scan one filesystem by default; cross-filesystem traversal requires an explicit flag and is inventory-only across mounts. | Implemented |
 | Keep forecasting honest | Label the first pass an mtime-derived estimate; capture aggregate local snapshots for observed growth and an explainable local linear trend. Cross-mount scans refuse shared targets and capacity forecasts. | Implemented |

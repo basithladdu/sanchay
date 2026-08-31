@@ -94,6 +94,14 @@ files in boot, configuration, package/cache, log, backup, and service/spool
 paths. The narrow APT, journal, Docker, containerd, and Flatpak policies still
 win first so the operator receives the relevant owning-tool review route.
 
+**1e. Makes partial scan coverage visible.** Secure endpoints can intentionally
+withhold access to part of the selected tree. SANCHAY counts unreadable
+directories and files without serialising their paths. If any occur, it labels
+the output a readable-file inventory and withholds the mtime forecast and
+snapshot/history operations. It can still show review-only evidence for files
+actually inspected, but never presents that partial view as whole-tree capacity
+evidence.
+
 **2. Works out how recoverable each file is.** This is the core of the tool.
 Every file lands in one of four classes:
 

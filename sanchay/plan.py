@@ -13,10 +13,10 @@ import os
 from pathlib import Path
 import stat
 
-from . import dedup, managed, regret, storage
+from . import dedup, managed, regret, scan, storage
 
 
-PLAN_SCHEMA_VERSION = 6
+PLAN_SCHEMA_VERSION = 7
 IDENTITY_FIELDS = (
     "device", "inode", "size", "allocated_size", "mtime", "mtime_ns", "nlink",
 )
@@ -134,12 +134,13 @@ def _fingerprint_valid(document):
 
 def build(files, duplicate_groups, root, now=None, limit=25,
           target_reclaim_bytes=None, cross_filesystems=False,
-          filesystem_context=None):
+          filesystem_context=None, scan_coverage=None):
     """Build a non-executing cleanup manifest from one scan result."""
     if target_reclaim_bytes is not None and target_reclaim_bytes <= 0:
         raise ValueError("Reclaim target must be greater than zero")
     if cross_filesystems and target_reclaim_bytes is not None:
         raise ValueError("A cross-filesystem inventory cannot use a shared reclaim target")
+    coverage = scan.coverage_summary(scan_coverage)
     duplicate_of = dedup.confirmed_duplicate_map(duplicate_groups, root=root)
     by_path = {info.path: info for info in files}
     managed_advisories = managed.advisories(files)
@@ -213,6 +214,7 @@ def build(files, duplicate_groups, root, now=None, limit=25,
                 "on Linux, descriptor reads are rooted at the canonical scan root "
                 "and do not follow symlink components"
             ),
+            "scan_coverage": coverage,
         },
         "integrity": {
             "algorithm": "SHA-256",
@@ -278,7 +280,7 @@ def read(path):
                        "logical_file_entries", "physical_file_count",
                        "excluded_hardlink_entries", "excluded_hardlink_physical_bytes",
                        "candidate_count", "candidate_bytes", "rule",
-                       "content_read_boundary"}
+                       "content_read_boundary", "scan_coverage"}
     if (document.get("schema_version") != PLAN_SCHEMA_VERSION or not required.issubset(document)
             or not isinstance(document["root"], str)
             or not isinstance(document["execution"], dict)
@@ -287,6 +289,12 @@ def read(path):
             or not isinstance(document["recommendations"], list)
             or not isinstance(document["fingerprint_sha256"], str)):
         raise ValueError("Unsupported or incomplete SANCHAY cleanup plan")
+    try:
+        coverage = document["safety"]["scan_coverage"]
+        if coverage != scan.coverage_summary(coverage):
+            raise ValueError
+    except (TypeError, ValueError):
+        raise ValueError("Unsupported or incomplete SANCHAY scan coverage") from None
     return document
 
 

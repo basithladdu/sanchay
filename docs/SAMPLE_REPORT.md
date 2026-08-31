@@ -27,6 +27,11 @@ system-reserved boot, configuration, package/cache, log, backup, and
 service/spool paths. Those files are excluded before duplicate-content reads;
 matching bytes are not treated as permission to remove OS state.
 
+If an in-scope directory or file could not be inspected, the report adds a
+**Scan coverage boundary** panel with counts only. It labels the result as a
+readable-file inventory and withholds the growth forecast; inaccessible path
+names are not copied into the shared report.
+
 When the selected mount is Btrfs, overlay, or device-mapper-backed, the report
 also includes a **filesystem capacity boundary** panel. It records why a
 directory-level total is not proof of host-wide, snapshot-aware, or volume-pool
