@@ -40,6 +40,15 @@ def parse_reclaim_bytes(value):
     return parsed
 
 
+def parse_risk_horizon_days(value):
+    """Parse a positive whole-day horizon for the local risk model."""
+    normalized = str(value).strip()
+    if not re.fullmatch(r"\d+", normalized) or int(normalized) <= 0:
+        raise argparse.ArgumentTypeError(
+            "capacity risk horizon must be a positive whole number of days")
+    return int(normalized)
+
+
 def _visualization_dependency_missing(feature, exc):
     """Print an actionable optional-dependency error when Plotly is absent."""
     missing = exc.name
@@ -95,6 +104,8 @@ def main(argv=None):
                                 help="compare this mounted filesystem with a prior SANCHAY snapshot")
     forecast_group.add_argument("--history", metavar="SNAPSHOT.json", nargs="+",
                                 help="fit a mounted-filesystem linear trend to prior snapshots and this scan")
+    ap.add_argument("--risk-horizon", metavar="DAYS", type=parse_risk_horizon_days,
+                    help="with --history, estimate local capacity-hit risk within DAYS; never changes storage")
     ap.add_argument("--verify-plan", metavar="PLAN.json",
                     help="recheck a review-only plan; never deletes or moves files")
     ap.add_argument("--verify-archive", metavar=("SOURCE", "RETAINED_COPY"),
@@ -107,6 +118,8 @@ def main(argv=None):
 
     if args.cloud_narrative and not args.explain:
         ap.error("--cloud-narrative requires --explain")
+    if args.risk_horizon is not None and not args.history:
+        ap.error("--risk-horizon requires --history")
 
     if args.verify_plan and args.verify_archive:
         ap.error("use either --verify-plan or --verify-archive, not both")
@@ -119,7 +132,7 @@ def main(argv=None):
 
     if args.cross_filesystems and any((
             args.target_reclaim is not None, args.snapshot, args.compare,
-            args.history, args.capacity_audit)):
+            args.history, args.risk_horizon is not None, args.capacity_audit)):
         ap.error("--cross-filesystems cannot use a capacity audit, shared reclaim "
                  "target, or capacity history across mounts; scan one filesystem per capacity plan")
 
@@ -153,7 +166,8 @@ def main(argv=None):
         if any((args.root, args.cross_filesystems, args.explain, args.viz,
                 args.report, args.operator_brief, args.plan,
                 args.target_reclaim is not None, args.snapshot, args.compare,
-                args.history, args.capacity_audit, args.tui)):
+                args.history, args.risk_horizon is not None, args.capacity_audit,
+                args.tui)):
             ap.error("--verify-operator-brief is a standalone read-only check")
         try:
             document = brief.read(args.verify_operator_brief)
@@ -172,6 +186,7 @@ def main(argv=None):
                 args.snapshot, args.compare, args.history, args.capacity_audit,
                 args.operator_brief,
                 args.verify_operator_brief,
+                args.risk_horizon is not None,
                 args.tui)):
             ap.error("--verify-archive is a standalone read-only check")
         try:
@@ -341,7 +356,8 @@ def main(argv=None):
             print("  boundary: " + block_availability["boundary"])
         else:
             print("block availability: not assessed; " + block_availability["reason"])
-    needs_snapshot = bool(args.snapshot or args.compare or args.history)
+    needs_snapshot = bool(args.snapshot or args.compare or args.history
+                          or args.risk_horizon is not None)
     current_snapshot = None
     snapshot_error = None
     if needs_snapshot and usage is not None and scan_coverage["complete"]:
@@ -358,6 +374,7 @@ def main(argv=None):
 
     observed = None
     trend = None
+    capacity_risk = None
     growth_error = None
     if args.compare and current_snapshot is not None:
         try:
@@ -368,7 +385,11 @@ def main(argv=None):
     elif args.history and current_snapshot is not None:
         try:
             history = [snapshot.read(path) for path in args.history]
-            trend = snapshot.linear_trend(history + [current_snapshot])
+            historical_snapshots = history + [current_snapshot]
+            trend = snapshot.linear_trend(historical_snapshots)
+            if args.risk_horizon is not None:
+                capacity_risk = snapshot.capacity_risk(
+                    historical_snapshots, args.risk_horizon)
         except (OSError, ValueError) as exc:
             growth_error = str(exc)
     elif (args.compare or args.history) and snapshot_error:
@@ -416,6 +437,29 @@ def main(argv=None):
         print(f"growth:     {human(forecast.rate(files))}/day readable-inventory mtime estimate, "
               + (f"full in {forecast.runway_label(days)}" if days else "no measurable growth")
               + "; save a snapshot to measure future net growth")
+
+    if args.risk_horizon is not None:
+        if capacity_risk is not None and capacity_risk["assessed"]:
+            print(
+                "capacity risk: "
+                f"{capacity_risk['risk_probability'] * 100:.1f}% probability of reaching "
+                f"current mounted-filesystem capacity within "
+                f"{capacity_risk['horizon_days']} days from "
+                f"{capacity_risk['sample_count']} local snapshots")
+            print(
+                "  model: Brownian-motion-with-drift estimate over aggregate "
+                f"used-byte changes; drift {human(capacity_risk['drift_bytes_per_day'])}/day, "
+                f"volatility {human(capacity_risk['volatility_bytes_per_sqrt_day'])}/sqrt(day)")
+            print("  boundary: " + capacity_risk["boundary"])
+        elif capacity_risk is not None:
+            print("capacity risk: withheld; " + capacity_risk["reason"])
+            print("  boundary: " + capacity_risk["boundary"])
+        elif growth_error:
+            print("capacity risk: withheld; " + growth_error)
+        elif not scan_coverage["complete"]:
+            print("capacity risk: withheld; complete scan coverage is required")
+        else:
+            print("capacity risk: withheld; current mounted-filesystem history is unavailable")
 
     cleanup_plan = plan.build(files, groups, args.root, limit=args.limit,
                               target_reclaim_bytes=args.target_reclaim,
@@ -471,7 +515,9 @@ def main(argv=None):
     if args.operator_brief:
         operator_brief = brief.build(
             files, cleanup_plan, process_held=held_deleted,
-            capacity_accounting=capacity_accounting)
+            capacity_accounting=capacity_accounting,
+            capacity_risk=capacity_risk,
+            capacity_risk_requested=args.risk_horizon is not None)
         print("operator brief -> " + brief.write(operator_brief, args.operator_brief))
 
     if args.plan:

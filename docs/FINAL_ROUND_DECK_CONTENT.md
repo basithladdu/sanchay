@@ -106,6 +106,12 @@ Show two stages, not a fake exact date:
 11. Show a measured mounted-filesystem rate after 24 hours, but withhold a
     runway date until three snapshots expose an R² fit of at least 0.80. This
     is a conservative product gate, not a promise that the date is certain.
+12. On an explicit `--risk-horizon DAYS`, report a local probability of
+    reaching current mounted capacity within that horizon rather than a false
+    exact date. The Brownian-motion-with-drift estimate is withheld unless
+    there are seven complete same-root snapshots spanning seven days, each at
+    least twelve hours apart, with unchanged mount capacity. It changes no
+    file, volume, alert, or network state.
 
 Footer: “A first scan is an inventory estimate; same-mount observed history is stronger evidence.”
 
@@ -159,8 +165,10 @@ Put the command in small monospace text only:
   manifest records observed identity and a SHA-256 integrity checksum (not a
   signature).
 - For an ISOC or support handoff, `--operator-brief` emits aggregate counts and
-  byte totals only. It excludes roots, paths, file names, process IDs/names,
-  mount/device sources, and file content; it does not transmit anything.
+  byte totals only. If a capacity-risk horizon was requested, it can also carry
+  only the aggregate probability, horizon, sample evidence, and model metrics.
+  It excludes roots, paths, file names, process IDs/names, mount/device
+  sources, and file content; it does not transmit anything.
 
 Phrase this as a product fit inferred from C-DAC's Secure OS context, not a
 claim of C-DAC endorsement or scoring criteria.

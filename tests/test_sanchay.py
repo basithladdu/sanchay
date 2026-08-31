@@ -513,9 +513,23 @@ class TestSanchay(unittest.TestCase):
             'free_bytes': 16384, 'available_bytes': 12288,
             'free_unavailable_to_unprivileged_bytes': 4096,
         }
+        risk = {
+            'assessed': True,
+            'model': snapshot.CAPACITY_RISK_MODEL,
+            'horizon_days': 30,
+            'sample_count': 7,
+            'elapsed_seconds': 7 * 86400,
+            'risk_probability': 0.42,
+            'current_free_bytes': 8192,
+            'drift_bytes_per_day': 1024.0,
+            'volatility_bytes_per_sqrt_day': 512.0,
+            'boundary': 'private endpoint detail: ' + root,
+            'reason': 'private endpoint detail: ' + root,
+        }
 
         document = brief.build(
-            files, cleanup_plan, process_held=[held], capacity_accounting=audit)
+            files, cleanup_plan, process_held=[held], capacity_accounting=audit,
+            capacity_risk=risk, capacity_risk_requested=True)
         rendered = json.dumps(document, sort_keys=True)
 
         self.assertTrue(brief.fingerprint_valid(document))
@@ -548,6 +562,25 @@ class TestSanchay(unittest.TestCase):
                 'free_bytes': 16384, 'available_bytes': 12288,
                 'free_unavailable_to_unprivileged_bytes': 4096,
             })
+        self.assertEqual(document['operational_advisories']['capacity_risk'], {
+            'requested': True,
+            'assessed': True,
+            'model': snapshot.CAPACITY_RISK_MODEL,
+            'horizon_days': 30,
+            'sample_count': 7,
+            'elapsed_seconds': 7 * 86400,
+            'risk_probability': 0.42,
+            'current_free_bytes': 8192,
+            'drift_bytes_per_day': 1024.0,
+            'volatility_bytes_per_sqrt_day': 512.0,
+        })
+        invalid_risk = dict(risk)
+        invalid_risk['current_free_bytes'] = True
+        invalid_document = brief.build(
+            files, cleanup_plan, capacity_risk=invalid_risk,
+            capacity_risk_requested=True)
+        self.assertFalse(invalid_document['operational_advisories'][
+            'capacity_risk']['assessed'])
         for sensitive in (root, 'private-note.txt', '.aws', 'credentials',
                           'private-service', '9101', 'deleted-audit.log',
                           '/var/log/secure-audit.log', 'Private mount detail',
@@ -937,6 +970,7 @@ class TestSanchay(unittest.TestCase):
             ['--snapshot', 'baseline.json'],
             ['--compare', 'baseline.json'],
             ['--history', 'day-1.json', 'day-7.json'],
+            ['--history', 'day-1.json', '--risk-horizon', '30'],
             ['--capacity-audit'],
         )
         for extra in inputs:
@@ -1271,6 +1305,66 @@ class TestSanchay(unittest.TestCase):
             'bytes_per_day': float('nan'),
             'r_squared': 1.0,
         })['ready'])
+
+    def test_capacity_risk_uses_spaced_same_capacity_history(self):
+        total = 35_000_000
+        days = (0, 1, 2, 3, 4, 5, 7)
+        used = (20_000_000, 21_100_000, 22_000_000, 23_300_000,
+                24_100_000, 25_400_000, 26_500_000)
+        records = [
+            self._capture_snapshot(
+                self.files, used=value, free=total - value,
+                now=100 + day * 86400)
+            for day, value in zip(days, used)
+        ]
+
+        one_week = snapshot.capacity_risk(records, 7)
+        one_month = snapshot.capacity_risk(records, 30)
+        withheld = snapshot.capacity_risk(records[:-1], 30)
+        tightly_spaced = [dict(record) for record in records]
+        tightly_spaced[1]['captured_at'] = tightly_spaced[0]['captured_at'] + 6 * 3600
+        interval_withheld = snapshot.capacity_risk(tightly_spaced, 30)
+
+        self.assertTrue(one_week['assessed'])
+        self.assertEqual(one_week['model'], snapshot.CAPACITY_RISK_MODEL)
+        self.assertEqual(one_week['sample_count'], 7)
+        self.assertGreater(one_week['risk_probability'], 0)
+        self.assertLessEqual(one_week['risk_probability'], 1)
+        self.assertGreaterEqual(one_month['risk_probability'],
+                                one_week['risk_probability'])
+        self.assertFalse(withheld['assessed'])
+        self.assertNotIn('risk_probability', withheld)
+        self.assertIn('at least 7 complete snapshots', withheld['reason'])
+        self.assertFalse(interval_withheld['assessed'])
+        self.assertIn('at least 12 hours', interval_withheld['reason'])
+        with self.assertRaisesRegex(ValueError, 'positive whole number'):
+            snapshot.capacity_risk(records, 0)
+
+    def test_capacity_risk_handles_a_deterministic_history_and_capacity_change(self):
+        total = 30_000_000
+        days = (0, 1, 2, 3, 4, 5, 7)
+        records = [
+            self._capture_snapshot(
+                self.files, used=20_000_000 + day * 1_000_000,
+                free=total - (20_000_000 + day * 1_000_000),
+                now=100 + day * 86400)
+            for day in days
+        ]
+
+        short_horizon = snapshot.capacity_risk(records, 2)
+        full_horizon = snapshot.capacity_risk(records, 3)
+        resized = [dict(record) for record in records]
+        resized[-1]['filesystem_total_bytes'] += 1
+        resized_risk = snapshot.capacity_risk(resized, 30)
+        resized_trend = snapshot.linear_trend(resized)
+
+        self.assertEqual(short_horizon['risk_probability'], 0)
+        self.assertEqual(full_horizon['risk_probability'], 1)
+        self.assertFalse(resized_risk['assessed'])
+        self.assertIn('capacity changed', resized_risk['reason'])
+        self.assertFalse(snapshot.runway_readiness(resized_trend)['ready'])
+        self.assertIn('capacity changed',
+                      snapshot.runway_readiness(resized_trend)['reason'])
 
     def test_snapshots_with_less_than_a_day_of_history_withhold_a_rate(self):
         previous = self._capture_snapshot(self.files, used=1000000, now=100)
@@ -1775,23 +1869,79 @@ class TestSanchay(unittest.TestCase):
             root = demo.create(Path(tmp) / 'fixture')
             files = scan.scan(root)
             usage = shutil.disk_usage(root)
+            stable_usage = SimpleNamespace(
+                total=usage.total,
+                used=usage.used,
+                free=usage.free,
+            )
             previous = snapshot.capture(
                 files, root,
-                filesystem_total_bytes=usage.total,
-                filesystem_used_bytes=usage.used - 1024,
-                filesystem_free_bytes=usage.free + 1024,
+                filesystem_total_bytes=stable_usage.total,
+                filesystem_used_bytes=stable_usage.used - 1024,
+                filesystem_free_bytes=stable_usage.free + 1024,
                 filesystem_device=os.stat(root).st_dev,
                 now=time.time() - 86400)
             previous_path = Path(tmp) / 'previous.json'
             snapshot.write(previous, previous_path)
 
             output = io.StringIO()
-            with contextlib.redirect_stdout(output):
+            with mock.patch.object(shutil, 'disk_usage', return_value=stable_usage), \
+                    contextlib.redirect_stdout(output):
                 cli.main([str(root), '--history', str(previous_path), '--limit', '1'])
 
             rendered = output.getvalue()
             self.assertIn('mounted-filesystem trend from 2 snapshots', rendered)
             self.assertIn('runway withheld: at least 3 snapshots', rendered)
+
+    def test_cli_capacity_risk_requires_history_and_reports_local_estimate(self):
+        with self.assertRaises(SystemExit), contextlib.redirect_stderr(io.StringIO()):
+            cli.main(['/', '--risk-horizon', '30'])
+
+        with tempfile.TemporaryDirectory() as tmp:
+            root = demo.create(Path(tmp) / 'fixture')
+            files = scan.scan(root)
+            total = 35_000_000
+            used_values = (20_000_000, 21_100_000, 22_000_000,
+                           23_300_000, 24_100_000, 25_400_000,
+                           26_500_000)
+            base = time.time()
+            history_paths = []
+            for index, (days_ago, used) in enumerate(zip((7, 6, 5, 4, 3, 2),
+                                                           used_values[:-1])):
+                record = snapshot.capture(
+                    files, root,
+                    filesystem_total_bytes=total,
+                    filesystem_used_bytes=used,
+                    filesystem_free_bytes=total - used,
+                    filesystem_device=os.stat(root).st_dev,
+                    now=base - days_ago * 86400)
+                path = Path(tmp) / f'history-{index}.json'
+                snapshot.write(record, path)
+                history_paths.append(str(path))
+            current_usage = SimpleNamespace(
+                total=total,
+                used=used_values[-1],
+                free=total - used_values[-1],
+            )
+            brief_path = Path(tmp) / 'operator-brief.json'
+            output = io.StringIO()
+            with mock.patch.object(shutil, 'disk_usage', return_value=current_usage), \
+                    contextlib.redirect_stdout(output):
+                status = cli.main([
+                    str(root), '--history', *history_paths,
+                    '--risk-horizon', '7', '--operator-brief', str(brief_path),
+                    '--limit', '1'])
+            operator_brief = json.loads(brief_path.read_text(encoding='utf-8'))
+
+        self.assertIsNone(status)
+        rendered = output.getvalue()
+        self.assertIn('capacity risk:', rendered)
+        self.assertIn('within 7 days from 7 local snapshots', rendered)
+        self.assertIn('Brownian-motion-with-drift estimate', rendered)
+        self.assertEqual(operator_brief['operational_advisories']['capacity_risk'][
+            'model'], snapshot.CAPACITY_RISK_MODEL)
+        self.assertTrue(operator_brief['operational_advisories']['capacity_risk'][
+            'assessed'])
 
     def test_cli_history_projects_only_after_a_fit_checked_third_capture(self):
         with tempfile.TemporaryDirectory() as tmp:

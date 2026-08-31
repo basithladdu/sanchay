@@ -66,6 +66,13 @@ endorses SANCHAY or defines the hackathon scoring rubric.
 - Capacity forecasting work uses historical data and models rather than treating
   a single instant as ground truth. Source: Chamness, [Capacity Forecasting in
   a Backup Storage Environment](https://www.usenix.org/conference/lisa11/capacity-forecasting-backup-storage-environment-practice-experience-report).
+- Kumar and Chamness report that storage utilization can be non-linear and
+  discontinuous, and frame the operational question as the probability of
+  reaching capacity within a stated time window rather than one exact date.
+  Their Stochastic Estimated Risk model uses Brownian motion with drift. SANCHAY
+  adapts only that local, interpretable risk framing; it does not claim the
+  paper's production accuracy or validation on Secure BOSS endpoints. Source:
+  [Stochastic Estimated Risk for Storage Capacity](https://arxiv.org/abs/1901.10552).
 - POSIX specifies that `O_NOFOLLOW` rejects a symbolic-link final component and
   that descriptor-relative `openat` avoids the path-change race that affects
   ordinary path-based opening. Source: [The Open Group `open()`
@@ -183,12 +190,13 @@ endorses SANCHAY or defines the hackathon scoring rubric.
 | Distinguish raw free blocks from user-available blocks | In the explicit mount-root audit, report `statvfs` free versus unprivileged-available block counters as a filesystem-policy boundary, never as a prompt to alter reservation policy. | Implemented |
 | Keep scan coverage honest | Count unreadable in-scope directories/files without serialising their paths. Mark the view as readable-file inventory and withhold mtime forecasts plus snapshots/history when coverage is incomplete. | Implemented |
 | Gate projected exhaustion dates | Preserve a two-capture measured rate as evidence, but require at least three same-root snapshots and R² >= 0.80 before saying `full in ...`. A product gate can only reduce false precision; it is not a statistical guarantee of future growth. | Implemented |
+| Prefer capacity risk to false point precision | On explicit `--risk-horizon DAYS`, use a local Brownian-motion-with-drift hitting-time estimate over mounted-filesystem used bytes. Require seven complete snapshots over seven days, twelve-hour minimum intervals, same root/device, and unchanged capacity; otherwise withhold the probability. The estimate controls no action, alert, or network transfer. | Implemented |
 | Contain the optional LLM | Keep narration local by default. Require a separate cloud opt-in and send only opaque candidate IDs with fixed class/size/age metadata; deterministic code retains all decision and action boundaries. | Implemented |
 | Avoid crossing a governance boundary silently | Scan one filesystem by default; cross-filesystem traversal requires an explicit flag and is inventory-only across mounts. | Implemented |
 | Keep forecasting honest | Label the first pass a readable-inventory mtime estimate. Schema-5 snapshots retain that inventory separately but trend the selected mounted filesystem's reported used bytes; reject legacy or different-device snapshots, and withhold a rate until the history spans 24 hours, rather than mixing metrics or annualising seconds of background activity. Cross-mount scans refuse shared targets and capacity forecasts. | Implemented |
 | Prevent tool output from becoming a cleanup candidate | Exclude explicitly supplied SANCHAY snapshots, plans, reports, and briefs from the readable inventory when they sit under the scan root, while retaining their physical bytes in the mounted-filesystem measurement. | Implemented |
 | Support government/BOSS deployment | Keep the core local, dependency-light, inspectable, and suitable for an offline terminal workflow. | Implemented |
-| Support monitored secure endpoints without exporting path metadata | Keep the detailed plan and HTML report local. Add a separately requested `--operator-brief` that contains only aggregate evidence, capacity, and operational-advisory counts; it excludes paths, names, process IDs/names, mount/device sources, and content, and makes no network call. | Implemented |
+| Support monitored secure endpoints without exporting path metadata | Keep the detailed plan and HTML report local. Add a separately requested `--operator-brief` that contains only aggregate evidence, capacity, operational-advisory counts, and, when explicitly requested and assessed, capacity-risk horizon/sample/model metrics. It excludes paths, names, process IDs/names, mount/device sources, free-form model rationale, and content, and makes no network call. | Implemented |
 | Improve inclusivity | Add Hindi and other BOSS-language UI strings only after native-speaker review; do not machine-claim localisation. | Planned |
 
 The presentation-ready mapping from cited Secure BOSS capabilities to

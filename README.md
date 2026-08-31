@@ -73,6 +73,10 @@ operator to choose which copy to retain before any manual removal.
 ### 2. Two-Stage Runway Measurement
 SANCHAY derives an initial storage-growth estimate from the **readable-inventory inode modification-time distribution (`mtime`) on run #1**. It is directional, not a guaranteed exhaustion date. A later local snapshot records the selected mounted filesystem's total, used, and free bytes separately from the readable inventory. Comparisons and local linear trends use only the mounted-filesystem used-byte series; they require complete readable coverage, the same resolved root and filesystem device, and at least a 24-hour first-to-latest observation span. The gate prevents seconds of ordinary background activity from becoming a fictional runway. With three or more snapshots, SANCHAY also reports fit quality. The readable inventory, review plan, and treemap count each physical `(device, inode)` once and use allocated blocks (`st_blocks × 512`) where the filesystem exposes them, so hardlink aliases and sparse logical length do not inflate those diagnostic totals. Snapshot schema 5 deliberately rejects earlier inventory-only snapshot files: recapture a fresh baseline rather than mixing metrics.
 
+A mounted-filesystem capacity resize also withholds a runway date. An LVM
+provisioning event changes what a historical free-space runway means, even if
+the selected path and device remain the same.
+
 #### Runway Projection Gate
 
 A two-snapshot rate is useful evidence of observed filesystem use, but it
@@ -81,6 +85,18 @@ keeps the measured rate visible while withholding a `full in` date until there
 are at least three same-root snapshots, a 24-hour first-to-latest span, and an
 R² fit of at least 0.80. This is a conservative product gate, not a guarantee
 that future storage consumption will remain linear.
+
+#### Capacity-Risk Gate
+
+`--risk-horizon DAYS` adds a separate local capacity-hit probability, rather
+than pretending that every workload deserves one exact full-disk date. It uses
+a Brownian-motion-with-drift hitting-time model over aggregate mounted-filesystem
+used-byte changes and is deliberately stricter than the runway slope: at least
+seven complete same-root snapshots spanning seven days, every interval at least
+twelve hours, and unchanged mounted filesystem capacity. Otherwise SANCHAY
+prints an explicit withheld reason. The probability is conditional on that
+local-history model, not a capacity guarantee, root-cause diagnosis, cleanup
+instruction, alert, or network call.
 
 ### Capacity Boundary Across Mounts
 
@@ -108,11 +124,14 @@ The detailed plan and HTML report are local review artifacts and can contain
 relative paths or process context. `--operator-brief OUT.json` produces a
 separate aggregate handoff for a secure endpoint or operations review: evidence
 class counts, allocated-byte totals, managed-store totals, coverage, mount
-source class, deleted-open aggregate, and the capacity-accounting boundary. It
+source class, deleted-open aggregate, and the capacity-accounting boundary. If
+a capacity-risk horizon was explicitly requested and assessed, it adds only the
+aggregate probability, horizon, sample evidence, and model metrics. It
 intentionally contains no root, paths, file names, process IDs, process names,
-mount points, device sources, or file content, and it performs no network
-transfer. Its SHA-256 checksum detects accidental changes; it is not a
-signature, incident log, remediation instruction, or external submission.
+mount points, device sources, free-form model rationale, or file content, and
+it performs no network transfer. Its SHA-256 checksum detects accidental
+changes; it is not a signature, incident log, remediation instruction, or
+external submission.
 
 ### 3. Tiered Fast Content Hashing
 Deduplicating large files can saturate I/O. SANCHAY uses a 3-tier cascade:
@@ -265,6 +284,10 @@ sanchay /home/user --compare before.json
 # 7. Fit a mounted-filesystem trend once you have multiple earlier snapshots
 sanchay /home/user --history day-1.json day-7.json day-14.json
 
+# Optional: estimate local capacity-hit risk only from strong same-mount history.
+# The result is a probability under the local model, not a cleanup instruction.
+sanchay /home/user --history day-1.json day-2.json day-3.json day-4.json day-5.json day-6.json day-7.json --risk-horizon 30
+
 # 8. Generate an interactive Plotly HTML report (requires .[viz])
 sanchay /home/user --report report.html
 
@@ -350,9 +373,11 @@ sanchay-ui .
   inventory only; SANCHAY withholds its mtime forecast and snapshots rather
   than claiming a complete capacity view.
 * **Operator-brief boundary**: `--operator-brief` emits only aggregate local
-  review facts for a secure-operator handoff. It excludes roots, paths, file
-  names, process IDs/names, mount/device sources, and file content; it does not
-  transmit data or authorize a cleanup action.
+  review facts for a secure-operator handoff. A requested, assessed
+  capacity-risk estimate contributes numeric model evidence only. The brief
+  excludes roots, paths, file names, process IDs/names, mount/device sources,
+  free-form model rationale, and file content; it does not transmit data or
+  authorize a cleanup action.
 * **Inspectable evidence policy**: Every plan item records its classification,
   logical and reclaimable allocated sizes, observed identity, typed recovery
   evidence with its strength, and frozen decision-model inputs; files

@@ -125,10 +125,11 @@ evidence.
 report stay local because they can contain relative paths or process context.
 `--operator-brief` writes a distinct aggregate-only JSON handoff for a secure
 operations or ISOC review: evidence-class counts, allocated-byte totals,
-managed-store totals, coverage, mount source class, deleted-open aggregate, and
-capacity boundary. It excludes roots, paths, file names, process IDs/names,
-mount/device sources, and file content; it does not transmit data, sign an
-event, or authorize cleanup.
+managed-store totals, coverage, mount source class, deleted-open aggregate,
+capacity boundary, and (when requested and assessed) capacity-risk probability,
+horizon, sample evidence, and model metrics. It excludes roots, paths, file
+names, process IDs/names, mount/device sources, free-form model rationale, and
+file content; it does not transmit data, sign an event, or authorize cleanup.
 
 **2. Works out how recoverable each file is.** This is the core of the tool.
 Every file lands in one of four classes:
@@ -182,6 +183,15 @@ than being mixed into a capacity forecast. SANCHAY also withholds a rate until
 the first and latest snapshots are at least 24 hours apart, so seconds of
 ordinary background filesystem activity do not become a fictional exhaustion
 forecast.
+On explicit `--risk-horizon DAYS`, SANCHAY can also frame the question as local
+capacity-hit probability within a named horizon. It uses a
+Brownian-motion-with-drift hitting-time estimate over aggregate mounted-use
+changes only after seven complete same-root snapshots span seven days, every
+interval is at least twelve hours, and observed mount capacity is unchanged.
+It otherwise prints why the probability is withheld. This is a model-conditional
+decision-support signal, not a capacity guarantee, cleanup instruction, volume
+action, alert, or network operation.
+
 When an explicitly supplied snapshot, plan, report, or operator brief is stored
 under the selected root, SANCHAY fences it out of the readable inventory and
 review plan on that invocation. Its physical bytes remain in the mounted
@@ -334,6 +344,12 @@ value. It preserves the readable inventory separately and rejects a legacy or
 different-filesystem snapshot rather than combining unlike inputs. This is
 deliberately a small, inspectable statistical model: the user can see the
 inputs, the fit quality, and the exact limitation of the forecast.
+
+For an explicitly requested horizon, the same local snapshot series can drive a
+Brownian-motion-with-drift capacity-hit probability. This second model is more
+strictly gated than the linear slope: seven complete snapshots over seven days,
+twelve-hour minimum intervals, and unchanged mounted capacity. It is not a
+claim of trained-model accuracy, and it never triggers an action or alert.
 
 An optional separate large language model (Claude, accessed via the Anthropic
 API) can write findings up in readable English only after ranking is complete.

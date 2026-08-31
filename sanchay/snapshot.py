@@ -21,6 +21,66 @@ MIN_FORECAST_SPAN_SECONDS = 24 * 60 * 60
 # evidence to issue an exhaustion-date projection.
 MIN_RUNWAY_SNAPSHOT_COUNT = 3
 MIN_RUNWAY_R_SQUARED = 0.80
+# A capacity-hit probability needs more than a line through two or three
+# captures. Seven locally observed points across a week create six separate
+# increments from which the local drift and variability can be estimated. Each
+# interval must itself be meaningfully separated so rapid repeated scans do not
+# masquerade as independent capacity observations.
+MIN_RISK_SNAPSHOT_COUNT = 7
+MIN_RISK_SPAN_SECONDS = 7 * 24 * 60 * 60
+MIN_RISK_INTERVAL_SECONDS = 12 * 60 * 60
+CAPACITY_RISK_MODEL = "brownian_motion_with_drift_hitting_risk"
+_LOG_SQRT_2PI = 0.5 * math.log(2 * math.pi)
+
+
+def _normal_survival(value):
+    """Return the upper tail of a standard normal distribution."""
+    return 0.5 * math.erfc(value / math.sqrt(2.0))
+
+
+def _log_normal_survival(value):
+    """Return log(P(Z > value)) without underflowing in a far tail.
+
+    The capacity hitting formula has an exponential multiplied by a normal
+    tail. Computing those terms independently can overflow for ordinary byte
+    values even when their product is small. The asymptotic tail expansion is
+    sufficient beyond eight standard deviations and keeps that product finite.
+    """
+    if value < 8.0:
+        return math.log(_normal_survival(value))
+    inverse_square = 1.0 / (value * value)
+    correction = (1.0 - inverse_square + 3.0 * inverse_square ** 2
+                  - 15.0 * inverse_square ** 3
+                  + 105.0 * inverse_square ** 4)
+    return (-0.5 * value * value - _LOG_SQRT_2PI - math.log(value)
+            + math.log(correction))
+
+
+def _probability_from_log(value):
+    """Convert a log probability to a finite closed-unit probability."""
+    if value <= -745.0:
+        return 0.0
+    return min(1.0, math.exp(min(0.0, value)))
+
+
+def _risk_withheld(horizon_days, sample_count, elapsed_seconds, reason):
+    """Make a non-assessment explicit instead of emitting a fake zero risk."""
+    return {
+        "assessed": False,
+        "model": CAPACITY_RISK_MODEL,
+        "horizon_days": horizon_days,
+        "sample_count": sample_count,
+        "elapsed_seconds": elapsed_seconds,
+        "minimum_sample_count": MIN_RISK_SNAPSHOT_COUNT,
+        "minimum_span_seconds": MIN_RISK_SPAN_SECONDS,
+        "minimum_interval_seconds": MIN_RISK_INTERVAL_SECONDS,
+        "reason": reason,
+        "boundary": (
+            "A local capacity-risk estimate is withheld when the historical "
+            "evidence is too weak or the mounted capacity changed. It never "
+            "authorizes a cleanup, volume action, or alert."
+        ),
+    }
 
 
 def _require_filesystem_accounting(document):
@@ -142,6 +202,9 @@ def observed_growth(previous, current):
         "bytes_per_day": (delta * 86400 / elapsed
                           if elapsed >= MIN_FORECAST_SPAN_SECONDS else None),
         "r_squared": None,
+        "capacity_stable": (
+            previous["filesystem_total_bytes"] == current["filesystem_total_bytes"]
+        ),
         "minimum_span_seconds": MIN_FORECAST_SPAN_SECONDS,
     }
 
@@ -166,6 +229,8 @@ def linear_trend(snapshots):
     devices = {item["filesystem_device"] for item in snapshots}
     if len(devices) != 1:
         raise ValueError("Snapshots must have the same mounted filesystem")
+    capacity_stable = len({item["filesystem_total_bytes"]
+                           for item in snapshots}) == 1
 
     points = sorted((float(item["captured_at"]),
                      float(item["filesystem_used_bytes"]))
@@ -180,6 +245,7 @@ def linear_trend(snapshots):
             "elapsed_seconds": elapsed_seconds,
             "bytes_per_day": None,
             "r_squared": None,
+            "capacity_stable": capacity_stable,
             "minimum_span_seconds": MIN_FORECAST_SPAN_SECONDS,
         }
 
@@ -205,6 +271,7 @@ def linear_trend(snapshots):
         "elapsed_seconds": elapsed_seconds,
         "bytes_per_day": bytes_per_day,
         "r_squared": r_squared,
+        "capacity_stable": capacity_stable,
         "minimum_span_seconds": MIN_FORECAST_SPAN_SECONDS,
     }
 
@@ -221,6 +288,14 @@ def runway_readiness(measurement):
         return {
             "ready": False,
             "reason": "no measured growth record is available",
+        }
+    if measurement.get("capacity_stable") is False:
+        return {
+            "ready": False,
+            "reason": (
+                "mounted filesystem capacity changed between snapshots; "
+                "runway projection is withheld"
+            ),
         }
     rate = measurement.get("bytes_per_day")
     if (isinstance(rate, bool) or not isinstance(rate, (int, float))
@@ -251,3 +326,117 @@ def runway_readiness(measurement):
             ),
         }
     return {"ready": True, "reason": None}
+
+
+def capacity_risk(snapshots, horizon_days):
+    """Estimate local capacity-hit risk within a requested number of days.
+
+    This is an explainable Brownian-motion-with-drift hitting-time estimate on
+    aggregate mounted-filesystem used bytes. It deliberately requires more
+    history than the simple local slope, holds back when capacity changed, and
+    reports a probability only under the model assumptions. It never performs
+    a cleanup, mount, volume, alert, or network action.
+    """
+    if (isinstance(horizon_days, bool) or not isinstance(horizon_days, int)
+            or horizon_days <= 0):
+        raise ValueError("Capacity risk horizon must be a positive whole number of days")
+    snapshots = tuple(snapshots)
+    sample_count = len(snapshots)
+    if sample_count < 2:
+        return _risk_withheld(
+            horizon_days, sample_count, 0,
+            f"at least {MIN_RISK_SNAPSHOT_COUNT} complete snapshots are required")
+    if any(item.get("schema_version") != SNAPSHOT_SCHEMA_VERSION for item in snapshots):
+        raise ValueError("Snapshots must use SANCHAY mounted-filesystem accounting")
+    for item in snapshots:
+        _require_complete_coverage(item)
+        _require_filesystem_accounting(item)
+    roots = {str(Path(item["root"])) for item in snapshots}
+    if len(roots) != 1:
+        raise ValueError("Snapshots must have the same scan root")
+    devices = {item["filesystem_device"] for item in snapshots}
+    if len(devices) != 1:
+        raise ValueError("Snapshots must have the same mounted filesystem")
+    try:
+        points = sorted(
+            (float(item["captured_at"]), float(item["filesystem_used_bytes"]),
+             int(item["filesystem_total_bytes"]), int(item["filesystem_free_bytes"]))
+            for item in snapshots)
+    except (TypeError, ValueError) as exc:
+        raise ValueError("Snapshots must have finite capture times") from exc
+    if any(not math.isfinite(point[0]) for point in points):
+        raise ValueError("Snapshots must have finite capture times")
+    if len({point[0] for point in points}) != len(points):
+        raise ValueError("Snapshots must have distinct capture times")
+    elapsed_seconds = points[-1][0] - points[0][0]
+    if sample_count < MIN_RISK_SNAPSHOT_COUNT:
+        return _risk_withheld(
+            horizon_days, sample_count, elapsed_seconds,
+            f"at least {MIN_RISK_SNAPSHOT_COUNT} complete snapshots are required")
+    if elapsed_seconds < MIN_RISK_SPAN_SECONDS:
+        return _risk_withheld(
+            horizon_days, sample_count, elapsed_seconds,
+            "history must span at least "
+            f"{MIN_RISK_SPAN_SECONDS / 86400:.0f} days")
+    if len({point[2] for point in points}) != 1:
+        return _risk_withheld(
+            horizon_days, sample_count, elapsed_seconds,
+            "mounted filesystem capacity changed between snapshots")
+
+    increments = []
+    for previous, current in zip(points, points[1:]):
+        elapsed_days = (current[0] - previous[0]) / 86400
+        if elapsed_days * 86400 < MIN_RISK_INTERVAL_SECONDS:
+            return _risk_withheld(
+                horizon_days, sample_count, elapsed_seconds,
+                "each snapshot interval must be at least "
+                f"{MIN_RISK_INTERVAL_SECONDS / 3600:.0f} hours")
+        increments.append((current[1] - previous[1], elapsed_days))
+
+    observed_days = sum(elapsed_days for _, elapsed_days in increments)
+    drift = sum(delta for delta, _ in increments) / observed_days
+    residual_sum = sum(
+        (delta - drift * elapsed_days) ** 2 / elapsed_days
+        for delta, elapsed_days in increments)
+    variance = residual_sum / (len(increments) - 1)
+    volatility = math.sqrt(max(0.0, variance))
+    current_free = points[-1][3]
+
+    if current_free <= 0:
+        probability = 1.0
+    elif volatility <= 1e-12:
+        probability = 1.0 if drift > 0 and drift * horizon_days >= current_free else 0.0
+    else:
+        horizon = float(horizon_days)
+        scaled_volatility = volatility * math.sqrt(horizon)
+        distance = current_free / scaled_volatility
+        drift_term = drift * math.sqrt(horizon) / volatility
+        reflected_log_probability = (
+            2.0 * drift_term * distance
+            + _log_normal_survival(drift_term + distance))
+        probability = min(1.0, max(
+            0.0,
+            _probability_from_log(reflected_log_probability)
+            + _normal_survival(distance - drift_term)))
+
+    return {
+        "assessed": True,
+        "model": CAPACITY_RISK_MODEL,
+        "horizon_days": horizon_days,
+        "sample_count": sample_count,
+        "elapsed_seconds": elapsed_seconds,
+        "current_free_bytes": current_free,
+        "drift_bytes_per_day": drift,
+        "volatility_bytes_per_sqrt_day": volatility,
+        "risk_probability": probability,
+        "minimum_sample_count": MIN_RISK_SNAPSHOT_COUNT,
+        "minimum_span_seconds": MIN_RISK_SPAN_SECONDS,
+        "minimum_interval_seconds": MIN_RISK_INTERVAL_SECONDS,
+        "reason": None,
+        "boundary": (
+            "This is a local Brownian-motion-with-drift model over aggregate "
+            "mounted-filesystem use. It assumes past observed increments are "
+            "informative; it is not a capacity guarantee, a root-cause "
+            "diagnosis, or permission to change files or volumes."
+        ),
+    }

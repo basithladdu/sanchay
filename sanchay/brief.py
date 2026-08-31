@@ -12,6 +12,7 @@ from datetime import datetime, timezone
 import hashlib
 import hmac
 import json
+import math
 from pathlib import Path
 
 from . import managed, scan, storage
@@ -23,6 +24,7 @@ _SOURCE_CLASSES = frozenset({
     "block_device", "device_mapper", "overlay_layer", "unspecified",
     "virtual_or_network_source",
 })
+_RISK_MODELS = frozenset({"brownian_motion_with_drift_hitting_risk"})
 
 
 def _fingerprint(document):
@@ -43,6 +45,18 @@ def fingerprint_valid(document):
 
 def _non_negative_int(value):
     return value if isinstance(value, int) and not isinstance(value, bool) and value >= 0 else 0
+
+
+def _finite_number(value, *, minimum=None, maximum=None):
+    """Return a finite number only when it fits a path-free brief field."""
+    if (isinstance(value, bool) or not isinstance(value, (int, float))
+            or not math.isfinite(value)):
+        return None
+    if minimum is not None and value < minimum:
+        return None
+    if maximum is not None and value > maximum:
+        return None
+    return value
 
 
 def _recommendation_summary(recommendations):
@@ -161,8 +175,62 @@ def _capacity_summary(capacity_accounting):
     return summary
 
 
+def _capacity_risk_summary(capacity_risk, requested=False):
+    """Retain only safe aggregate model fields for an operator handoff.
+
+    Do not pass a free-form model reason or boundary through this document: a
+    caller could put a path or other sensitive endpoint text in it. The brief
+    needs only the model status and numeric evidence; detailed explanation
+    remains a local CLI concern.
+    """
+    requested = bool(requested or isinstance(capacity_risk, dict))
+    if not requested:
+        return {"requested": False, "assessed": False}
+    if not isinstance(capacity_risk, dict):
+        return {"requested": True, "assessed": False}
+
+    model = capacity_risk.get("model")
+    horizon = capacity_risk.get("horizon_days")
+    sample_count = capacity_risk.get("sample_count")
+    elapsed = _finite_number(capacity_risk.get("elapsed_seconds"), minimum=0)
+    common = {
+        "requested": True,
+        "assessed": False,
+        "model": model if model in _RISK_MODELS else "unavailable",
+        "horizon_days": (_non_negative_int(horizon)
+                         if _non_negative_int(horizon) > 0 else None),
+        "sample_count": _non_negative_int(sample_count),
+        "elapsed_seconds": elapsed,
+    }
+    if capacity_risk.get("assessed") is not True:
+        return common
+
+    probability = _finite_number(capacity_risk.get("risk_probability"),
+                                 minimum=0, maximum=1)
+    raw_current_free = capacity_risk.get("current_free_bytes")
+    current_free = _non_negative_int(raw_current_free)
+    drift = _finite_number(capacity_risk.get("drift_bytes_per_day"))
+    volatility = _finite_number(
+        capacity_risk.get("volatility_bytes_per_sqrt_day"), minimum=0)
+    if (common["model"] == "unavailable" or common["horizon_days"] is None
+            or common["sample_count"] == 0 or common["elapsed_seconds"] is None
+            or common["elapsed_seconds"] <= 0
+            or isinstance(raw_current_free, bool)
+            or current_free != raw_current_free or probability is None
+            or drift is None or volatility is None):
+        return common
+    return {
+        **common,
+        "assessed": True,
+        "risk_probability": probability,
+        "current_free_bytes": current_free,
+        "drift_bytes_per_day": drift,
+        "volatility_bytes_per_sqrt_day": volatility,
+    }
+
+
 def build(files, cleanup_plan, *, process_held=None, capacity_accounting=None,
-          now=None):
+          capacity_risk=None, capacity_risk_requested=False, now=None):
     """Return a path-free, local-only aggregate summary for operator review."""
     if not isinstance(cleanup_plan, dict) or not isinstance(cleanup_plan.get("safety"), dict):
         raise ValueError("A complete SANCHAY cleanup plan is required for an operator brief")
@@ -239,6 +307,8 @@ def build(files, cleanup_plan, *, process_held=None, capacity_accounting=None,
                 _non_negative_int(getattr(record, "allocated_size", None))
                 for record in deleted_records),
             "capacity_accounting": _capacity_summary(capacity_accounting),
+            "capacity_risk": _capacity_risk_summary(
+                capacity_risk, requested=capacity_risk_requested),
         },
         "integrity": {
             "algorithm": "SHA-256",

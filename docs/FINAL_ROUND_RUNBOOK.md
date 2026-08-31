@@ -110,6 +110,15 @@ cloud LLM receives opaque candidate IDs plus class, allocated bytes, and
 unchanged age—not raw paths or file contents—and cannot promote protected files
 or execute actions.
 
+**Why show capacity risk rather than an exact date?** Storage use can be
+non-linear. With strong local history, `--risk-horizon DAYS` estimates the
+probability of reaching current mounted capacity within that horizon using a
+Brownian-motion-with-drift model. It is deliberately withheld without seven
+complete same-root snapshots spanning seven days, twelve-hour minimum
+intervals, and unchanged mount capacity. The probability is conditional on
+that model; it is not a capacity guarantee, diagnosis, alert, cleanup command,
+or volume action.
+
 **Why is the cloud narrative not automatic?** A storage scan can contain
 sensitive path names, and file-derived text is untrusted input for an LLM. The
 local narrative is default. `--cloud-narrative` requires separate consent and
@@ -172,10 +181,12 @@ It does not run `lvs`, resize a volume, balance Btrfs, or delete a snapshot.
 plan and HTML report stay local because they can include relative paths and
 process context. `--operator-brief operator-brief.json` creates a separate,
 aggregate-only handoff: counts and allocated bytes by evidence class, managed
-storage totals, coverage, mount source class, deleted-open aggregate, and
-capacity boundary. It excludes roots, paths, names, PIDs, process names,
-mount/device sources, and content; it does not transmit anything, sign an
-event, or authorize a cleanup. Use `sanchay --verify-operator-brief operator-brief.json`
+storage totals, coverage, mount source class, deleted-open aggregate, capacity
+boundary, and, when requested and assessed, the capacity-risk probability,
+horizon, sample evidence, and model metrics. It excludes roots, paths, names,
+PIDs, process names, mount/device sources, free-form model rationale, and
+content; it does not transmit anything, sign an event, or authorize a cleanup.
+Use `sanchay --verify-operator-brief operator-brief.json`
 to check its checksum only; it does not reread endpoint files or contact a
 service.
 
@@ -215,6 +226,12 @@ conservative product gate does not make the forecast a guarantee; it prevents
 a perfect-looking two-point line or a weak fit from becoming an invented
 full-disk date. Legacy inventory-only snapshots are rejected and must be
 recaptured.
+
+**What happens if the filesystem was resized?** SANCHAY still shows its
+observed mounted-use rate, but withholds a `full in` runway date and withholds
+the capacity-risk probability. An LVM or provisioning change makes historical
+capacity assumptions ambiguous; SANCHAY does not infer that resized capacity,
+run LVM, or issue an operational alert.
 
 **Why does this fit a sovereign secure OS?** The core is inspectable,
 dependency-light, local by default, and stays on one filesystem unless the
