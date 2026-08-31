@@ -1142,6 +1142,17 @@ class TestSanchay(unittest.TestCase):
         self.assertIn('archive/source.iso', label)
         self.assertNotIn(str(root), label)
 
+    def test_seeded_browser_demo_tracks_the_plan_safety_schema(self):
+        project_root = Path(__file__).resolve().parents[1]
+        source_page = (project_root / 'index.html').read_text(encoding='utf-8')
+        public_page = (project_root / 'public' / 'index.html').read_text(
+            encoding='utf-8')
+
+        self.assertEqual(source_page, public_page)
+        self.assertIn(f'schema_version: {plan.PLAN_SCHEMA_VERSION}', source_page)
+        self.assertIn('scan_coverage: {complete: true', source_page)
+        self.assertIn('excluded_credential_control_entries: 0', source_page)
+
     def test_cli_history_uses_the_local_linear_trend(self):
         with tempfile.TemporaryDirectory() as tmp:
             root = demo.create(Path(tmp) / 'fixture')
