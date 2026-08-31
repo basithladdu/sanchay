@@ -144,13 +144,16 @@ reviewer can inspect the model inputs instead of accepting an opaque score.
 
 **6. Shows and explains.** A treemap is drawn with one block per physical inode
 sized by allocated bytes, coloured by recoverability rather than logical size — green for disposable, red for
-irreplaceable — so hardlink aliases do not overstate disk use. A language
-model then writes the findings up in plain English.
+irreplaceable — so hardlink aliases do not overstate disk use. The default
+plain-language narrative is deterministic and local. An optional cloud
+narrative requires a separate explicit flag and receives only opaque candidate
+IDs, fixed recoverability class, allocated bytes, and unchanged age—not raw
+paths or file contents.
 
-The model receives the ranked list only after ranking is complete, and only the
-entries already judged eligible for review. It cannot add a file, remove a file, or change an
-order. If the model produced a completely wrong answer, the worst outcome is an
-awkward description — never an automatic file action.
+The optional model receives this minimized metadata only after ranking is
+complete. It cannot add a file, remove a file, change an order, or invoke an
+action. If the model produced a completely wrong answer, the worst outcome is
+an awkward description — never an automatic file action.
 
 ---
 
@@ -210,10 +213,11 @@ and modification timestamps, and inode numbers. File contents are read only to
 confirm that two files of identical size are genuinely identical, and those
 reads are discarded immediately after hashing.
 
-Nothing leaves the machine unless the user passes --explain, and in that case
-only the ranked list of file paths is sent. No file contents are ever
-transmitted. Paths can themselves be sensitive, so --explain remains optional
-and local analysis is the default.
+Nothing leaves the machine for the default `--explain` narrative. A user may
+separately opt in to `--cloud-narrative`; it sends only opaque candidate IDs,
+recoverability class, allocated bytes, and unchanged age. No raw paths, file
+contents, or credential metadata are transmitted. The cloud output cannot add
+or act on a candidate.
 
 ---
 

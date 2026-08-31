@@ -40,8 +40,10 @@ Each recommendation records the exact size, unchanged-age, regret weight, and
 computed priority behind its decision; the model is inspectable rather than a
 black box.
 
-Call out that the optional LLM narrates an already fenced list. It cannot add a
-file, alter an order, or execute an action.
+Call out that the default narrative is local. A separately opt-in cloud
+narrative receives opaque candidate IDs plus class, allocated bytes, and age—no
+raw paths or file contents—and cannot add a file, alter an order, or execute an
+action.
 
 ## Slide 4 — Duplicate recommendations need a surviving source
 

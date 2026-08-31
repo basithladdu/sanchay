@@ -66,6 +66,15 @@ endorses SANCHAY or defines the hackathon scoring rubric.
   explains every allocated block. Source: [The Open Group `unlink()`
   specification](https://pubs.opengroup.org/onlinepubs/000095399/functions/unlink.html).
 
+### AI security boundary
+
+- OWASP identifies indirect prompt injection when an LLM consumes external
+  content such as files, and recommends separating untrusted content and
+  enforcing least privilege outside the model. SANCHAY therefore keeps the
+  default narrative local; a separately opted-in cloud narrative gets opaque
+  IDs and fixed metadata only, never raw file paths or an action capability.
+  Source: [OWASP LLM01:2025 Prompt Injection](https://genai.owasp.org/llmrisk/llm01-prompt-injection/).
+
 ### Practitioner evidence (anecdotal, not population research)
 
 - Linux/self-hosted users explicitly worry about deleting the source copy or a
@@ -97,6 +106,7 @@ endorses SANCHAY or defines the hackathon scoring rubric.
 | Make BOSS storage operations safer | Measure APT archive and persistent systemd-journal storage separately; defer action to the owning tool and approved package/log-retention policy instead of raw file deletion or reclaim-target selection. | Implemented |
 | Protect managed application stores | When present, report Docker, containerd, and Flatpak system stores as tool-owned advisories; do not hash, rank, or raw-delete their files. | Implemented |
 | Explain process-held deleted storage | On Linux, report visible deleted regular files held through `/proc` only as an operational advisory; never signal, restart, truncate, delete, or include them in a reclaim target. | Implemented |
+| Contain the optional LLM | Keep narration local by default. Require a separate cloud opt-in and send only opaque candidate IDs with fixed class/size/age metadata; deterministic code retains all decision and action boundaries. | Implemented |
 | Avoid crossing a governance boundary silently | Scan one filesystem by default; cross-filesystem traversal requires an explicit flag and is inventory-only across mounts. | Implemented |
 | Keep forecasting honest | Label the first pass an mtime-derived estimate; capture aggregate local snapshots for observed growth and an explainable local linear trend. Cross-mount scans refuse shared targets and capacity forecasts. | Implemented |
 | Support government/BOSS deployment | Keep the core local, dependency-light, inspectable, and suitable for an offline terminal workflow. | Implemented |

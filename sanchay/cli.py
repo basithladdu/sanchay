@@ -46,7 +46,10 @@ def main(argv=None):
     ap.add_argument("--limit", type=int, default=20)
     ap.add_argument("--cross-filesystems", action="store_true",
                     help="include mounted filesystems below ROOT (off by default)")
-    ap.add_argument("--explain", action="store_true", help="narrate with an LLM")
+    ap.add_argument("--explain", action="store_true",
+                    help="write a local-only narrative; no scan data leaves this machine")
+    ap.add_argument("--cloud-narrative", action="store_true",
+                    help="with --explain, explicitly allow an optional cloud narrative over opaque metadata only")
     ap.add_argument("--viz", metavar="OUT.html", help="write a regret treemap")
     ap.add_argument("--report", metavar="OUT.html", help="write a shareable HTML report")
     ap.add_argument("--plan", metavar="OUT.json",
@@ -64,6 +67,9 @@ def main(argv=None):
                     help="recheck a review-only plan; never deletes or moves files")
     ap.add_argument("--tui", action="store_true", help="open the terminal UI")
     args = ap.parse_args(argv)
+
+    if args.cloud_narrative and not args.explain:
+        ap.error("--cloud-narrative requires --explain")
 
     if args.cross_filesystems and any((
             args.target_reclaim is not None, args.snapshot, args.compare,
@@ -228,7 +234,7 @@ def main(argv=None):
         print(f"\ntreemap -> {viz.treemap(files, plan.duplicate_evidence_paths(cleanup_plan), args.viz, root=args.root)}")
 
     if args.explain:
-        print("\n" + explain.explain(rows))
+        print("\n" + explain.explain(rows, allow_cloud=args.cloud_narrative))
 
 
 if __name__ == "__main__":

@@ -195,7 +195,11 @@ sanchay-ui .
 
 ## Privacy and safety boundaries
 
-* **Local by default**: Analysis and duplicate hashing run on-device. No file content is transmitted; `--explain` is optional and may send ranked file paths to the configured model provider.
+* **Local by default**: Analysis, duplicate hashing, and `--explain` narration
+  run on-device. No file content or candidate data is transmitted. An optional
+  `--cloud-narrative` requires explicit user opt-in and sends only opaque
+  candidate IDs, recoverability class, allocated bytes, and unchanged age—never
+  raw paths or file contents.
 * **Credential boundary**: Common credential directories, environment files,
   private-key formats, local credential vaults, Docker configuration, and npm
   and Terraform CLI credential files are excluded before metadata collection or

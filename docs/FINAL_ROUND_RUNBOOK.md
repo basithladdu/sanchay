@@ -86,8 +86,17 @@ important fail-closed evidence in the live demonstration.
 
 **Where is the AI?** The decision layer is intentionally explainable: a
 recoverability model ranks eligible candidates and a local linear trend learns
-bytes/day from aggregate snapshots. The optional LLM only narrates an already
-fenced candidate list and cannot promote protected files or execute actions.
+bytes/day from aggregate snapshots. The default narration is local. A separate
+cloud opt-in receives opaque candidate IDs plus class, allocated bytes, and
+unchanged age—not raw paths or file contents—and cannot promote protected files
+or execute actions.
+
+**Why is the cloud narrative not automatic?** A storage scan can contain
+sensitive path names, and file-derived text is untrusted input for an LLM. The
+local narrative is default. `--cloud-narrative` requires separate consent and
+transmits only opaque IDs and fixed numeric/class metadata; the decision gate,
+plan, verification, and absence of a cleanup executor are enforced outside the
+model.
 
 **Why not automate deletion?** The requested problem includes recommendations;
 the irreversible step has a different risk profile. SANCHAY supplies an
