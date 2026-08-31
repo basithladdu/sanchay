@@ -84,6 +84,8 @@ Use the deterministic SANCHAY fixture and terminal output:
   disk total;
 - a process-held deleted file, when observed, is evidence for an operator to
   review a service lifecycle—not permission for SANCHAY to stop or alter it;
+- `--explain` produces a local narrative and explicitly says that no candidate
+  data left the machine;
 - a 600 KB target is met only with reviewable evidence-backed candidates;
 - a build cache is reviewable, not deleted;
 - --verify-plan passes before change and fails closed after a synthetic fixture

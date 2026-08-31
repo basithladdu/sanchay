@@ -43,7 +43,7 @@ human acts.
 DEMO_ROOT="$(mktemp -d /tmp/sanchay-demo.XXXXXX)"
 sanchay-demo "$DEMO_ROOT"
 
-sanchay "$DEMO_ROOT" --target-reclaim 600K --limit 10 --plan cleanup-plan.json --snapshot baseline.json
+sanchay "$DEMO_ROOT" --target-reclaim 600K --limit 10 --plan cleanup-plan.json --snapshot baseline.json --explain
 python -m json.tool cleanup-plan.json | less
 sanchay --verify-plan cleanup-plan.json
 ```
@@ -61,6 +61,9 @@ Point out these concrete facts, not a generic dashboard:
   also not treated as freeable storage.
 - `workspace/node_modules/.cache/bundle.bin` is a reviewable regenerable-output
   candidate, not an automatically deleted file.
+- `--explain` produces a deterministic local narrative and says no candidate
+  data left the machine. Do not use `--cloud-narrative` in the final demo unless
+  the team has separately approved it and configured an API key.
 - The explicit `600K` reclaim request selects 712 KB of reviewable evidence;
   it does not broaden into the thesis or hardlinked entries to meet a target.
 - `cleanup-plan.json` has a SHA-256 integrity checksum (not a signature),

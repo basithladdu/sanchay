@@ -162,10 +162,16 @@ sanchay /home/user --history day-1.json day-7.json day-14.json
 # 7. Generate an interactive Plotly HTML report
 sanchay /home/user --report report.html
 
-# 8. Create a harmless, reproducible final-round demo fixture
+# 8. Produce a deterministic local-only narrative for the review set
+sanchay /home/user --explain
+
+# Explicit cloud narrative over opaque IDs and fixed metadata only
+sanchay /home/user --explain --cloud-narrative
+
+# 9. Create a harmless, reproducible final-round demo fixture
 sanchay-demo /tmp/sanchay-demo
 
-# 9. Launch interactive Textual Terminal Dashboard
+# 10. Launch interactive Textual Terminal Dashboard
 sanchay-ui /home/user
 ```
 
