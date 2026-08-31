@@ -488,6 +488,14 @@ header {
 .pressure-signal strong { color: var(--text-main); display: block; font-size: 21px; letter-spacing: -.04em; line-height: 1.08; margin-bottom: 10px; }
 .pressure-signal p { color: var(--text-muted); font-size: 12px; line-height: 1.5; margin: 0; }
 .pressure-boundary { color: var(--text-muted); font-family: ui-monospace, monospace; font-size: 10px; line-height: 1.5; margin: 16px 0 0; }
+.forecast-panel { border-top: 4px solid var(--emerald); }
+.forecast-gates { border-bottom: 1px solid var(--border); display: grid; grid-template-columns: repeat(4, 1fr); margin: 4px 0 20px; }
+.forecast-gate { border-right: 1px solid var(--border); min-height: 112px; padding: 14px 16px 15px 0; }
+.forecast-gate + .forecast-gate { padding-left: 16px; }
+.forecast-gate:last-child { border-right: 0; padding-right: 0; }
+.forecast-code { color: var(--emerald); display: block; font-family: ui-monospace, monospace; font-size: 10px; font-weight: 700; letter-spacing: .06em; margin-bottom: 9px; }
+.forecast-gate strong { color: var(--text-main); display: block; font-size: 15px; letter-spacing: -.025em; line-height: 1.15; }
+.forecast-gate p { color: var(--text-muted); font-size: 11px; line-height: 1.45; margin: 7px 0 0; }
 .interactive-panel {
   background: var(--surface);
   border: 1px solid var(--border);
@@ -558,6 +566,9 @@ button:focus-visible, a:focus-visible, input:focus-visible { outline: 3px solid 
   .pressure-grid { grid-template-columns: 1fr; margin-top: 16px; }
   .pressure-signal, .pressure-signal + .pressure-signal, .pressure-signal:last-child { border-bottom: 1px solid var(--border); border-right: 0; min-height: auto; padding: 15px 0; }
   .pressure-signal:last-child { border-bottom: 0; }
+  .forecast-gates { grid-template-columns: 1fr; margin-top: 0; }
+  .forecast-gate, .forecast-gate + .forecast-gate, .forecast-gate:last-child { border-bottom: 1px solid var(--border); border-right: 0; min-height: auto; padding: 14px 0; }
+  .forecast-gate:last-child { border-bottom: 0; }
 }
 </style>
 </head>
@@ -597,7 +608,7 @@ button:focus-visible, a:focus-visible, input:focus-visible { outline: 3px solid 
     </div>
     <div class="card">
       <h3><span>02</span>Measured runway</h3>
-      <p>First-run mtime estimate, followed by measured net growth from later local snapshots—one filesystem at a time.</p>
+      <p>First-run inventory estimate, then a mounted-filesystem used-byte trend from same-root snapshots at least 24 hours apart.</p>
     </div>
     <div class="card">
       <h3><span>03</span>Duplicate proof</h3>
@@ -732,9 +743,32 @@ button:focus-visible, a:focus-visible, input:focus-visible { outline: 3px solid 
     <div id="treemapDiv" style="height: 380px;"></div>
   </section>
 
-  <section class="interactive-panel">
-    <h3 class="section-title">Capacity orientation</h3>
-    <p class="section-desc">A first mtime-based orientation becomes measured net growth after a later local snapshot.</p>
+  <section class="interactive-panel forecast-panel" aria-labelledby="forecast-title">
+    <h3 class="section-title" id="forecast-title">Capacity orientation</h3>
+    <p class="section-desc">A first scan is directional. The reported runway uses a separately measured mounted-filesystem series.</p>
+    <div class="forecast-gates" aria-label="Forecast evidence chain">
+      <article class="forecast-gate">
+        <span class="forecast-code">01 · FIRST SCAN</span>
+        <strong>Inventory mtime estimate</strong>
+        <p>Directional orientation only.</p>
+      </article>
+      <article class="forecast-gate">
+        <span class="forecast-code">02 · BASELINE</span>
+        <strong>Schema-5 mount snapshot</strong>
+        <p>Total, used, and free bytes.</p>
+      </article>
+      <article class="forecast-gate">
+        <span class="forecast-code">03 · RATE GATE</span>
+        <strong>At least 24 hours</strong>
+        <p>Same root and filesystem device.</p>
+      </article>
+      <article class="forecast-gate">
+        <span class="forecast-code">04 · TREND</span>
+        <strong>Used-byte series</strong>
+        <p>R-squared after three captures.</p>
+      </article>
+    </div>
+    <div class="demo-boundary" role="note"><strong>Seeded orientation only.</strong> The chart illustrates a first-run inventory estimate; it is not a device measurement or an issued exhaustion date.</div>
     <div id="forecastDiv" style="height: 340px;"></div>
   </section>
 
@@ -897,7 +931,7 @@ function renderOfflineCharts() {
         <g fill="#275f78"><circle cx="55" cy="195" r="5"/><circle cx="172" cy="168" r="5"/><circle cx="290" cy="141" r="5"/><circle cx="408" cy="114" r="5"/><circle cx="525" cy="87" r="5"/><circle cx="643" cy="60" r="5"/><circle cx="760" cy="35" r="5"/></g>
         <g fill="#5d625b" font-family="ui-monospace, monospace" font-size="13"><text x="8" y="199">280</text><text x="8" y="119">334</text><text x="8" y="39">388</text><text x="55" y="246">Day 0</text><text x="690" y="246">Day 180</text><text x="568" y="27" fill="#a13e32">LIMIT 388 GB</text></g>
       </svg>
-      <p class="chart-fallback-note">Seeded mtime-based orientation — later local snapshots provide the measured trend.</p>
+      <p class="chart-fallback-note">Seeded first-run inventory orientation — a schema-5, same-mount history must span 24 hours before SANCHAY reports a measured rate.</p>
     </div>`;
 }
 
@@ -913,7 +947,7 @@ function renderPlotlyCharts() {
     font: {family: 'ui-monospace, SFMono-Regular, Consolas, monospace', color: '#141713'}
   }, {responsive: true, displayModeBar: false});
   Plotly.newPlot(forecastContainer, [
-    {x: dates, y: usedGB, type: 'scatter', mode: 'lines+markers', name: 'Example mtime-based estimate (600 MB/day)', line: {color: '#275f78', width: 3}, fill: 'tozeroy', fillcolor: 'rgba(39, 95, 120, 0.12)'},
+    {x: dates, y: usedGB, type: 'scatter', mode: 'lines+markers', name: 'Seeded first-run inventory estimate (600 MB/day)', line: {color: '#275f78', width: 3}, fill: 'tozeroy', fillcolor: 'rgba(39, 95, 120, 0.12)'},
     {x: dates, y: limitGB, type: 'scatter', mode: 'lines', name: 'Disk Capacity Limit (388 GB)', line: {color: '#a13e32', width: 2, dash: 'dot'}}
   ], {
     margin: {l: 40, r: 56, t: 20, b: 40}, paper_bgcolor: 'rgba(0,0,0,0)', plot_bgcolor: 'rgba(0,0,0,0)',

@@ -1601,6 +1601,9 @@ class TestSanchay(unittest.TestCase):
         self.assertIn('free but unavailable to an unprivileged process', source_page)
         self.assertIn('FILE-ENTRY CAPACITY', source_page)
         self.assertIn('LOCAL CLI ONLY', source_page)
+        self.assertIn('Schema-5 mount snapshot', source_page)
+        self.assertIn('At least 24 hours', source_page)
+        self.assertIn('Seeded orientation only.', source_page)
 
     def test_cli_reports_legacy_snapshot_without_a_traceback(self):
         with tempfile.TemporaryDirectory() as tmp:
