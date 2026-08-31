@@ -65,7 +65,7 @@ EVIDENCE_ROOT="$(mktemp -d /tmp/sanchay-evidence.XXXXXX)"
 "$PYTHON" -m sanchay.cli --verify-archive "$DEMO_ROOT/downloads/boss-image-copy.iso" "$DEMO_ROOT/archive/boss-image.iso"
 "$PYTHON" -m sanchay.cli "$DEMO_ROOT" --target-reclaim 600K --limit 10 --plan "$EVIDENCE_ROOT/cleanup-plan.json" --snapshot "$EVIDENCE_ROOT/baseline.json" --explain
 "$PYTHON" -m sanchay.cli --verify-snapshot "$EVIDENCE_ROOT/baseline.json"
-"$PYTHON" -m json.tool "$EVIDENCE_ROOT/cleanup-plan.json" | less
+"$PYTHON" -m json.tool "$EVIDENCE_ROOT/cleanup-plan.json"
 "$PYTHON" -m sanchay.cli --verify-plan "$EVIDENCE_ROOT/cleanup-plan.json"
 ```
 
