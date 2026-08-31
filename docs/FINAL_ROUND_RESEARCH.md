@@ -177,6 +177,11 @@ endorses SANCHAY or defines the hackathon scoring rubric.
 | Support monitored secure endpoints without exporting path metadata | Keep the detailed plan and HTML report local. Add a separately requested `--operator-brief` that contains only aggregate evidence, capacity, and operational-advisory counts; it excludes paths, names, process IDs/names, mount/device sources, and content, and makes no network call. | Implemented |
 | Improve inclusivity | Add Hindi and other BOSS-language UI strings only after native-speaker review; do not machine-claim localisation. | Planned |
 
+The presentation-ready mapping from cited Secure BOSS capabilities to
+SANCHAY's implemented boundaries is maintained separately in
+[`CDAC_SECURE_BOSS_FIT.md`](CDAC_SECURE_BOSS_FIT.md). It deliberately separates
+observed C-DAC facts from our product-fit inference and nonclaims.
+
 ## Demo truth boundary
 
 The public browser page is a seeded explanatory demo. It cannot inspect a

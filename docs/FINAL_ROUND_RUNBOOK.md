@@ -209,6 +209,13 @@ endpoint policy makes part of the scan unreadable, it reports a count-only
 coverage boundary and withholds growth and snapshot claims rather than implying
 a whole-tree capacity result.
 
+For C-DAC-specific framing, say **fit**, not integration: Secure BOSS is
+described for critical end nodes, ISOC-monitored clients, and
+intranet/standalone systems. SANCHAY's local workflow and path-free operator
+brief are designed for that environment, but do not send data, call an ISOC
+API, or claim C-DAC deployment or endorsement. See
+`docs/CDAC_SECURE_BOSS_FIT.md` for the source-bound mapping.
+
 ## What not to claim
 
 - Do not call a first-scan forecast an exact date.

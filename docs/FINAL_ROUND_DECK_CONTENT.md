@@ -132,6 +132,10 @@ Put the command in small monospace text only:
 - C-DAC describes Secure BOSS as LVM-encrypted. SANCHAY records a visible
   device-mapper boundary but does not infer pool headroom, encryption state, or
   permission to run LVM commands.
+- C-DAC also positions Secure BOSS for critical end nodes, ISOC-monitored
+  clients, and intranet/standalone systems. SANCHAY fits that context through a
+  local core and a path-free aggregate operator brief; it makes no ISOC API,
+  deployment, or C-DAC-endorsement claim.
 - Dependency-free Python core; TUI, plots, and the separately opt-in cloud
   narration are optional. The seeded browser explainer renders embedded offline
   summaries first, then uses Plotly only as an optional enhancement. The JSON
@@ -155,6 +159,7 @@ has been independently tested from the presentation device.
 ## Source-note handoff for the final deck
 
 - C-DAC BOSS/FOSS context: docs/FINAL_ROUND_RESEARCH.md.
+- Secure BOSS capability-to-SANCHAY mapping: docs/CDAC_SECURE_BOSS_FIT.md.
 - C-DAC Secure OS tender context: docs/FINAL_ROUND_RESEARCH.md; label as
   context, not hackathon rules.
 - Storage redundancy and forecasting research: docs/FINAL_ROUND_RESEARCH.md.
