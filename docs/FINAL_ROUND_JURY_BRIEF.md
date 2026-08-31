@@ -40,8 +40,9 @@ That distinction matters more than a generic storage graph:
    backup, credential, and service paths remain tool-owned or protected
    boundaries.
 4. The plan records its recovery evidence, candidate identity, selected bytes,
-   decision trace, and SHA-256 integrity checksum. Verification fails closed
-   if the fixture changes.
+   decision trace, and SHA-256 integrity checksum. Plan output is write-once
+   unless an operator explicitly requests replacement; verification fails
+   closed if the fixture changes.
 
 ## Why the AI is credible rather than decorative
 

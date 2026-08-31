@@ -71,6 +71,9 @@ EVIDENCE_ROOT="$(mktemp -d /tmp/sanchay-evidence.XXXXXX)"
 
 Keep the two temporary directories open through questions, then remove them
 manually. They contain only the disposable fixture and its generated evidence.
+The commands use fresh paths on purpose: SANCHAY refuses to replace an existing
+review plan or snapshot. An operator can deliberately refresh a plan only with
+the explicit `--replace-plan` flag.
 
 Point out these concrete facts, not a generic dashboard:
 

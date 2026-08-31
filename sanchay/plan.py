@@ -389,10 +389,20 @@ def build(files, duplicate_groups, root, now=None, limit=25,
     return document
 
 
-def write(document, out):
+def write(document, out, overwrite=False):
+    """Write a review plan without silently replacing prior evidence.
+
+    A plan is a point-in-time review artifact. Reusing its filename must not
+    discard the earlier decision trace unless the caller has explicitly opted
+    into replacement.
+    """
     path = Path(out)
-    path.write_text(json.dumps(document, indent=2, ensure_ascii=False) + "\n",
-                    encoding="utf-8")
+    payload = json.dumps(document, indent=2, ensure_ascii=False) + "\n"
+    if overwrite:
+        path.write_text(payload, encoding="utf-8")
+    else:
+        with path.open("x", encoding="utf-8") as handle:
+            handle.write(payload)
     return str(path)
 
 

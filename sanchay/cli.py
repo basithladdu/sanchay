@@ -99,6 +99,8 @@ def main(argv=None):
                     help="write a path-free aggregate local handoff; no network transfer")
     ap.add_argument("--plan", metavar="OUT.json",
                     help="write a review-only cleanup plan; SANCHAY never deletes files")
+    ap.add_argument("--replace-plan", action="store_true",
+                    help="with --plan, explicitly replace an existing review artifact")
     ap.add_argument("--target-reclaim", metavar="SIZE", type=parse_reclaim_bytes,
                     help="select enough reviewable candidates to reclaim SIZE (for example 600M); never deletes files")
     ap.add_argument("--capacity-audit", action="store_true",
@@ -136,6 +138,8 @@ def main(argv=None):
         ap.error("--ollama-model requires --ollama-narrative")
     if args.snapshot and args.snapshot_history:
         ap.error("use either --snapshot OUT.json or --snapshot-history DIR, not both")
+    if args.replace_plan and not args.plan:
+        ap.error("--replace-plan requires --plan")
     if args.snapshot_history and (args.compare or args.history):
         ap.error("--snapshot-history cannot combine with --compare or --history")
     if args.risk_horizon is not None and not (args.history or args.snapshot_history):
@@ -419,6 +423,7 @@ def main(argv=None):
                           or args.risk_horizon is not None)
     current_snapshot = None
     snapshot_error = None
+    plan_write_error = None
     snapshot_write_error = None
     snapshot_history_write_error = None
     if needs_snapshot and usage is not None and scan_coverage["complete"]:
@@ -586,7 +591,14 @@ def main(argv=None):
         print("operator brief -> " + brief.write(operator_brief, args.operator_brief))
 
     if args.plan:
-        print("plan -> " + plan.write(cleanup_plan, args.plan))
+        try:
+            written_plan = plan.write(
+                cleanup_plan, args.plan, overwrite=args.replace_plan)
+        except OSError as exc:
+            plan_write_error = str(exc)
+            print("plan: not written; " + plan_write_error)
+        else:
+            print("plan -> " + written_plan)
 
     if args.snapshot:
         if current_snapshot is None:
@@ -643,7 +655,7 @@ def main(argv=None):
     if (not scan_coverage["complete"]
             and (args.snapshot or args.snapshot_history or args.compare or args.history)):
         return 2
-    if (snapshot_error or snapshot_write_error or snapshot_history_write_error
+    if (snapshot_error or plan_write_error or snapshot_write_error or snapshot_history_write_error
             or growth_error):
         return 2
 

@@ -249,6 +249,9 @@ sanchay /home/user --limit 10
 # 2. Write an integrity-checked, review-only cleanup plan
 sanchay /home/user --plan cleanup-plan.json
 
+# Plan outputs are write-once by default. Replace only with explicit intent.
+sanchay /home/user --plan cleanup-plan.json --replace-plan
+
 # 3. Ask for enough evidence-backed candidates to reclaim a stated amount
 sanchay /home/user --target-reclaim 5G --plan cleanup-plan.json
 
@@ -395,7 +398,9 @@ sanchay-ui .
   digital signature), candidate identity including link count, duplicate
   survivor, and clean Git HEAD state where applicable. Hardlinked entries are
   never individual cleanup candidates because removing one name releases no
-  physical bytes. It never deletes or moves files.
+  physical bytes. Plan output refuses to replace an existing review artifact
+  unless the operator explicitly supplies `--replace-plan`. It never deletes
+  or moves files.
 * **Archive proof boundary**: `--verify-archive` verifies an explicitly chosen
   separate retained inode with a byte-for-byte comparison and identity recheck.
   It rejects credential/control and system-managed paths, performs no file

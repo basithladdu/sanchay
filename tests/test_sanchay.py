@@ -1665,6 +1665,39 @@ class TestSanchay(unittest.TestCase):
         self.assertIn('snapshot: not written;', output.getvalue())
         self.assertIn('File exists', output.getvalue())
 
+    def test_plan_write_is_write_once_until_cli_replacement_is_explicit(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = demo.create(Path(tmp) / 'fixture')
+            files = scan.scan(root)
+            cleanup_plan = plan.build(
+                files, dedup.duplicates(files), root, now=self.now)
+            plan_path = root / 'cleanup-plan.json'
+            plan.write(cleanup_plan, plan_path)
+            original = plan_path.read_text(encoding='utf-8')
+
+            with self.assertRaises(FileExistsError):
+                plan.write(cleanup_plan, plan_path)
+            self.assertEqual(plan_path.read_text(encoding='utf-8'), original)
+
+            refused_output = io.StringIO()
+            with contextlib.redirect_stdout(refused_output):
+                refused_status = cli.main([
+                    str(root), '--plan', str(plan_path), '--limit', '1'])
+
+            replacement_output = io.StringIO()
+            with contextlib.redirect_stdout(replacement_output):
+                replacement_status = cli.main([
+                    str(root), '--plan', str(plan_path), '--replace-plan',
+                    '--limit', '1'])
+            replacement_valid = plan._fingerprint_valid(plan.read(plan_path))
+
+        self.assertEqual(refused_status, 2)
+        self.assertIn('plan: not written;', refused_output.getvalue())
+        self.assertIn('File exists', refused_output.getvalue())
+        self.assertIsNone(replacement_status)
+        self.assertIn('plan -> ', replacement_output.getvalue())
+        self.assertTrue(replacement_valid)
+
     def test_snapshot_history_reads_verified_records_and_appends_current_capture(self):
         with tempfile.TemporaryDirectory() as tmp:
             root = demo.create(Path(tmp) / 'fixture')
