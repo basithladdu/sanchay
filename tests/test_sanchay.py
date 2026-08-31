@@ -352,6 +352,43 @@ class TestSanchay(unittest.TestCase):
         self.assertIn('Btrfs capacity boundary', page)
         self.assertIn('Btrfs snapshots can retain shared extents.', page)
 
+    @unittest.skipUnless(importlib.util.find_spec('pandas')
+                         and importlib.util.find_spec('plotly'),
+                         'requires the optional treemap dependencies')
+    def test_treemap_omits_placeholder_labels_for_shallow_paths(self):
+        from sanchay import viz
+
+        root = Path('/sanchay-fixture')
+        files = [
+            scan.FileInfo(str(root / 'downloads' / 'image.iso'), 4096,
+                          self.now, self.now - 86400, 800),
+            scan.FileInfo(str(root / 'workspace' / 'node_modules' / '.cache' / 'bundle.bin'),
+                          2048, self.now, self.now - 86400, 801),
+        ]
+
+        figure = viz.figure(files, root=root)
+        labels = set(figure.data[0].labels)
+
+        self.assertIn('image.iso', labels)
+        self.assertIn('bundle.bin', labels)
+        self.assertNotIn('.', labels)
+
+    @unittest.skipUnless(importlib.util.find_spec('pandas'),
+                         'requires the optional report dependencies')
+    def test_report_search_responds_to_input_events(self):
+        files = [
+            scan.FileInfo('/home/user/.cache/build.bin', 4096, self.now,
+                          self.now - 86400, 802),
+        ]
+        with tempfile.TemporaryDirectory() as tmp:
+            output = Path(tmp) / 'report.html'
+            report.build(files, '/home/user', 1000000, output)
+            page = output.read_text(encoding='utf-8')
+
+        self.assertIn('oninput="filterCandidates()"', page)
+        self.assertNotIn('onkeyup="filterCandidates()"', page)
+        self.assertFalse(any(line.endswith((' ', '\t')) for line in page.splitlines()))
+
     @unittest.skipUnless(importlib.util.find_spec('pandas'),
                          'requires the optional report dependencies')
     def test_report_marks_incomplete_scan_coverage(self):

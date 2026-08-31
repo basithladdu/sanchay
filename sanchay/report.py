@@ -401,7 +401,7 @@ def build(files, root, free_bytes, out="sanchay-report.html", limit=50,
     </div>
 
     <div class="controls">
-      <input type="text" id="searchInput" class="search-box" placeholder="Filter candidates by path or name..." onkeyup="filterCandidates()">
+      <input type="text" id="searchInput" class="search-box" placeholder="Filter candidates by path or name..." oninput="filterCandidates()">
       <button class="filter-btn active" onclick="setKindFilter('all', this)">All ({len(rows)})</button>
       <button class="filter-btn" onclick="setKindFilter('disposable', this)">Disposable</button>
       <button class="filter-btn" onclick="setKindFilter('duplicate', this)">Duplicates</button>
@@ -462,5 +462,6 @@ function filterCandidates() {{
 </html>
 """
 
+    page = "\n".join(line.rstrip() for line in page.splitlines()) + "\n"
     Path(out).write_text(page, encoding="utf-8")
     return out

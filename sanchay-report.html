@@ -88,7 +88,7 @@ table{font-size:12px}th{color:var(--mute);font-family:ui-monospace,SFMono-Regula
   <header>
     <div>
       <h1>SANCHAY <span class="badge-regret">Regret-Aware Storage</span></h1>
-      <div class="sub">Selected local root &middot; Generated 31 Aug 2026, 21:25</div>
+      <div class="sub">Selected local root &middot; Generated 01 Sep 2026, 02:45</div>
     </div>
   </header>
 
@@ -96,7 +96,7 @@ table{font-size:12px}th{color:var(--mute);font-family:ui-monospace,SFMono-Regula
     <div class="card"><div class="k">Allocated on disk</div><div class="v">1.3 MB</div><div class="n">6 entries; 1 hardlink aliases not double-counted</div></div>
     <div class="card"><div class="k">Duplicate candidates</div><div class="v" style="color: #84cc16;">512.0 KB</div><div class="n">1 content groups; allocated reclaim only</div></div>
     <div class="card"><div class="k">Reviewable candidates</div><div class="v" style="color: #10b981;">712.0 KB</div><div class="n">712.0 KB selected for 600.0 KB target; target met</div></div>
-    <div class="card"><div class="k">First-run runway estimate</div><div class="v" style="color: #3b82f6;">>10 years</div><div class="n">7.3 KB/day from mtime; capture snapshots for observed growth</div></div>
+    <div class="card"><div class="k">First-run runway estimate</div><div class="v" style="color: #3b82f6;">>10 years</div><div class="n">7.3 KB/day from readable-inventory mtime; capture same-mount snapshots for observed growth</div></div>
   </div>
 
   <div class="panel">
@@ -352,7 +352,7 @@ float cookTorranceSpecular(
   float G1 = (2.0 * NdotH * VdotN) / VdotH;
   float G2 = (2.0 * NdotH * LdotN) / LdotH;
   float G = min(1.0, min(G1, G2));
-  
+
   //Distribution term
   float D = beckmannDistribution(NdotH, roughness);
 
@@ -364,7 +364,7 @@ float cookTorranceSpecular(
 }
 
 bool outOfRange(float a, float b, float p) {
-  return ((p > max(a, b)) || 
+  return ((p > max(a, b)) ||
           (p < min(a, b)));
 }
 
@@ -512,7 +512,7 @@ void main() {
 #define GLSLIFY 1
 
 bool outOfRange(float a, float b, float p) {
-  return ((p > max(a, b)) || 
+  return ((p > max(a, b)) ||
           (p < min(a, b)));
 }
 
@@ -630,7 +630,7 @@ float cookTorranceSpecular(
   float G1 = (2.0 * NdotH * VdotN) / VdotH;
   float G2 = (2.0 * NdotH * LdotN) / LdotH;
   float G = min(1.0, min(G1, G2));
-  
+
   //Distribution term
   float D = beckmannDistribution(NdotH, roughness);
 
@@ -644,7 +644,7 @@ float cookTorranceSpecular(
 //#pragma glslify: beckmann = require(glsl-specular-beckmann) // used in gl-surface3d
 
 bool outOfRange(float a, float b, float p) {
-  return ((p > max(a, b)) || 
+  return ((p > max(a, b)) ||
           (p < min(a, b)));
 }
 
@@ -723,7 +723,7 @@ void main() {
 #define GLSLIFY 1
 
 bool outOfRange(float a, float b, float p) {
-  return ((p > max(a, b)) || 
+  return ((p > max(a, b)) ||
           (p < min(a, b)));
 }
 
@@ -758,7 +758,7 @@ void main() {
 #define GLSLIFY 1
 
 bool outOfRange(float a, float b, float p) {
-  return ((p > max(a, b)) || 
+  return ((p > max(a, b)) ||
           (p < min(a, b)));
 }
 
@@ -832,7 +832,7 @@ void main() {
 #define GLSLIFY 1
 
 bool outOfRange(float a, float b, float p) {
-  return ((p > max(a, b)) || 
+  return ((p > max(a, b)) ||
           (p < min(a, b)));
 }
 
@@ -865,7 +865,7 @@ void main() {
 #define GLSLIFY 1
 
 bool outOfRange(float a, float b, float p) {
-  return ((p > max(a, b)) || 
+  return ((p > max(a, b)) ||
           (p < min(a, b)));
 }
 
@@ -980,7 +980,7 @@ float beckmannSpecular(
 }
 
 bool outOfRange(float a, float b, float p) {
-  return ((p > max(a, b)) || 
+  return ((p > max(a, b)) ||
           (p < min(a, b)));
 }
 
@@ -1082,7 +1082,7 @@ void main() {
 #define GLSLIFY 1
 
 bool outOfRange(float a, float b, float p) {
-  return ((p > max(a, b)) || 
+  return ((p > max(a, b)) ||
           (p < min(a, b)));
 }
 
@@ -1130,7 +1130,7 @@ void main() {
 #define GLSLIFY 1
 
 bool outOfRange(float a, float b, float p) {
-  return ((p > max(a, b)) || 
+  return ((p > max(a, b)) ||
           (p < min(a, b)));
 }
 
@@ -1187,7 +1187,7 @@ void main() {
 #define GLSLIFY 1
 
 bool outOfRange(float a, float b, float p) {
-  return ((p > max(a, b)) || 
+  return ((p > max(a, b)) ||
           (p < min(a, b)));
 }
 
@@ -1245,7 +1245,7 @@ void main() {
 #define GLSLIFY 1
 
 bool outOfRange(float a, float b, float p) {
-  return ((p > max(a, b)) || 
+  return ((p > max(a, b)) ||
           (p < min(a, b)));
 }
 
@@ -1305,7 +1305,7 @@ void main() {
 #define GLSLIFY 1
 
 bool outOfRange(float a, float b, float p) {
-  return ((p > max(a, b)) || 
+  return ((p > max(a, b)) ||
           (p < min(a, b)));
 }
 
@@ -1341,7 +1341,7 @@ void main() {
 #define GLSLIFY 1
 
 bool outOfRange(float a, float b, float p) {
-  return ((p > max(a, b)) || 
+  return ((p > max(a, b)) ||
           (p < min(a, b)));
 }
 
@@ -1645,7 +1645,7 @@ void main() {
 #define GLSLIFY 1
 
 bool outOfRange(float a, float b, float p) {
-  return ((p > max(a, b)) || 
+  return ((p > max(a, b)) ||
           (p < min(a, b)));
 }
 
@@ -1792,7 +1792,7 @@ float cookTorranceSpecular(
   float G1 = (2.0 * NdotH * VdotN) / VdotH;
   float G2 = (2.0 * NdotH * LdotN) / LdotH;
   float G = min(1.0, min(G1, G2));
-  
+
   //Distribution term
   float D = beckmannDistribution(NdotH, roughness);
 
@@ -1804,7 +1804,7 @@ float cookTorranceSpecular(
 }
 
 bool outOfRange(float a, float b, float p) {
-  return ((p > max(a, b)) || 
+  return ((p > max(a, b)) ||
           (p < min(a, b)));
 }
 
@@ -1915,7 +1915,7 @@ void main() {
 #define GLSLIFY 1
 
 bool outOfRange(float a, float b, float p) {
-  return ((p > max(a, b)) || 
+  return ((p > max(a, b)) ||
           (p < min(a, b)));
 }
 
@@ -1990,7 +1990,7 @@ void main() {
 #define GLSLIFY 1
 
 bool outOfRange(float a, float b, float p) {
-  return ((p > max(a, b)) || 
+  return ((p > max(a, b)) ||
           (p < min(a, b)));
 }
 
@@ -2076,7 +2076,7 @@ vec4 packFloat(float v) {
 }
 
 bool outOfRange(float a, float b, float p) {
-  return ((p > max(a, b)) || 
+  return ((p > max(a, b)) ||
           (p < min(a, b)));
 }
 
@@ -3984,20 +3984,20 @@ maplibre-gl/dist/maplibre-gl.js:
 
 window.Plotly = Plotly;
 return Plotly;
-}));</script>                <div id="447ea766-e954-4cf5-a40c-e0df3f5b43b8" class="plotly-graph-div" style="height:500px; width:100%;"></div>            <script type="text/javascript">                window.PLOTLYENV=window.PLOTLYENV || {};                                if (document.getElementById("447ea766-e954-4cf5-a40c-e0df3f5b43b8")) {                    Plotly.newPlot(                        "447ea766-e954-4cf5-a40c-e0df3f5b43b8",                        [{"branchvalues":"total","customdata":[["disposable"],["disposable"],["disposable"],["disposable"],["duplicate"],["duplicate"],["duplicate"],["duplicate"],["duplicate"],["duplicate"],["duplicate"],["duplicate"],["unique"],["unique"],["unique"],["unique"],["unique"],["unique"],["unique"],["unique"]],"domain":{"x":[0.0,1.0],"y":[0.0,1.0]},"hovertemplate":"labels=%{label}\u003cbr\u003esize=%{value}\u003cbr\u003eparent=%{parent}\u003cbr\u003eid=%{id}\u003cbr\u003ekind=%{customdata[0]}\u003cextra\u003e\u003c\u002fextra\u003e","ids":["workspace\u002fnode_modules\u002f.cache\u002fbundle.bin","workspace","workspace\u002fnode_modules\u002f.cache","workspace\u002fnode_modules","archive\u002fboss-image.iso\u002f.\u002f.","downloads\u002fboss-image-copy.iso\u002f.\u002f.","downloads","archive\u002fboss-image.iso\u002f.","downloads\u002fboss-image-copy.iso\u002f.","archive","archive\u002fboss-image.iso","downloads\u002fboss-image-copy.iso","documents\u002fcapstone-thesis.txt","documents\u002fcapstone-thesis.txt\u002f.","hardlinks","hardlinks\u002falias.bin\u002f.","documents\u002fcapstone-thesis.txt\u002f.\u002f.","hardlinks\u002falias.bin\u002f.\u002f.","hardlinks\u002falias.bin","documents"],"labels":["bundle.bin","workspace",".cache","node_modules",".",".","downloads",".",".","archive","boss-image.iso","boss-image-copy.iso","capstone-thesis.txt",".","hardlinks",".",".",".","alias.bin","documents"],"marker":{"colors":["#4f8a66","#4f8a66","#4f8a66","#4f8a66","#5a8294","#5a8294","#5a8294","#5a8294","#5a8294","#5a8294","#5a8294","#5a8294","#bd5c50","#bd5c50","#bd5c50","#bd5c50","#bd5c50","#bd5c50","#bd5c50","#bd5c50"],"line":{"color":"#fbfaf5","width":0.5}},"name":"","parents":["workspace\u002fnode_modules\u002f.cache","","workspace\u002fnode_modules","workspace","archive\u002fboss-image.iso\u002f.","downloads\u002fboss-image-copy.iso\u002f.","","archive\u002fboss-image.iso","downloads\u002fboss-image-copy.iso","","archive","downloads","documents","documents\u002fcapstone-thesis.txt","","hardlinks\u002falias.bin","documents\u002fcapstone-thesis.txt\u002f.","hardlinks\u002falias.bin\u002f.","hardlinks",""],"values":{"dtype":"f8","bdata":"AAAAAAAACUEAAAAAAAAJQQAAAAAAAAlBAAAAAAAACUEAAAAAAAAgQQAAAAAAACBBAAAAAAAAIEEAAAAAAAAgQQAAAAAAACBBAAAAAAAAIEEAAAAAAAAgQQAAAAAAACBBAAAAAACAREAAAAAAAIBEQAAAAAAAgPRAAAAAAACA9EAAAAAAAIBEQAAAAAAAgPRAAAAAAACA9EAAAAAAAIBEQA=="},"type":"treemap"}],                        {"template":{"data":{"histogram2dcontour":[{"type":"histogram2dcontour","colorbar":{"outlinewidth":0,"ticks":""},"colorscale":[[0.0,"#0d0887"],[0.1111111111111111,"#46039f"],[0.2222222222222222,"#7201a8"],[0.3333333333333333,"#9c179e"],[0.4444444444444444,"#bd3786"],[0.5555555555555556,"#d8576b"],[0.6666666666666666,"#ed7953"],[0.7777777777777778,"#fb9f3a"],[0.8888888888888888,"#fdca26"],[1.0,"#f0f921"]]}],"choropleth":[{"type":"choropleth","colorbar":{"outlinewidth":0,"ticks":""}}],"histogram2d":[{"type":"histogram2d","colorbar":{"outlinewidth":0,"ticks":""},"colorscale":[[0.0,"#0d0887"],[0.1111111111111111,"#46039f"],[0.2222222222222222,"#7201a8"],[0.3333333333333333,"#9c179e"],[0.4444444444444444,"#bd3786"],[0.5555555555555556,"#d8576b"],[0.6666666666666666,"#ed7953"],[0.7777777777777778,"#fb9f3a"],[0.8888888888888888,"#fdca26"],[1.0,"#f0f921"]]}],"heatmap":[{"type":"heatmap","colorbar":{"outlinewidth":0,"ticks":""},"colorscale":[[0.0,"#0d0887"],[0.1111111111111111,"#46039f"],[0.2222222222222222,"#7201a8"],[0.3333333333333333,"#9c179e"],[0.4444444444444444,"#bd3786"],[0.5555555555555556,"#d8576b"],[0.6666666666666666,"#ed7953"],[0.7777777777777778,"#fb9f3a"],[0.8888888888888888,"#fdca26"],[1.0,"#f0f921"]]}],"contourcarpet":[{"type":"contourcarpet","colorbar":{"outlinewidth":0,"ticks":""}}],"contour":[{"type":"contour","colorbar":{"outlinewidth":0,"ticks":""},"colorscale":[[0.0,"#0d0887"],[0.1111111111111111,"#46039f"],[0.2222222222222222,"#7201a8"],[0.3333333333333333,"#9c179e"],[0.4444444444444444,"#bd3786"],[0.5555555555555556,"#d8576b"],[0.6666666666666666,"#ed7953"],[0.7777777777777778,"#fb9f3a"],[0.8888888888888888,"#fdca26"],[1.0,"#f0f921"]]}],"surface":[{"type":"surface","colorbar":{"outlinewidth":0,"ticks":""},"colorscale":[[0.0,"#0d0887"],[0.1111111111111111,"#46039f"],[0.2222222222222222,"#7201a8"],[0.3333333333333333,"#9c179e"],[0.4444444444444444,"#bd3786"],[0.5555555555555556,"#d8576b"],[0.6666666666666666,"#ed7953"],[0.7777777777777778,"#fb9f3a"],[0.8888888888888888,"#fdca26"],[1.0,"#f0f921"]]}],"mesh3d":[{"type":"mesh3d","colorbar":{"outlinewidth":0,"ticks":""}}],"scatter":[{"fillpattern":{"fillmode":"overlay","size":10,"solidity":0.2},"type":"scatter"}],"parcoords":[{"type":"parcoords","line":{"colorbar":{"outlinewidth":0,"ticks":""}}}],"scatterpolargl":[{"type":"scatterpolargl","marker":{"colorbar":{"outlinewidth":0,"ticks":""}}}],"bar":[{"error_x":{"color":"#2a3f5f"},"error_y":{"color":"#2a3f5f"},"marker":{"line":{"color":"#E5ECF6","width":0.5},"pattern":{"fillmode":"overlay","size":10,"solidity":0.2}},"type":"bar"}],"scattergeo":[{"type":"scattergeo","marker":{"colorbar":{"outlinewidth":0,"ticks":""}}}],"scatterpolar":[{"type":"scatterpolar","marker":{"colorbar":{"outlinewidth":0,"ticks":""}}}],"histogram":[{"marker":{"pattern":{"fillmode":"overlay","size":10,"solidity":0.2}},"type":"histogram"}],"scattergl":[{"type":"scattergl","marker":{"colorbar":{"outlinewidth":0,"ticks":""}}}],"scatter3d":[{"type":"scatter3d","line":{"colorbar":{"outlinewidth":0,"ticks":""}},"marker":{"colorbar":{"outlinewidth":0,"ticks":""}}}],"scattermap":[{"type":"scattermap","marker":{"colorbar":{"outlinewidth":0,"ticks":""}}}],"scattermapbox":[{"type":"scattermapbox","marker":{"colorbar":{"outlinewidth":0,"ticks":""}}}],"scatterternary":[{"type":"scatterternary","marker":{"colorbar":{"outlinewidth":0,"ticks":""}}}],"scattercarpet":[{"type":"scattercarpet","marker":{"colorbar":{"outlinewidth":0,"ticks":""}}}],"carpet":[{"aaxis":{"endlinecolor":"#2a3f5f","gridcolor":"white","linecolor":"white","minorgridcolor":"white","startlinecolor":"#2a3f5f"},"baxis":{"endlinecolor":"#2a3f5f","gridcolor":"white","linecolor":"white","minorgridcolor":"white","startlinecolor":"#2a3f5f"},"type":"carpet"}],"table":[{"cells":{"fill":{"color":"#EBF0F8"},"line":{"color":"white"}},"header":{"fill":{"color":"#C8D4E3"},"line":{"color":"white"}},"type":"table"}],"barpolar":[{"marker":{"line":{"color":"#E5ECF6","width":0.5},"pattern":{"fillmode":"overlay","size":10,"solidity":0.2}},"type":"barpolar"}],"pie":[{"automargin":true,"type":"pie"}]},"layout":{"autotypenumbers":"strict","colorway":["#636efa","#EF553B","#00cc96","#ab63fa","#FFA15A","#19d3f3","#FF6692","#B6E880","#FF97FF","#FECB52"],"font":{"color":"#2a3f5f"},"hovermode":"closest","hoverlabel":{"align":"left"},"paper_bgcolor":"white","plot_bgcolor":"#E5ECF6","polar":{"bgcolor":"#E5ECF6","angularaxis":{"gridcolor":"white","linecolor":"white","ticks":""},"radialaxis":{"gridcolor":"white","linecolor":"white","ticks":""}},"ternary":{"bgcolor":"#E5ECF6","aaxis":{"gridcolor":"white","linecolor":"white","ticks":""},"baxis":{"gridcolor":"white","linecolor":"white","ticks":""},"caxis":{"gridcolor":"white","linecolor":"white","ticks":""}},"coloraxis":{"colorbar":{"outlinewidth":0,"ticks":""}},"colorscale":{"sequential":[[0.0,"#0d0887"],[0.1111111111111111,"#46039f"],[0.2222222222222222,"#7201a8"],[0.3333333333333333,"#9c179e"],[0.4444444444444444,"#bd3786"],[0.5555555555555556,"#d8576b"],[0.6666666666666666,"#ed7953"],[0.7777777777777778,"#fb9f3a"],[0.8888888888888888,"#fdca26"],[1.0,"#f0f921"]],"sequentialminus":[[0.0,"#0d0887"],[0.1111111111111111,"#46039f"],[0.2222222222222222,"#7201a8"],[0.3333333333333333,"#9c179e"],[0.4444444444444444,"#bd3786"],[0.5555555555555556,"#d8576b"],[0.6666666666666666,"#ed7953"],[0.7777777777777778,"#fb9f3a"],[0.8888888888888888,"#fdca26"],[1.0,"#f0f921"]],"diverging":[[0,"#8e0152"],[0.1,"#c51b7d"],[0.2,"#de77ae"],[0.3,"#f1b6da"],[0.4,"#fde0ef"],[0.5,"#f7f7f7"],[0.6,"#e6f5d0"],[0.7,"#b8e186"],[0.8,"#7fbc41"],[0.9,"#4d9221"],[1,"#276419"]]},"xaxis":{"gridcolor":"white","linecolor":"white","ticks":"","title":{"standoff":15},"zerolinecolor":"white","automargin":true,"zerolinewidth":2},"yaxis":{"gridcolor":"white","linecolor":"white","ticks":"","title":{"standoff":15},"zerolinecolor":"white","automargin":true,"zerolinewidth":2},"scene":{"xaxis":{"backgroundcolor":"#E5ECF6","gridcolor":"white","linecolor":"white","showbackground":true,"ticks":"","zerolinecolor":"white","gridwidth":2},"yaxis":{"backgroundcolor":"#E5ECF6","gridcolor":"white","linecolor":"white","showbackground":true,"ticks":"","zerolinecolor":"white","gridwidth":2},"zaxis":{"backgroundcolor":"#E5ECF6","gridcolor":"white","linecolor":"white","showbackground":true,"ticks":"","zerolinecolor":"white","gridwidth":2}},"shapedefaults":{"line":{"color":"#2a3f5f"}},"annotationdefaults":{"arrowcolor":"#2a3f5f","arrowhead":0,"arrowwidth":1},"geo":{"bgcolor":"white","landcolor":"#E5ECF6","subunitcolor":"white","showland":true,"showlakes":true,"lakecolor":"white"},"title":{"x":0.05},"mapbox":{"style":"light"}}},"legend":{"tracegroupgap":0},"title":{},"margin":{"t":10,"l":0,"r":0,"b":0},"font":{"color":"#141713"},"paper_bgcolor":"rgba(0,0,0,0)","plot_bgcolor":"rgba(0,0,0,0)"},                        {"displayModeBar": false, "responsive": true}                    )                };            </script>        </div>
+}));</script>                <div id="ee372029-b804-45fc-9d7d-ac09fdfe3bd4" class="plotly-graph-div" style="height:500px; width:100%;"></div>            <script type="text/javascript">                window.PLOTLYENV=window.PLOTLYENV || {};                                if (document.getElementById("ee372029-b804-45fc-9d7d-ac09fdfe3bd4")) {                    Plotly.newPlot(                        "ee372029-b804-45fc-9d7d-ac09fdfe3bd4",                        [{"branchvalues":"total","customdata":[["disposable"],["disposable"],["disposable"],["disposable"],["duplicate"],["duplicate"],["duplicate"],["duplicate"],["unique"],["unique"],["unique"],["unique"]],"domain":{"x":[0.0,1.0],"y":[0.0,1.0]},"hovertemplate":"labels=%{label}\u003cbr\u003esize=%{value}\u003cbr\u003eparent=%{parent}\u003cbr\u003eid=%{id}\u003cbr\u003ekind=%{customdata[0]}\u003cextra\u003e\u003c\u002fextra\u003e","ids":["workspace\u002fnode_modules\u002f.cache\u002fbundle.bin","workspace\u002fnode_modules\u002f.cache","workspace\u002fnode_modules","workspace","archive\u002fboss-image.iso","downloads\u002fboss-image-copy.iso","archive","downloads","hardlinks\u002falias.bin","documents\u002fcapstone-thesis.txt","hardlinks","documents"],"labels":["bundle.bin",".cache","node_modules","workspace","boss-image.iso","boss-image-copy.iso","archive","downloads","alias.bin","capstone-thesis.txt","hardlinks","documents"],"marker":{"colors":["#4f8a66","#4f8a66","#4f8a66","#4f8a66","#5a8294","#5a8294","#5a8294","#5a8294","#bd5c50","#bd5c50","#bd5c50","#bd5c50"],"line":{"color":"#fbfaf5","width":0.5}},"name":"","parents":["workspace\u002fnode_modules\u002f.cache","workspace\u002fnode_modules","workspace","","archive","downloads","","","hardlinks","documents","",""],"values":{"dtype":"f8","bdata":"AAAAAAAACUEAAAAAAAAJQQAAAAAAAAlBAAAAAAAACUEAAAAAAAAgQQAAAAAAACBBAAAAAAAAIEEAAAAAAAAgQQAAAAAAgPRAAAAAAACAREAAAAAAAID0QAAAAAAAgERA"},"type":"treemap"}],                        {"template":{"data":{"histogram2dcontour":[{"type":"histogram2dcontour","colorbar":{"outlinewidth":0,"ticks":""},"colorscale":[[0.0,"#0d0887"],[0.1111111111111111,"#46039f"],[0.2222222222222222,"#7201a8"],[0.3333333333333333,"#9c179e"],[0.4444444444444444,"#bd3786"],[0.5555555555555556,"#d8576b"],[0.6666666666666666,"#ed7953"],[0.7777777777777778,"#fb9f3a"],[0.8888888888888888,"#fdca26"],[1.0,"#f0f921"]]}],"choropleth":[{"type":"choropleth","colorbar":{"outlinewidth":0,"ticks":""}}],"histogram2d":[{"type":"histogram2d","colorbar":{"outlinewidth":0,"ticks":""},"colorscale":[[0.0,"#0d0887"],[0.1111111111111111,"#46039f"],[0.2222222222222222,"#7201a8"],[0.3333333333333333,"#9c179e"],[0.4444444444444444,"#bd3786"],[0.5555555555555556,"#d8576b"],[0.6666666666666666,"#ed7953"],[0.7777777777777778,"#fb9f3a"],[0.8888888888888888,"#fdca26"],[1.0,"#f0f921"]]}],"heatmap":[{"type":"heatmap","colorbar":{"outlinewidth":0,"ticks":""},"colorscale":[[0.0,"#0d0887"],[0.1111111111111111,"#46039f"],[0.2222222222222222,"#7201a8"],[0.3333333333333333,"#9c179e"],[0.4444444444444444,"#bd3786"],[0.5555555555555556,"#d8576b"],[0.6666666666666666,"#ed7953"],[0.7777777777777778,"#fb9f3a"],[0.8888888888888888,"#fdca26"],[1.0,"#f0f921"]]}],"contourcarpet":[{"type":"contourcarpet","colorbar":{"outlinewidth":0,"ticks":""}}],"contour":[{"type":"contour","colorbar":{"outlinewidth":0,"ticks":""},"colorscale":[[0.0,"#0d0887"],[0.1111111111111111,"#46039f"],[0.2222222222222222,"#7201a8"],[0.3333333333333333,"#9c179e"],[0.4444444444444444,"#bd3786"],[0.5555555555555556,"#d8576b"],[0.6666666666666666,"#ed7953"],[0.7777777777777778,"#fb9f3a"],[0.8888888888888888,"#fdca26"],[1.0,"#f0f921"]]}],"surface":[{"type":"surface","colorbar":{"outlinewidth":0,"ticks":""},"colorscale":[[0.0,"#0d0887"],[0.1111111111111111,"#46039f"],[0.2222222222222222,"#7201a8"],[0.3333333333333333,"#9c179e"],[0.4444444444444444,"#bd3786"],[0.5555555555555556,"#d8576b"],[0.6666666666666666,"#ed7953"],[0.7777777777777778,"#fb9f3a"],[0.8888888888888888,"#fdca26"],[1.0,"#f0f921"]]}],"mesh3d":[{"type":"mesh3d","colorbar":{"outlinewidth":0,"ticks":""}}],"scatter":[{"fillpattern":{"fillmode":"overlay","size":10,"solidity":0.2},"type":"scatter"}],"parcoords":[{"type":"parcoords","line":{"colorbar":{"outlinewidth":0,"ticks":""}}}],"scatterpolargl":[{"type":"scatterpolargl","marker":{"colorbar":{"outlinewidth":0,"ticks":""}}}],"bar":[{"error_x":{"color":"#2a3f5f"},"error_y":{"color":"#2a3f5f"},"marker":{"line":{"color":"#E5ECF6","width":0.5},"pattern":{"fillmode":"overlay","size":10,"solidity":0.2}},"type":"bar"}],"scattergeo":[{"type":"scattergeo","marker":{"colorbar":{"outlinewidth":0,"ticks":""}}}],"scatterpolar":[{"type":"scatterpolar","marker":{"colorbar":{"outlinewidth":0,"ticks":""}}}],"histogram":[{"marker":{"pattern":{"fillmode":"overlay","size":10,"solidity":0.2}},"type":"histogram"}],"scattergl":[{"type":"scattergl","marker":{"colorbar":{"outlinewidth":0,"ticks":""}}}],"scatter3d":[{"type":"scatter3d","line":{"colorbar":{"outlinewidth":0,"ticks":""}},"marker":{"colorbar":{"outlinewidth":0,"ticks":""}}}],"scattermap":[{"type":"scattermap","marker":{"colorbar":{"outlinewidth":0,"ticks":""}}}],"scattermapbox":[{"type":"scattermapbox","marker":{"colorbar":{"outlinewidth":0,"ticks":""}}}],"scatterternary":[{"type":"scatterternary","marker":{"colorbar":{"outlinewidth":0,"ticks":""}}}],"scattercarpet":[{"type":"scattercarpet","marker":{"colorbar":{"outlinewidth":0,"ticks":""}}}],"carpet":[{"aaxis":{"endlinecolor":"#2a3f5f","gridcolor":"white","linecolor":"white","minorgridcolor":"white","startlinecolor":"#2a3f5f"},"baxis":{"endlinecolor":"#2a3f5f","gridcolor":"white","linecolor":"white","minorgridcolor":"white","startlinecolor":"#2a3f5f"},"type":"carpet"}],"table":[{"cells":{"fill":{"color":"#EBF0F8"},"line":{"color":"white"}},"header":{"fill":{"color":"#C8D4E3"},"line":{"color":"white"}},"type":"table"}],"barpolar":[{"marker":{"line":{"color":"#E5ECF6","width":0.5},"pattern":{"fillmode":"overlay","size":10,"solidity":0.2}},"type":"barpolar"}],"pie":[{"automargin":true,"type":"pie"}]},"layout":{"autotypenumbers":"strict","colorway":["#636efa","#EF553B","#00cc96","#ab63fa","#FFA15A","#19d3f3","#FF6692","#B6E880","#FF97FF","#FECB52"],"font":{"color":"#2a3f5f"},"hovermode":"closest","hoverlabel":{"align":"left"},"paper_bgcolor":"white","plot_bgcolor":"#E5ECF6","polar":{"bgcolor":"#E5ECF6","angularaxis":{"gridcolor":"white","linecolor":"white","ticks":""},"radialaxis":{"gridcolor":"white","linecolor":"white","ticks":""}},"ternary":{"bgcolor":"#E5ECF6","aaxis":{"gridcolor":"white","linecolor":"white","ticks":""},"baxis":{"gridcolor":"white","linecolor":"white","ticks":""},"caxis":{"gridcolor":"white","linecolor":"white","ticks":""}},"coloraxis":{"colorbar":{"outlinewidth":0,"ticks":""}},"colorscale":{"sequential":[[0.0,"#0d0887"],[0.1111111111111111,"#46039f"],[0.2222222222222222,"#7201a8"],[0.3333333333333333,"#9c179e"],[0.4444444444444444,"#bd3786"],[0.5555555555555556,"#d8576b"],[0.6666666666666666,"#ed7953"],[0.7777777777777778,"#fb9f3a"],[0.8888888888888888,"#fdca26"],[1.0,"#f0f921"]],"sequentialminus":[[0.0,"#0d0887"],[0.1111111111111111,"#46039f"],[0.2222222222222222,"#7201a8"],[0.3333333333333333,"#9c179e"],[0.4444444444444444,"#bd3786"],[0.5555555555555556,"#d8576b"],[0.6666666666666666,"#ed7953"],[0.7777777777777778,"#fb9f3a"],[0.8888888888888888,"#fdca26"],[1.0,"#f0f921"]],"diverging":[[0,"#8e0152"],[0.1,"#c51b7d"],[0.2,"#de77ae"],[0.3,"#f1b6da"],[0.4,"#fde0ef"],[0.5,"#f7f7f7"],[0.6,"#e6f5d0"],[0.7,"#b8e186"],[0.8,"#7fbc41"],[0.9,"#4d9221"],[1,"#276419"]]},"xaxis":{"gridcolor":"white","linecolor":"white","ticks":"","title":{"standoff":15},"zerolinecolor":"white","automargin":true,"zerolinewidth":2},"yaxis":{"gridcolor":"white","linecolor":"white","ticks":"","title":{"standoff":15},"zerolinecolor":"white","automargin":true,"zerolinewidth":2},"scene":{"xaxis":{"backgroundcolor":"#E5ECF6","gridcolor":"white","linecolor":"white","showbackground":true,"ticks":"","zerolinecolor":"white","gridwidth":2},"yaxis":{"backgroundcolor":"#E5ECF6","gridcolor":"white","linecolor":"white","showbackground":true,"ticks":"","zerolinecolor":"white","gridwidth":2},"zaxis":{"backgroundcolor":"#E5ECF6","gridcolor":"white","linecolor":"white","showbackground":true,"ticks":"","zerolinecolor":"white","gridwidth":2}},"shapedefaults":{"line":{"color":"#2a3f5f"}},"annotationdefaults":{"arrowcolor":"#2a3f5f","arrowhead":0,"arrowwidth":1},"geo":{"bgcolor":"white","landcolor":"#E5ECF6","subunitcolor":"white","showland":true,"showlakes":true,"lakecolor":"white"},"title":{"x":0.05},"mapbox":{"style":"light"}}},"legend":{"tracegroupgap":0},"title":{},"margin":{"t":10,"l":0,"r":0,"b":0},"font":{"color":"#141713"},"paper_bgcolor":"rgba(0,0,0,0)","plot_bgcolor":"rgba(0,0,0,0)"},                        {"displayModeBar": false, "responsive": true}                    )                };            </script>        </div>
   </div>
 
   <div class="panel">
     <h2>Reviewable Storage Candidates</h2>
     <p class="h">Ranked by the regret objective. This report makes recommendations; it does not execute cleanup.</p>
-    
+
     <div class="formula-box">
       <span class="formula-tag">Objective:</span>
       <span>Priority = Reclaimable Allocated Bytes &times; Unchanged Age &times; (1 &minus; Regret) &nbsp;|&nbsp; Regret Weights: 0.02 (Disposable), 0.10 (Duplicate), 0.20 (Tracked Git)</span>
     </div>
 
     <div class="controls">
-      <input type="text" id="searchInput" class="search-box" placeholder="Filter candidates by path or name..." onkeyup="filterCandidates()">
+      <input type="text" id="searchInput" class="search-box" placeholder="Filter candidates by path or name..." oninput="filterCandidates()">
       <button class="filter-btn active" onclick="setKindFilter('all', this)">All (2)</button>
       <button class="filter-btn" onclick="setKindFilter('disposable', this)">Disposable</button>
       <button class="filter-btn" onclick="setKindFilter('duplicate', this)">Duplicates</button>
@@ -4015,16 +4015,21 @@ return Plotly;
         </tr>
       </thead>
       <tbody>
-        <tr data-kind="disposable"><td class="num font-bold" data-label="Allocated reclaim">200.0 KB</td><td data-label="Category"><span class="tag disposable">disposable</span></td><td class="num" data-label="Unchanged">45 d</td><td class="p" data-label="Relative path">workspace/node_modules/.cache/bundle.bin</td><td class="evidence" data-label="Recovery evidence">heuristic: matched a narrow cache or tool-specific build-output path; confirm with the owning tool before manual clearing</td></tr><tr data-kind="duplicate"><td class="num font-bold" data-label="Allocated reclaim">512.0 KB</td><td data-label="Category"><span class="tag duplicate">duplicate</span></td><td class="num" data-label="Unchanged">120 d</td><td class="p" data-label="Relative path">downloads/boss-image-copy.iso</td><td class="evidence" data-label="Recovery evidence">direct: byte-for-byte match with the named retained survivor at archive/boss-image.iso</td></tr>
+        <tr data-kind="duplicate"><td class="num font-bold" data-label="Allocated reclaim">512.0 KB</td><td data-label="Category"><span class="tag duplicate">duplicate</span></td><td class="num" data-label="Unchanged">120 d</td><td class="p" data-label="Relative path">downloads/boss-image-copy.iso</td><td class="evidence" data-label="Recovery evidence">direct: byte-for-byte match with named evidence peer at archive/boss-image.iso; human selects retention</td></tr><tr data-kind="disposable"><td class="num font-bold" data-label="Allocated reclaim">200.0 KB</td><td data-label="Category"><span class="tag disposable">disposable</span></td><td class="num" data-label="Unchanged">45 d</td><td class="p" data-label="Relative path">workspace/node_modules/.cache/bundle.bin</td><td class="evidence" data-label="Recovery evidence">heuristic: matched a narrow cache or tool-specific build-output path; confirm with the owning tool before manual clearing</td></tr>
       </tbody>
     </table>
 
     <div class="guard">
       <b>2 unique files and 2 hardlinked entries are excluded from this plan.</b><br>
-      Integrity checksum (not a signature): <code>ec60f7c6871dcaa0e52655506758196aaf907000290911cee174bf98c28e8228</code><br>
-      duplicate evidence rejects non-regular files and identity drift; on Linux, descriptor reads are rooted at the canonical scan root and do not follow symlink components. A single hardlink removal releases no physical bytes. The active policy excludes unique, untracked, uncached, and hardlinked entries before ranking. SANCHAY never deletes or moves files.
+      Integrity checksum (not a signature): <code>d03345a74367194b8f415ece59dc01c727b62b0c98929fa2ddca445e10e333d9</code><br>
+      duplicate evidence rejects non-regular files and identity drift; on Linux, descriptor reads are rooted at the canonical scan root and do not follow symlink components. A single hardlink removal releases no physical bytes. The active policy excludes known credential/control paths, unique, untracked, uncached, and hardlinked entries before ranking. SANCHAY never deletes or moves files.
     </div>
   </div>
+
+
+
+
+
 </div>
 
 <script>

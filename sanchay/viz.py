@@ -36,9 +36,9 @@ def figure(files, dup_paths=frozenset(), limit=4000, root=None):
     rows = []
     for f in top:
         parts = list(_relative_parts(f.path, root))
-        level = (parts[-DEPTH:] + [""] * DEPTH)[:DEPTH]
+        level = (parts[-DEPTH:] + [None] * DEPTH)[:DEPTH]
         rows.append({
-            **{f"L{i}": p or "." for i, p in enumerate(level)},
+            **{f"L{i}": p for i, p in enumerate(level)},
             "size": storage.allocated_bytes(f),
             "kind": regret.classify(f, f.path in dup_paths),
         })
