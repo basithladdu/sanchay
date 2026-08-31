@@ -108,7 +108,7 @@ class Sanchay(App):
     @work(thread=True)
     def scan_disk(self):
         files = scan.scan(self.root)
-        groups = dedup.duplicates(files)
+        groups = dedup.duplicates(files, root=self.root)
         cleanup_plan = plan.build(files, groups, self.root, limit=500)
         rows = cleanup_plan["recommendations"]
         protected = cleanup_plan["safety"]["protected_unique_files"]

@@ -130,7 +130,7 @@ def build(files, root, free_bytes, out="sanchay-report.html", limit=50,
           target_reclaim_bytes=None):
     from . import viz
 
-    groups = dedup.duplicates(files)
+    groups = dedup.duplicates(files, root=root)
     cleanup_plan = plan.build(files, groups, root, limit=limit,
                               target_reclaim_bytes=target_reclaim_bytes)
     rows = cleanup_plan["recommendations"]
@@ -228,7 +228,7 @@ def build(files, root, free_bytes, out="sanchay-report.html", limit=50,
     <div class="guard">
       <b>{protected_count:,} unique files and {cleanup_plan["safety"]["excluded_hardlink_entries"]:,} hardlinked entries are excluded from this plan.</b><br>
       Integrity checksum (not a signature): <code>{cleanup_plan["fingerprint_sha256"]}</code><br>
-      A single hardlink removal releases no physical bytes. The active policy excludes unique, untracked, uncached, and hardlinked entries before ranking. SANCHAY never deletes or moves files.
+      {html.escape(cleanup_plan["safety"]["content_read_boundary"])}. A single hardlink removal releases no physical bytes. The active policy excludes unique, untracked, uncached, and hardlinked entries before ranking. SANCHAY never deletes or moves files.
     </div>
   </div>
 </div>

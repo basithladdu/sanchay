@@ -27,6 +27,10 @@ endorses SANCHAY or defines the hackathon scoring rubric.
 - Capacity forecasting work uses historical data and models rather than treating
   a single instant as ground truth. Source: Chamness, [Capacity Forecasting in
   a Backup Storage Environment](https://www.usenix.org/conference/lisa11/capacity-forecasting-backup-storage-environment-practice-experience-report).
+- POSIX specifies that `O_NOFOLLOW` rejects a symbolic-link final component and
+  that descriptor-relative `openat` avoids the path-change race that affects
+  ordinary path-based opening. Source: [The Open Group `open()`
+  specification](https://pubs.opengroup.org/onlinepubs/9799919799/functions/open.html).
 
 ### Practitioner evidence (anecdotal, not population research)
 
@@ -40,8 +44,9 @@ endorses SANCHAY or defines the hackathon scoring rubric.
 | Need | SANCHAY decision | Status |
 | --- | --- | --- |
 | Avoid catastrophic loss | No automatic deletion or file movement; write a review-only plan instead. | Implemented |
-| Make every recommendation auditable | Include class, typed recovery evidence with strength, survivor path for duplicates, observed device/inode/logical-size/allocated-size/mtime/link count, and a SHA-256 integrity checksum (not a signature). | Implemented |
+| Make every recommendation auditable | Include class, typed recovery evidence with strength, survivor path for duplicates, observed device/inode/logical-size/allocated-size/mtime-nanoseconds/link count, and a SHA-256 integrity checksum (not a signature). | Implemented |
 | Preserve source-of-truth and hardlinks | Keep a deterministic duplicate survivor; identify hardlinks by `(device, inode)`, count each inode once, and exclude individual hardlinked paths because one unlink releases no bytes. | Implemented |
+| Avoid treating a path swap as duplicate proof | On Linux, walk from the canonical scan-root descriptor with `openat` plus no-follow flags; reject non-regular files or identity drift before/after a content read. | Implemented |
 | Avoid crossing a governance boundary silently | Scan one filesystem by default; cross-filesystem traversal requires an explicit flag. | Implemented |
 | Keep forecasting honest | Label the first pass an mtime-derived estimate; capture aggregate local snapshots for observed growth and an explainable local linear trend. | Implemented |
 | Support government/BOSS deployment | Keep the core local, dependency-light, inspectable, and suitable for an offline terminal workflow. | Implemented |

@@ -213,6 +213,8 @@ class TestSanchay(unittest.TestCase):
             self.assertIn(str(duplicate_a), item['recovery_evidence']['detail'])
             self.assertEqual(item['observed_identity']['size'], 4096)
             self.assertEqual(item['observed_identity']['allocated_size'], 4096)
+            self.assertEqual(cleanup_plan['schema_version'], 5)
+            self.assertIn('mtime_ns', item['observed_identity'])
             self.assertEqual(item['decision_trace']['name'], 'regret_aware_priority')
             self.assertEqual(item['decision_trace']['inputs']['reclaimable_allocated_bytes'], 4096)
             self.assertEqual(item['decision_trace']['inputs']['logical_size_bytes'], 4096)
@@ -232,6 +234,38 @@ class TestSanchay(unittest.TestCase):
 
             right.write_bytes(b'y' * 4096)
             self.assertFalse(dedup.same_content(left, right))
+
+    def test_hashing_rejects_an_inode_replaced_after_scan(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            candidate = root / 'candidate.bin'
+            replacement = root / 'replacement.bin'
+            candidate.write_bytes(b'a' * 4096)
+            info = scan.scan(root)[0]
+
+            replacement.write_bytes(b'b' * 4096)
+            os.replace(replacement, candidate)
+
+            self.assertIsNone(dedup._digest(info.path, expected=info, root=root))
+
+    @unittest.skipUnless(dedup.root_anchoring_available(),
+                         'requires POSIX descriptor-relative no-follow support')
+    def test_root_anchored_reader_rejects_a_parent_symlink_swap(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp) / 'root'
+            nested = root / 'cache'
+            outside = Path(tmp) / 'outside'
+            nested.mkdir(parents=True)
+            outside.mkdir()
+            candidate = nested / 'candidate.bin'
+            candidate.write_bytes(b'a' * 4096)
+            (outside / 'candidate.bin').write_bytes(b'secret' * 683)
+            info = scan.scan(root)[0]
+
+            nested.rename(root / 'cache-original')
+            os.symlink(outside, nested, target_is_directory=True)
+
+            self.assertIsNone(dedup._digest(info.path, expected=info, root=root))
 
     def test_hardlinks_are_not_treated_as_reclaimable_duplicates(self):
         with tempfile.TemporaryDirectory() as tmp:
@@ -371,6 +405,16 @@ class TestSanchay(unittest.TestCase):
             verified = plan.verify(plan.read(plan_path))
             self.assertTrue(verified['fingerprint_valid'])
             self.assertTrue(verified['valid'])
+
+            old_schema = copy.deepcopy(cleanup_plan)
+            old_schema['schema_version'] = 4
+            unsigned = {key: value for key, value in old_schema.items()
+                        if key != 'fingerprint_sha256'}
+            old_schema['fingerprint_sha256'] = plan._fingerprint(unsigned)
+            legacy_path = root / 'legacy-plan.json'
+            plan.write(old_schema, legacy_path)
+            with self.assertRaises(ValueError):
+                plan.read(legacy_path)
 
             tampered = copy.deepcopy(cleanup_plan)
             tampered['safety']['rule'] = 'changed after review'

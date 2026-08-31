@@ -48,6 +48,10 @@ that collide get their first 64 KB hashed. Only what still collides after that
 gets a full BLAKE2b-256 digest. Before a duplicate becomes reviewable, SANCHAY
 also compares that file with its named survivor byte for byte. Files whose
 sizes do not collide are never opened.
+On Linux, each candidate is opened descriptor-by-descriptor from the canonical
+scan root with no-follow flags. A symlink component, non-regular file, or
+identity change between scan and read is rejected rather than becoming content
+evidence.
 Hardlinks pointing at the same inode are not counted as duplicates, because
 deleting one of them frees no space. SANCHAY counts that inode once in disk
 usage, snapshot, forecast, and treemap metrics, using allocated blocks rather
@@ -96,7 +100,7 @@ three or more snapshots it also reports R-squared fit quality, giving the user
 a measurable forecast without uploading file names or contents.
 
 **5. Writes a review-only plan.** Each eligible recommendation records its
-classification, observed device/inode/logical-size/allocated-size/mtime/link-count identity, and typed recovery
+classification, observed device/inode/logical-size/allocated-size/mtime-nanoseconds/link-count identity, and typed recovery
 evidence with a visible strength: direct full-content match for duplicates,
 repository-state evidence for clean Git files, or a clearly labelled heuristic
 for conventional cache paths. Duplicate candidates name the copy that will

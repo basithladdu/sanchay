@@ -100,7 +100,7 @@ def main(argv=None):
         print(f"{aliases:,} hardlink aliases are not double-counted")
     print()
 
-    groups = dedup.duplicates(files)
+    groups = dedup.duplicates(files, root=args.root)
     print(f"duplicates: {len(groups)} groups, {human(dedup.reclaimable(groups))} potential allocated reclaim")
 
     free = shutil.disk_usage(args.root).free

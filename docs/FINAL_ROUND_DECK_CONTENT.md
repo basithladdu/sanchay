@@ -56,7 +56,9 @@ Three claims only:
   metrics, and are not reclaimable copies; sparse logical length is not
   presented as reclaimable allocation where Linux exposes block counts;
 - every duplicate recommendation names its retained survivor;
-- revalidation rechecks both files and their matching contents.
+- revalidation rechecks both files and their matching contents; on Linux the
+  reader is anchored to the selected root and rejects symlink-component swaps
+  or identity drift instead of treating changed paths as evidence.
 
 ## Slide 5 — Honest capacity intelligence
 

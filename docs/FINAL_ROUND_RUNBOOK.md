@@ -101,7 +101,10 @@ be met safely, it reports a shortfall rather than recommending protected files.
 **How do you prove a duplicate is eligible for review?** It uses size bucketing,
 prefix hashing, then a full BLAKE2b-256 digest and a byte-for-byte comparison;
 the plan names the survivor and verification rechecks both identities and
-matching content. Hardlinks are not counted as reclaimable copies.
+matching content. On Linux, each read is anchored to the selected root with
+no-follow descriptor traversal; a symlink component or identity drift produces
+no evidence rather than reading a substituted path. Hardlinks are not counted
+as reclaimable copies.
 
 **How reliable is the forecast?** A single scan is labelled as an mtime-based
 estimate. Later aggregate snapshots produce a local linear trend with an

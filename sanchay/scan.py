@@ -38,6 +38,9 @@ class FileInfo:
     # allocated size is what a filesystem can actually return on deletion.
     # It is None only when the platform does not expose block allocation.
     allocated_size: int = None
+    # A nanosecond mtime makes later identity rechecks less dependent on the
+    # display-oriented float field's filesystem timestamp precision.
+    mtime_ns: int = None
 
 
 def _is_protected_file(name):
@@ -57,7 +60,9 @@ def scan(root, skip=DEFAULT_SKIP_DIRS,
     cleanup pass from silently traversing mounted network shares, removable
     media, or a separately governed system volume.
     """
-    root = os.path.abspath(root)
+    # Canonicalise the user-supplied root once.  All emitted paths then share
+    # one stable root for later descriptor-relative content reads.
+    root = os.path.realpath(os.path.abspath(root))
     if os.path.basename(os.path.normpath(root)) in skip:
         raise ValueError(f"Refusing to scan protected directory: {root}")
     try:
@@ -101,5 +106,6 @@ def scan(root, skip=DEFAULT_SKIP_DIRS,
                 continue
             files.append(FileInfo(path, st.st_size, st.st_atime, st.st_mtime,
                                   st.st_ino, st.st_dev, st.st_nlink,
-                                  storage.allocated_bytes_from_stat(st)))
+                                  storage.allocated_bytes_from_stat(st),
+                                  getattr(st, "st_mtime_ns", None)))
     return files

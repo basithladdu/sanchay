@@ -74,6 +74,9 @@ Deduplicating large files can saturate I/O. SANCHAY uses a 3-tier cascade:
 2. 64 KB header checksum (BLAKE2b-256)
 3. Full BLAKE2b-256 digest only for confirmed header collisions
 4. Byte-for-byte confirmation before a duplicate enters the review plan
+5. On Linux, content is opened descriptor-by-descriptor from the canonical
+   scan root with no-follow flags. A symlink component, non-regular file, or
+   scan-time identity change yields no duplicate evidence.
 
 ### 4. Interactive Treemap & TUI Reporting
 Interactive visualization color-coded by recoverability class rather than raw directory hierarchy alone.
@@ -157,6 +160,10 @@ sanchay-ui .
 * **Credential boundary**: Common credential directories, environment files,
   private-key formats, and local credential vaults are excluded before metadata
   collection or duplicate hashing.
+* **Content-read boundary**: Duplicate evidence is tied to the inode observed
+  during the scan. Linux reads are rooted at the canonical scan directory and
+  reject symlink components; all platforms reject non-regular files and
+  descriptor identity drift before using content as evidence.
 * **Inspectable evidence policy**: Every plan item records its classification,
   logical and reclaimable allocated sizes, observed identity, typed recovery
   evidence with its strength, and frozen decision-model inputs; files

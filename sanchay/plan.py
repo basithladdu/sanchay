@@ -16,6 +16,12 @@ import stat
 from . import dedup, regret, storage
 
 
+PLAN_SCHEMA_VERSION = 5
+IDENTITY_FIELDS = (
+    "device", "inode", "size", "allocated_size", "mtime", "mtime_ns", "nlink",
+)
+
+
 ACTION = {
     "disposable": "review through the owning cache or build tool before any manual clear",
     "duplicate": "retain the named survivor and review this byte-confirmed alternate copy",
@@ -113,6 +119,7 @@ def _identity(info):
         "size": info.size,
         "allocated_size": storage.allocated_bytes(info),
         "mtime": info.mtime,
+        "mtime_ns": getattr(info, "mtime_ns", None),
         "nlink": getattr(info, "nlink", 1),
     }
 
@@ -130,7 +137,7 @@ def build(files, duplicate_groups, root, now=None, limit=25,
     """Build a non-executing cleanup manifest from one scan result."""
     if target_reclaim_bytes is not None and target_reclaim_bytes <= 0:
         raise ValueError("Reclaim target must be greater than zero")
-    duplicate_of = dedup.confirmed_duplicate_map(duplicate_groups)
+    duplicate_of = dedup.confirmed_duplicate_map(duplicate_groups, root=root)
     by_path = {info.path: info for info in files}
     eligible = []
     protected_count = 0
@@ -172,7 +179,7 @@ def build(files, duplicate_groups, root, now=None, limit=25,
         recommendations.append(item)
 
     document = {
-        "schema_version": 4,
+        "schema_version": PLAN_SCHEMA_VERSION,
         "generated_at": datetime.now(timezone.utc).isoformat(),
         "root": str(Path(root).resolve()),
         "execution": {
@@ -190,6 +197,11 @@ def build(files, duplicate_groups, root, now=None, limit=25,
             "candidate_count": len(eligible),
             "candidate_bytes": sum(row["size"] for row, _ in eligible),
             "rule": "unique, untracked, uncached files and every hardlinked entry are excluded before ranking",
+            "content_read_boundary": (
+                "duplicate evidence rejects non-regular files and identity drift; "
+                "on Linux, descriptor reads are rooted at the canonical scan root "
+                "and do not follow symlink components"
+            ),
         },
         "integrity": {
             "algorithm": "SHA-256",
@@ -246,8 +258,9 @@ def read(path):
     safety_required = {"protected_unique_files", "protected_unique_bytes",
                        "logical_file_entries", "physical_file_count",
                        "excluded_hardlink_entries", "excluded_hardlink_physical_bytes",
-                       "candidate_count", "candidate_bytes", "rule"}
-    if (document.get("schema_version") != 4 or not required.issubset(document)
+                       "candidate_count", "candidate_bytes", "rule",
+                       "content_read_boundary"}
+    if (document.get("schema_version") != PLAN_SCHEMA_VERSION or not required.issubset(document)
             or not isinstance(document["root"], str)
             or not isinstance(document["execution"], dict)
             or not isinstance(document["safety"], dict)
@@ -271,6 +284,7 @@ def _current_identity(path):
         "size": observed.st_size,
         "allocated_size": storage.allocated_bytes_from_stat(observed),
         "mtime": observed.st_mtime,
+        "mtime_ns": getattr(observed, "st_mtime_ns", None),
         "nlink": observed.st_nlink,
     }, None
 
@@ -281,7 +295,9 @@ def _identity_check(path, expected, role):
     actual, error = _current_identity(path)
     if error:
         return error
-    for field in ("device", "inode", "size", "allocated_size", "mtime", "nlink"):
+    for field in IDENTITY_FIELDS:
+        if field not in expected:
+            return f"{role} {field} is missing from the plan"
         if actual[field] != expected.get(field):
             return f"{role} {field} changed since the plan was created"
     return None
@@ -348,7 +364,11 @@ def verify(document):
                             survivor, item.get("survivor_identity", {}), "survivor")
                     if changed:
                         reasons.append(changed)
-                    elif not dedup.same_content(path, survivor):
+                    elif not dedup.same_content(
+                            path, survivor,
+                            expected_left=item.get("observed_identity"),
+                            expected_right=item.get("survivor_identity"),
+                            root=document["root"]):
                         reasons.append("candidate and survivor no longer match")
             elif kind == "tracked" and not regret.in_repo(path):
                 reasons.append("candidate is no longer cleanly recoverable from Git HEAD")
