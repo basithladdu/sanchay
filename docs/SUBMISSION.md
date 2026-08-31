@@ -40,15 +40,17 @@ It then does six things.
 
 **1. Finds duplicates cheaply.** Files are grouped by size first. Only groups
 that collide get their first 64 KB hashed. Only what still collides after that
-gets hashed in full. On a typical disk the large majority of files are never
-opened at all. Hardlinks pointing at the same inode are not counted as
-duplicates, because deleting one of them frees no space.
+gets hashed in full. Files whose sizes do not collide are never opened.
+Hardlinks pointing at the same inode are not counted as duplicates, because
+deleting one of them frees no space.
 
 **2. Works out how recoverable each file is.** This is the core of the tool.
 Every file lands in one of four classes:
 
-- disposable — it lives in a build or package cache (node_modules, __pycache__,
-  .venv, target/, .next, .gradle, .m2). A tool regenerates it on demand.
+- disposable — it lives in a narrow, known cache or build-output path
+  (__pycache__, .cache, target/debug, build/, dist/, .next/cache). Whole
+  dependency trees and virtual environments are deliberately not assumed to be
+  regenerable from their path alone.
 - duplicate — an identical copy exists elsewhere and survives the delete.
 - tracked — it is committed inside a git repository.
 - unique — none of the above. Nothing gets it back.
@@ -183,7 +185,7 @@ Inbuilt Model.
 The model that makes the decisions — the regret classifier and the ranking
 function — was built by us. It is a rule-based, fully inspectable model rather
 than a trained one, chosen deliberately: every recommendation traces to a
-specific reason ("this is in node_modules", "this has a duplicate at that path")
+specific reason ("this is in a known cache path", "this has a duplicate at that path")
 that can be printed and challenged. A trained classifier would need labelled
 ground truth and a validation story before it could safely influence this gate.
 

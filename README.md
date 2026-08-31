@@ -42,11 +42,11 @@ For irreplaceable unique files, regret is 1.00, so priority is 0.0 and they are 
 │   DISPOSABLE    │    DUPLICATE      │    GIT TRACKED    │     UNIQUE        │
 │   Regret: 0.02  │    Regret: 0.10   │    Regret: 0.20   │   Regret: 1.00    │
 │  e.g. .cache,   │   Identical hash, │  Committed in git │ Capstone thesis,  │
-│  node_modules,  │   surviving copies│  history, restore │ production DB,    │
-│  __pycache__    │   on filesystem   │  via git checkout │ personal docs     │
+│  __pycache__,   │   surviving copies│  history, restore │ production DB,    │
+│  build/, dist/  │   on filesystem   │  via git checkout │ personal docs     │
 ├─────────────────┼───────────────────┼───────────────────┼───────────────────┤
-│  PRIORITY: HIGH │  PRIORITY: HIGH   │  PRIORITY: MED    │ PRIORITY: ZERO    │
-│  Safe to Purge  │  Safe Deduplicate │  Safe Offload     │ LOCKED 🔒 (NEVER) │
+│  REVIEW FIRST   │  REVIEW FIRST     │  REVIEW FIRST     │ EXCLUDED FROM PLAN│
+│  Owning tool    │  Named survivor   │  Clean Git HEAD   │ No recommendation │
 └─────────────────┴───────────────────┴───────────────────┴───────────────────┘
 ```
 
@@ -62,7 +62,7 @@ SANCHAY derives an initial storage-growth estimate from the **inode modification
 
 ### 3. Tiered Fast Content Hashing
 Deduplicating large files can saturate I/O. SANCHAY uses a 3-tier cascade:
-1. File size grouping (eliminates 90% of non-duplicates instantly)
+1. File size grouping (avoids hashing files whose sizes do not collide)
 2. 64 KB header checksum (Blake2b)
 3. Full content hash only for confirmed header collisions
 

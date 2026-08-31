@@ -61,7 +61,7 @@ def main(argv=None):
 
     groups = dedup.duplicates(files)
     dup_paths = set(dedup.duplicate_map(groups))
-    print(f"duplicates: {len(groups)} groups, {human(dedup.reclaimable(groups))} reclaimable")
+    print(f"duplicates: {len(groups)} groups, {human(dedup.reclaimable(groups))} potential duplicate bytes")
 
     free = shutil.disk_usage(args.root).free
     current_snapshot = snapshot.capture(files, args.root, free)

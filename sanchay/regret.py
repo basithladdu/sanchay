@@ -18,11 +18,12 @@ import os
 import subprocess
 import time
 
-# Directories whose contents a build or package tool will regenerate on demand.
+# Narrow, high-confidence paths whose contents are ordinarily cache or build
+# output. Whole dependency trees and environments are deliberately excluded:
+# their presence alone is not proof that reinstalling them is possible.
 DISPOSABLE = (
-    "/.cache/", "/var/cache/", "/node_modules/", "/__pycache__/", "/.venv/",
-    "/target/debug/", "/target/release/", "/build/", "/dist/", "/.gradle/",
-    "/.npm/", "/.m2/repository/", "/site-packages/", "/.next/", "/.tox/",
+    "/.cache/", "/var/cache/", "/__pycache__/", "/target/debug/",
+    "/target/release/", "/build/", "/dist/", "/.next/cache/", "/.tox/",
 )
 
 REGRET = {

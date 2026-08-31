@@ -119,14 +119,14 @@ def build(files, root, free_bytes, out="sanchay-report.html", limit=50):
 
   <div class="cards">
     {_card("Scanned on disk", human(total), f"{len(files):,} total files")}
-    {_card("Duplicate groups", human(dedup.reclaimable(groups)), f"{len(groups):,} groups reclaimable", "#84cc16")}
+    {_card("Duplicate candidates", human(dedup.reclaimable(groups)), f"{len(groups):,} groups before survivor review", "#84cc16")}
     {_card("Reviewable candidates", human(reviewable), f"top {len(rows)} recommendations; human review required", "#10b981")}
     {_card("Disk runway", f"{days:.0f} days" if days else "—", f"{human(forecast.rate(files))}/day growth rate", "#3b82f6")}
   </div>
 
   <div class="panel">
     <h2>Storage Recoverability Treemap</h2>
-    <p class="h">Treemap blocks are coloured strictly by recoverability: Green is safe/regenerable, Red is irreplaceable.</p>
+    <p class="h">Treemap blocks are coloured by recoverability evidence: green has cache or duplicate evidence; red has no known recovery proof.</p>
     {chart}
   </div>
 

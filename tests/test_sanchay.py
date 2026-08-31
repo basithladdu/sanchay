@@ -16,7 +16,7 @@ class TestSanchay(unittest.TestCase):
     def setUp(self):
         self.now = time.time()
         self.files = [
-            scan.FileInfo('/app/node_modules/pkg/index.js', 5000000, self.now - 86400 * 30, self.now - 86400 * 30, 101),
+            scan.FileInfo('/app/node_modules/.cache/pkg/index.js', 5000000, self.now - 86400 * 30, self.now - 86400 * 30, 101),
             scan.FileInfo('/app/__pycache__/mod.cpython-312.pyc', 1000000, self.now - 86400 * 10, self.now - 86400 * 10, 102),
             scan.FileInfo('/home/user/notes.txt', 2000000, self.now - 86400 * 200, self.now - 86400 * 200, 103),
             scan.FileInfo('/home/user/thesis_final.pdf', 50000000, self.now - 86400 * 500, self.now - 86400 * 500, 104),
@@ -38,7 +38,7 @@ class TestSanchay(unittest.TestCase):
     def test_unique_files_excluded_from_cleanup_ranking(self):
         ranked = regret.rank(self.files, duplicate_paths=frozenset(), now=self.now)
         paths = [r['path'] for r in ranked]
-        self.assertIn('/app/node_modules/pkg/index.js', paths)
+        self.assertIn('/app/node_modules/.cache/pkg/index.js', paths)
         self.assertIn('/app/__pycache__/mod.cpython-312.pyc', paths)
         # Unique thesis file must NEVER appear in recommendations
         self.assertNotIn('/home/user/thesis_final.pdf', paths)
@@ -212,6 +212,18 @@ class TestSanchay(unittest.TestCase):
             self.assertEqual(paths, {str(visible)})
             with self.assertRaises(ValueError):
                 scan.scan(root / '.ssh')
+
+    def test_whole_dependency_and_environment_trees_are_not_assumed_regenerable(self):
+        package = scan.FileInfo('/usr/lib/python3.12/site-packages/tool.py', 4096,
+                                self.now, self.now, 200)
+        environment = scan.FileInfo('/home/user/project/.venv/bin/python', 4096,
+                                    self.now, self.now, 201)
+        dependency = scan.FileInfo('/home/user/project/node_modules/lib/index.js',
+                                   4096, self.now, self.now, 202)
+
+        self.assertEqual(regret.classify(package, False), 'unique')
+        self.assertEqual(regret.classify(environment, False), 'unique')
+        self.assertEqual(regret.classify(dependency, False), 'unique')
 
     def test_report_paths_are_relative_to_the_selected_root(self):
         with tempfile.TemporaryDirectory() as tmp:

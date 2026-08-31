@@ -1,8 +1,8 @@
-"""Treemap coloured by regret, not by size.
+"""Treemap coloured by recoverability evidence, not just by size.
 
-Every disk visualiser draws the same treemap. This one colours each block by
-how safe it is to delete, so the answer is visible without reading a table:
-green blocks are free money, red blocks are irreplaceable.
+Every disk visualiser draws the same treemap. This one distinguishes cache,
+duplicate, clean-Git, and no-known-recovery evidence so a person can review the
+storage context without treating colour as authorization to delete.
 
 plotly does the drawing.
 """
