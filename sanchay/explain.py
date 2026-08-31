@@ -1,10 +1,12 @@
 """Narrate an already-fenced ranking without granting an LLM control.
 
-The default narrative is deterministic and local. A cloud model is an explicit
-opt-in, and receives opaque candidate IDs plus fixed metadata only: never file
-paths, file contents, credentials, or a cleanup capability.
+The default narrative is deterministic and local. An optional cloud or
+loopback-only Ollama model receives opaque candidate IDs plus fixed metadata
+only: never file paths, file contents, credentials, or a cleanup capability.
 """
+import json
 import os
+import urllib.request
 
 
 KIND_ORDER = ("disposable", "duplicate", "tracked")
@@ -32,6 +34,24 @@ candidate IDs supplied below.
 
 {table}
 """
+
+LOCAL_OLLAMA_URL = "http://127.0.0.1:11434/api/generate"
+LOCAL_OLLAMA_TIMEOUT_SECONDS = 20
+
+
+class _NoRedirect(urllib.request.HTTPRedirectHandler):
+    """Reject redirects so the local narrator cannot follow a remote URL."""
+
+    def redirect_request(self, request, fp, code, msg, headers, newurl):
+        return None
+
+
+def _local_ollama_opener():
+    """Use no proxy and no redirect handler for the fixed loopback endpoint."""
+    return urllib.request.build_opener(
+        urllib.request.ProxyHandler({}),
+        _NoRedirect(),
+    )
 
 
 def _human_bytes(value):
@@ -118,9 +138,50 @@ def _cloud_narrative(rows, model=None):
     return message.content[0].text
 
 
-def explain(rows, model=None, allow_cloud=False):
-    """Return local narration, or a separately consented metadata-only cloud one."""
+def _local_ollama_narrative(rows, model=None, opener=None):
+    """Request a metadata-only narrative from an already-running loopback Ollama."""
+    selected_model = model or os.environ.get("SANCHAY_OLLAMA_MODEL", "gemma3")
+    payload = json.dumps({
+        "model": selected_model,
+        "prompt": PROMPT.format(table=cloud_metadata(rows)),
+        "stream": False,
+        "keep_alive": "0",
+    }).encode("utf-8")
+    request = urllib.request.Request(
+        LOCAL_OLLAMA_URL,
+        data=payload,
+        headers={"Content-Type": "application/json"},
+        method="POST",
+    )
+    client = opener or _local_ollama_opener()
+    with client.open(request, timeout=LOCAL_OLLAMA_TIMEOUT_SECONDS) as response:
+        document = json.loads(response.read().decode("utf-8"))
+    narrative = document.get("response")
+    if not isinstance(narrative, str) or not narrative.strip():
+        raise ValueError("local Ollama response did not contain a narrative")
+    return narrative.strip()
+
+
+def explain(rows, model=None, allow_cloud=False, allow_ollama=False,
+            ollama_model=None):
+    """Return local narration, or one separately consented metadata-only model output."""
     local = local_narrative(rows)
+    if allow_cloud and allow_ollama:
+        raise ValueError("choose either cloud or local Ollama narration")
+    if allow_ollama:
+        try:
+            narrative = _local_ollama_narrative(rows, model=ollama_model)
+        except Exception:
+            return "Local Ollama narrative unavailable; using the local-only fallback.\n\n" + local
+        return (
+            "Optional local Ollama narrative - only opaque IDs, kind, allocated bytes, and "
+            "unchanged days were sent to a fixed loopback service at 127.0.0.1:11434. "
+            "SANCHAY made no direct remote request; the selected model runtime remains "
+            "operator-controlled.\n\n"
+            + narrative
+            + "\n\nLocal candidate mapping (not sent to Ollama):\n"
+            + table(rows)
+        )
     if not allow_cloud:
         return local
     if not os.environ.get("ANTHROPIC_API_KEY"):

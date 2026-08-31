@@ -317,6 +317,12 @@ recoverability class, allocated bytes, and unchanged age. No raw paths, file
 contents, or credential metadata are transmitted. The cloud output cannot add
 or act on a candidate.
 
+`--ollama-narrative` is a separate optional loopback-Ollama path. It sends the
+same opaque metadata only to the fixed `127.0.0.1:11434` endpoint, with proxies
+and redirects disabled. SANCHAY makes no direct remote request; the selected
+local model and its provisioning remain operator policy. The output is
+explanatory only and cannot add, reorder, or act on a candidate.
+
 ---
 
 ## Tech Stack
@@ -328,8 +334,9 @@ blake2b is used for content hashing — faster than SHA-256 and adequate here,
 since this is duplicate detection rather than a security boundary.
 
 Optional: plotly (MIT) and pandas (BSD-3) for the treemap; anthropic (MIT) for
-the written summary. Both are lazy-loaded, so the core installs and runs with
-zero dependencies.
+the cloud-written summary. A local Ollama narrator uses only Python standard
+library HTTP against a fixed loopback endpoint. All optional narrators are
+lazy-loaded or opt-in, so the core installs and runs with zero dependencies.
 
 Packaging: pip-installable via pyproject.toml, exposing a sanchay console
 command. Licence MIT.

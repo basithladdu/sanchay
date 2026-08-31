@@ -175,6 +175,11 @@ recoverability scoring, constrained target selection, and local observed-growth
 models. A separately opt-in cloud narration can summarize opaque metadata but
 cannot change selection or execute actions.
 
+For a standalone Linux demonstration with an operator-provisioned local model,
+`--ollama-narrative` can instead send the same opaque records to a fixed local
+loopback Ollama endpoint. It is optional, does not use a proxy or redirect,
+and cannot affect selection, verification, or cleanup authority.
+
 **Why not delete the obvious files automatically?** Matching bytes or a cache
 path is not proof of business ownership, retention policy, or operator intent.
 SANCHAY creates a reviewable plan and verifies it again before a human acts.

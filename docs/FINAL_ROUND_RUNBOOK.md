@@ -49,6 +49,10 @@ human acts.
    `python -m sanchay.demo --risk-prove`. Its first line explicitly identifies synthetic
    aggregate snapshots, not endpoint telemetry. It proves the seven-snapshot
    and changed-capacity gates, not a forecast for the demo machine.
+9. Do not make the local-Ollama narrator part of the core demo. It is optional
+   evidence of an on-device AI integration only when the operator has verified
+   that a pre-provisioned model runs locally and has rehearsed it. The live
+   proof must still work with no model service.
 
 ## Exact live-demo sequence
 
@@ -127,6 +131,11 @@ cloud LLM receives opaque candidate IDs plus class, allocated bytes, and
 unchanged age—not raw paths or file contents—and cannot promote protected files
 or execute actions.
 
+An optional `--ollama-narrative` sends the same opaque records to a fixed
+loopback Ollama endpoint only: no proxy or redirect is used. It cannot promote
+protected files or execute actions, and its model selection/provisioning remain
+operator policy. The deterministic recovery model still makes every decision.
+
 **Why show capacity risk rather than an exact date?** Storage use can be
 non-linear. With strong local history, `--risk-horizon DAYS` estimates the
 probability of reaching current mounted capacity within that horizon using a
@@ -136,12 +145,16 @@ intervals, and unchanged mount capacity. The probability is conditional on
 that model; it is not a capacity guarantee, diagnosis, alert, cleanup command,
 or volume action.
 
-**Why is the cloud narrative not automatic?** A storage scan can contain
+**Why is a model narrative not automatic?** A storage scan can contain
 sensitive path names, and file-derived text is untrusted input for an LLM. The
 local narrative is default. `--cloud-narrative` requires separate consent and
 transmits only opaque IDs and fixed numeric/class metadata; the decision gate,
 plan, verification, and absence of a cleanup executor are enforced outside the
 model.
+
+`--ollama-narrative` is a separately requested loopback call; the default
+remains the deterministic local narrative. Neither model path can alter the
+plan, verification, or lack of a cleanup executor.
 
 **Why not automate deletion?** The requested problem includes recommendations;
 the irreversible step has a different risk profile. SANCHAY supplies an

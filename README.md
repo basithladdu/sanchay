@@ -313,6 +313,10 @@ sanchay /home/user --explain
 # Explicit cloud narrative over opaque IDs and fixed metadata only
 sanchay /home/user --explain --cloud-narrative
 
+# Optional loopback Ollama narrative over the same opaque metadata only.
+# Requires an already-running local Ollama service and an operator-provisioned model.
+sanchay /home/user --explain --ollama-narrative --ollama-model gemma3
+
 # 12. Create a harmless, reproducible final-round demo fixture
 sanchay-demo /tmp/sanchay-demo
 
@@ -367,7 +371,11 @@ sanchay-ui .
   run on-device. No file content or candidate data is transmitted. An optional
   `--cloud-narrative` requires explicit user opt-in and sends only opaque
   candidate IDs, recoverability class, allocated bytes, and unchanged age—never
-  raw paths or file contents.
+  raw paths or file contents. `--ollama-narrative` uses the same opaque
+  metadata with a fixed `127.0.0.1:11434` loopback endpoint, no proxy, and no
+  redirects; SANCHAY makes no direct remote request. The selected local-model
+  runtime and its provisioning remain operator policy, and neither model can
+  alter the plan or execute a cleanup action.
 * **Credential boundary**: Common credential directories, environment files,
   private-key formats, local credential vaults, Docker configuration, and npm
   and Terraform CLI credential files are excluded before metadata collection or

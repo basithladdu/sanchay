@@ -88,6 +88,10 @@ def main(argv=None):
                     help="write a local-only narrative; no scan data leaves this machine")
     ap.add_argument("--cloud-narrative", action="store_true",
                     help="with --explain, explicitly allow an optional cloud narrative over opaque metadata only")
+    ap.add_argument("--ollama-narrative", action="store_true",
+                    help="with --explain, request an optional opaque-metadata narrative from fixed local Ollama loopback")
+    ap.add_argument("--ollama-model", metavar="MODEL",
+                    help="with --ollama-narrative, select a model already available to local Ollama")
     ap.add_argument("--viz", metavar="OUT.html", help="write a regret treemap")
     ap.add_argument("--report", metavar="OUT.html",
                     help="write a detailed local HTML review report; contains relative paths")
@@ -124,6 +128,12 @@ def main(argv=None):
 
     if args.cloud_narrative and not args.explain:
         ap.error("--cloud-narrative requires --explain")
+    if args.ollama_narrative and not args.explain:
+        ap.error("--ollama-narrative requires --explain")
+    if args.cloud_narrative and args.ollama_narrative:
+        ap.error("choose either --cloud-narrative or --ollama-narrative")
+    if args.ollama_model and not args.ollama_narrative:
+        ap.error("--ollama-model requires --ollama-narrative")
     if args.snapshot and args.snapshot_history:
         ap.error("use either --snapshot OUT.json or --snapshot-history DIR, not both")
     if args.snapshot_history and (args.compare or args.history):
@@ -621,7 +631,12 @@ def main(argv=None):
         print(f"\ntreemap -> {treemap_path}")
 
     if args.explain:
-        print("\n" + explain.explain(rows, allow_cloud=args.cloud_narrative))
+        print("\n" + explain.explain(
+            rows,
+            allow_cloud=args.cloud_narrative,
+            allow_ollama=args.ollama_narrative,
+            ollama_model=args.ollama_model,
+        ))
 
     if (not scan_coverage["complete"]
             and (args.snapshot or args.snapshot_history or args.compare or args.history)):
