@@ -58,6 +58,8 @@ Three claims only:
   metrics, and are not reclaimable copies; sparse logical length is not
   presented as reclaimable allocation where Linux exposes block counts;
 - every duplicate recommendation names its retained survivor;
+- a verified archive copy is handled by the same proof: matching bytes, a
+  named survivor, and revalidation—not merely an old source file;
 - revalidation rechecks both files and their matching contents; on Linux the
   reader is anchored to the selected root and rejects symlink-component swaps
   or identity drift instead of treating changed paths as evidence.

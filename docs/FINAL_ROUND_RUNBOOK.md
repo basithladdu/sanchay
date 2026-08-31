@@ -105,6 +105,12 @@ model.
 the irreversible step has a different risk profile. SANCHAY supplies an
 auditable plan and revalidation gate so an operator retains authority.
 
+**What about archiving?** An archive becomes recovery evidence only after an
+operator chooses its destination and retention policy, a copy is verified, and
+restoration is governed. SANCHAY does not treat an old unique file as safe to
+move merely because it is old. Once a byte-confirmed surviving copy exists, it
+is handled as a duplicate with a named survivor and revalidation gate.
+
 **What if an operator needs a stated amount of free space?** `--target-reclaim`
 selects from the lowest recovery-risk class first, using the smallest safe
 excess within that class, and reports whether the target is met. If it cannot
