@@ -40,6 +40,16 @@ def parse_reclaim_bytes(value):
     return parsed
 
 
+def _visualization_dependency_missing(feature, exc):
+    """Print an actionable optional-dependency error when Plotly is absent."""
+    missing = exc.name
+    if missing not in {"pandas", "plotly"}:
+        return False
+    print(f"{feature}: visualization support is unavailable; install optional "
+          'dependencies with `python -m pip install -e ".[viz]"`')
+    return True
+
+
 def main(argv=None):
     ap = argparse.ArgumentParser(prog="sanchay", description=__doc__)
     ap.add_argument("root", nargs="?")
@@ -302,14 +312,21 @@ def main(argv=None):
               f"{r['staleness'] * 365:>7.1f}d  {r['path']}")
 
     if args.report:
-        from . import report
-        print("report -> " + report.build(files, args.root, free, args.report,
-                                           target_reclaim_bytes=args.target_reclaim,
-                                           cross_filesystems=args.cross_filesystems,
-                                           process_held=held_deleted,
-                                           filesystem_context=filesystem_context,
-                                           scan_coverage=scan_coverage,
-                                           capacity_accounting=capacity_accounting))
+        try:
+            from . import report
+            report_path = report.build(
+                files, args.root, free, args.report,
+                target_reclaim_bytes=args.target_reclaim,
+                cross_filesystems=args.cross_filesystems,
+                process_held=held_deleted,
+                filesystem_context=filesystem_context,
+                scan_coverage=scan_coverage,
+                capacity_accounting=capacity_accounting)
+        except ModuleNotFoundError as exc:
+            if _visualization_dependency_missing("report", exc):
+                return 2
+            raise
+        print("report -> " + report_path)
 
     if args.plan:
         print("plan -> " + plan.write(cleanup_plan, args.plan))
@@ -321,8 +338,16 @@ def main(argv=None):
             print("snapshot -> " + snapshot.write(current_snapshot, args.snapshot))
 
     if args.viz:
-        from . import viz
-        print(f"\ntreemap -> {viz.treemap(files, plan.duplicate_evidence_paths(cleanup_plan), args.viz, root=args.root)}")
+        try:
+            from . import viz
+            treemap_path = viz.treemap(
+                files, plan.duplicate_evidence_paths(cleanup_plan), args.viz,
+                root=args.root)
+        except ModuleNotFoundError as exc:
+            if _visualization_dependency_missing("treemap", exc):
+                return 2
+            raise
+        print(f"\ntreemap -> {treemap_path}")
 
     if args.explain:
         print("\n" + explain.explain(rows, allow_cloud=args.cloud_narrative))

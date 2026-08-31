@@ -226,7 +226,7 @@ sanchay /home/user --compare before.json
 # 7. Fit a local trend once you have multiple earlier snapshots
 sanchay /home/user --history day-1.json day-7.json day-14.json
 
-# 8. Generate an interactive Plotly HTML report
+# 8. Generate an interactive Plotly HTML report (requires .[viz])
 sanchay /home/user --report report.html
 
 # 9. Produce a deterministic local-only narrative for the review set
@@ -256,6 +256,9 @@ pip install -e .
 
 # Optional: install the interactive terminal dashboard
 pip install -e ".[tui]"
+
+# Optional: install self-contained HTML visualization support
+pip install -e ".[viz]"
 
 # Run the unit and integration tests
 python -m unittest discover tests

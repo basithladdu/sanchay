@@ -393,6 +393,34 @@ class TestSanchay(unittest.TestCase):
         self.assertIn('System-reserved paths', rendered)
         self.assertIn('never selected as file cleanup candidates', rendered)
 
+    def test_cli_report_explains_when_optional_visualization_is_missing(self):
+        files = [
+            scan.FileInfo('/home/user/.cache/build.bin', 4000, self.now,
+                          self.now - 86400 * 90, 721),
+        ]
+        output = io.StringIO()
+        missing = ModuleNotFoundError("No module named 'pandas'", name='pandas')
+        with mock.patch.object(scan, 'scan_with_coverage',
+                               return_value=(files, scan.ScanCoverage())), \
+                mock.patch.object(shutil, 'disk_usage',
+                                  return_value=SimpleNamespace(free=1000000)), \
+                mock.patch.object(report, 'build', side_effect=missing), \
+                contextlib.redirect_stdout(output):
+            status = cli.main(['/', '--report', 'review.html'])
+
+        self.assertEqual(status, 2)
+        self.assertIn('report: visualization support is unavailable',
+                      output.getvalue())
+        self.assertIn('python -m pip install -e ".[viz]"', output.getvalue())
+
+    def test_visualization_dependency_message_does_not_hide_unrelated_imports(self):
+        missing = ModuleNotFoundError("No module named 'sanchay.internal'",
+                                      name='sanchay.internal')
+        with contextlib.redirect_stdout(io.StringIO()):
+            handled = cli._visualization_dependency_missing('report', missing)
+
+        self.assertFalse(handled)
+
     def test_cli_reports_process_held_deleted_storage_as_an_advisory(self):
         files = [
             scan.FileInfo('/home/user/.cache/build.bin', 4000, self.now,
