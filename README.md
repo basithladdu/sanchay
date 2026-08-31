@@ -22,7 +22,9 @@
 
 ## 📌 Executive Summary & Problem Context
 
-Disk-usage explorers and duplicate finders can identify space consumers, but a space ranking alone does not establish that a specific file can be safely removed.
+Disk-usage explorers and duplicate finders can identify space consumers, but a
+space ranking alone does not establish that a specific file is eligible for
+human review.
 
 To a naive tool, a 2 GB regenerable build cache (`node_modules/.cache`) and a 2 GB irreplaceable capstone project database dump look identical. When a user runs out of disk space, automated cleaners or hurried users delete unique personal files, causing catastrophic, irrecoverable data loss.
 
@@ -43,7 +45,8 @@ For irreplaceable unique files, regret is 1.00, so priority is 0.0 and they are 
 │   Regret: 0.02  │    Regret: 0.10   │    Regret: 0.20   │   Regret: 1.00    │
 │  e.g. .cache,   │   Identical hash, │  Committed in git │ Capstone thesis,  │
 │  __pycache__,   │   surviving copies│  history, restore │ production DB,    │
-│  build/, dist/  │   on filesystem   │  via git checkout │ personal docs     │
+│  target/debug,  │   on filesystem   │  via git checkout │ personal docs     │
+│  .next/cache    │                   │                   │                   │
 ├─────────────────┼───────────────────┼───────────────────┼───────────────────┤
 │  REVIEW FIRST   │  REVIEW FIRST     │  REVIEW FIRST     │ EXCLUDED FROM PLAN│
 │  Owning tool    │  Named survivor   │  Clean Git HEAD   │ No recommendation │
@@ -55,7 +58,12 @@ For irreplaceable unique files, regret is 1.00, so priority is 0.0 and they are 
 ## 🔬 Core Innovations
 
 ### 1. Protected-File Gate and Review-Only Plans
-Traditional systems ask the user to untick critical files from a massive list. SANCHAY excludes files classified as unique, untracked, and uncached before ranking, then writes a fingerprinted JSON plan with a safety proof for every remaining candidate. It never deletes or moves files itself.
+Traditional systems ask the user to untick critical files from a massive list.
+SANCHAY excludes files classified as unique, untracked, and uncached before
+ranking, then writes a JSON plan with typed recovery evidence for every
+remaining candidate. Its SHA-256 integrity checksum detects accidental plan
+changes; it is not a digital signature. SANCHAY never deletes or moves files
+itself.
 
 ### 2. Two-Stage Runway Measurement
 SANCHAY derives an initial storage-growth estimate from the **inode modification time distribution (`mtime`) on run #1**. It is directional, not a guaranteed exhaustion date. A later aggregate local snapshot measures actual net growth; with multiple snapshots, an explainable local linear trend reports bytes/day, and with three or more snapshots it also reports fit quality.
@@ -63,8 +71,9 @@ SANCHAY derives an initial storage-growth estimate from the **inode modification
 ### 3. Tiered Fast Content Hashing
 Deduplicating large files can saturate I/O. SANCHAY uses a 3-tier cascade:
 1. File size grouping (avoids hashing files whose sizes do not collide)
-2. 64 KB header checksum (Blake2b)
-3. Full content hash only for confirmed header collisions
+2. 64 KB header checksum (BLAKE2b-256)
+3. Full BLAKE2b-256 digest only for confirmed header collisions
+4. Byte-for-byte confirmation before a duplicate enters the review plan
 
 ### 4. Interactive Treemap & TUI Reporting
 Interactive visualization color-coded by recoverability class rather than raw directory hierarchy alone.
@@ -74,7 +83,10 @@ Interactive visualization color-coded by recoverability class rather than raw di
 ## 🖥️ Terminal & Web Visualizations
 
 ### Rich Terminal Dashboard (`sanchay-ui`)
-![SANCHAY Terminal UI](docs/tui.png)
+
+Install the optional Textual extra, then run `sanchay-ui /path/to/scan` for an
+interactive view of reviewable candidates. The dashboard follows the same
+review-only policy as the CLI.
 
 ### Commands & CLI Subcommands
 ```bash

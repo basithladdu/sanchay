@@ -1,7 +1,7 @@
 """Build the dashboard.
 
 The CLI prints a table, which is fine over ssh. This is the thing you actually
-look at: what is on the disk, what is safe to take, what is protected, and how
+look at: what is on the disk, what has recovery evidence, what is protected, and how
 long you have before it fills.
 
 Self-contained HTML -- plotly is inlined, so the file opens anywhere with no
@@ -38,13 +38,14 @@ h1{font-size:24px;margin:0 0 4px;letter-spacing:-.02em;display:flex;align-items:
 .search-box{background:var(--panel-sub);border:1px solid var(--line);color:#fff;padding:8px 14px;border-radius:6px;font-size:13px;flex:1;min-width:240px}
 .filter-btn{background:var(--panel-sub);border:1px solid var(--line);color:var(--mute);padding:6px 14px;border-radius:6px;font-size:12px;font-weight:600;cursor:pointer;transition:all .15s}
 .filter-btn:hover, .filter-btn.active{background:var(--accent);color:#fff;border-color:var(--accent)}
-table{width:100%;border-collapse:collapse;font-size:13px;min-width:640px}
+table{width:100%;border-collapse:collapse;font-size:13px;min-width:760px}
 th{text-align:left;color:var(--mute);font-weight:600;font-size:11px;text-transform:uppercase;letter-spacing:.06em;padding:10px 12px;border-bottom:1px solid var(--line)}
 td{padding:10px 12px;border-bottom:1px solid var(--line)}
 tr:last-child td{border-bottom:0}
 td.num{text-align:right;font-variant-numeric:tabular-nums;white-space:nowrap}
 td.p{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:12px;color:var(--mute);word-break:break-all}
 .tag{display:inline-block;padding:2px 8px;border-radius:99px;font-size:11px;font-weight:600;text-transform:uppercase}
+.evidence{color:var(--mute);font-size:12px;max-width:280px}
 .disposable{background:rgba(16,185,129,.18);color:#34d399}
 .duplicate{background:rgba(132,204,22,.18);color:#a3e635}
 .tracked{background:rgba(245,158,11,.18);color:#fcd34d}
@@ -74,6 +75,18 @@ def _display_path(path, root):
         return Path(path).name
 
 
+def _evidence_label(row, root):
+    evidence = row["recovery_evidence"]
+    strength = evidence["strength"].replace("_", " ")
+    if row["kind"] == "duplicate":
+        survivor = row.get("survivor_path")
+        if isinstance(survivor, str):
+            return (f"{strength}: byte-for-byte match with the named retained "
+                    f"survivor at {_display_path(survivor, root)}")
+        return f"{strength}: byte-for-byte match with a named retained survivor"
+    return f"{strength}: {evidence['detail']}"
+
+
 def build(files, root, free_bytes, out="sanchay-report.html", limit=50):
     from . import viz
 
@@ -97,7 +110,8 @@ def build(files, root, free_bytes, out="sanchay-report.html", limit=50):
             f'<tr data-kind="{r["kind"]}"><td class="num font-bold">{human(r["size"])}</td>'
             f'<td><span class="tag {r["kind"]}">{r["kind"]}</span></td>'
             f'<td class="num">{r["staleness"] * 365:.0f} d</td>'
-            f'<td class="p">{html.escape(_display_path(r["path"], root))}</td></tr>'
+            f'<td class="p">{html.escape(_display_path(r["path"], root))}</td>'
+            f'<td class="evidence">{html.escape(_evidence_label(r, root))}</td></tr>'
         )
 
     page = f"""<!doctype html>
@@ -154,6 +168,7 @@ def build(files, root, free_bytes, out="sanchay-report.html", limit=50):
           <th style="width: 120px;">Category</th>
           <th class="num" style="width: 90px;">Unchanged</th>
           <th>Relative Path</th>
+          <th>Recovery evidence</th>
         </tr>
       </thead>
       <tbody>
@@ -163,7 +178,7 @@ def build(files, root, free_bytes, out="sanchay-report.html", limit=50):
 
     <div class="guard">
       <b>{protected_count:,} unique files excluded from this plan.</b><br>
-      Plan fingerprint: <code>{cleanup_plan["fingerprint_sha256"]}</code><br>
+      Integrity checksum (not a signature): <code>{cleanup_plan["fingerprint_sha256"]}</code><br>
       The active policy excludes unique, untracked, uncached files before ranking. SANCHAY never deletes or moves files.
     </div>
   </div>

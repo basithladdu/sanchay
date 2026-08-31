@@ -37,10 +37,14 @@ def main(argv=None):
     args = ap.parse_args(argv)
 
     if args.verify_plan:
-        result = plan.verify(plan.read(args.verify_plan))
+        try:
+            result = plan.verify(plan.read(args.verify_plan))
+        except (OSError, ValueError) as exc:
+            print(f"plan: unavailable for review ({exc})")
+            return 2
         state = "valid for human review" if result["valid"] else "not valid for review"
         print(f"plan: {state}")
-        print(f"fingerprint: {'matches' if result['fingerprint_valid'] else 'does not match'}")
+        print(f"integrity checksum: {'matches' if result['fingerprint_valid'] else 'does not match'}")
         if result.get("reason"):
             print(f"reason: {result['reason']}")
         for item in result["recommendations"]:
@@ -55,7 +59,10 @@ def main(argv=None):
         from . import tui
         return tui.run(args.root)
 
-    files = scan.scan(args.root, cross_filesystems=args.cross_filesystems)
+    try:
+        files = scan.scan(args.root, cross_filesystems=args.cross_filesystems)
+    except ValueError as exc:
+        ap.error(str(exc))
     total = sum(f.size for f in files)
     print(f"{len(files):,} files, {human(total)}\n")
 

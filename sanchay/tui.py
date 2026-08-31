@@ -3,7 +3,7 @@
 A disk tool belongs in the terminal -- that is where the disks are, and it is
 the only place that works over ssh on a box with no desktop. ncdu got that
 right. This is the same idea with the regret model wired in, so the colour of a
-row tells you whether you can afford to lose it.
+row shows the available recovery-evidence class rather than authorizing action.
 
 Built on Textual.
 """

@@ -1,9 +1,9 @@
 """Create a reviewable cleanup plan without deleting anything.
 
-The optimizer's job is to make safe recommendations, not to act on a user's
-files.  This module turns those recommendations into a stable JSON manifest
-that can be inspected, shared, and independently checked before any separate
-cleanup action is taken.
+The optimizer's job is to present recoverability evidence, not to act on a
+user's files. This module turns those recommendations into a stable JSON
+manifest that can be inspected and independently rechecked before any
+separate cleanup action is taken.
 """
 from datetime import datetime, timezone
 import hmac
@@ -17,18 +17,33 @@ from . import dedup, regret
 
 
 ACTION = {
-    "disposable": "review and clear through the owning cache or build tool",
-    "duplicate": "remove this copy after preserving the named survivor",
-    "tracked": "restore from Git only after reviewing repository state",
+    "disposable": "review through the owning cache or build tool before any manual clear",
+    "duplicate": "retain the named survivor and review this byte-confirmed alternate copy",
+    "tracked": "confirm the project owner accepts removal; Git HEAD is a restoration route",
 }
 
 
-def _proof(row, duplicate_of):
+def _evidence(row, duplicate_of):
+    """Return evidence with its strength instead of overstating certainty."""
     if row["kind"] == "duplicate":
-        return f"byte-identical survivor retained at {duplicate_of[row['path']]}"
+        return {
+            "type": "byte_for_byte_match",
+            "strength": "direct",
+            "detail": "byte-for-byte match with the named retained survivor at "
+                      f"{duplicate_of[row['path']]}",
+        }
     if row["kind"] == "tracked":
-        return "current file matches Git HEAD; modified and staged files are excluded"
-    return "matched a known regenerable cache or build-output path"
+        return {
+            "type": "clean_git_head",
+            "strength": "repository_state",
+            "detail": "clean relative to Git HEAD; modified and staged files are excluded",
+        }
+    return {
+        "type": "known_regenerable_path",
+        "strength": "heuristic",
+        "detail": "matched a narrow cache or tool-specific build-output path; "
+                  "confirm with the owning tool before manual clearing",
+    }
 
 
 def _fingerprint(document):
@@ -56,7 +71,7 @@ def _fingerprint_valid(document):
 
 def build(files, duplicate_groups, root, now=None, limit=25):
     """Build a non-executing cleanup manifest from one scan result."""
-    duplicate_of = dedup.duplicate_map(duplicate_groups)
+    duplicate_of = dedup.confirmed_duplicate_map(duplicate_groups)
     by_path = {info.path: info for info in files}
     eligible = []
     protected_count = 0
@@ -76,7 +91,7 @@ def build(files, duplicate_groups, root, now=None, limit=25):
         item = {
             **row,
             "proposed_action": ACTION[row["kind"]],
-            "safety_proof": _proof(row, duplicate_of),
+            "recovery_evidence": _evidence(row, duplicate_of),
             "requires_human_review": True,
             "observed_identity": _identity(info),
         }
@@ -89,7 +104,7 @@ def build(files, duplicate_groups, root, now=None, limit=25):
     document = {
         "schema_version": 2,
         "generated_at": datetime.now(timezone.utc).isoformat(),
-        "root": str(root),
+        "root": str(Path(root).resolve()),
         "execution": {
             "automatic_deletion": False,
             "requires_human_review": True,
@@ -101,6 +116,10 @@ def build(files, duplicate_groups, root, now=None, limit=25):
             "candidate_count": len(eligible),
             "candidate_bytes": sum(row["size"] for row, _ in eligible),
             "rule": "unique, untracked, uncached files are excluded before ranking",
+        },
+        "integrity": {
+            "algorithm": "SHA-256",
+            "purpose": "detects accidental plan changes; this checksum is not a signature",
         },
         "recommendations": recommendations,
     }
@@ -118,9 +137,14 @@ def write(document, out):
 def read(path):
     """Load a plan without performing any filesystem action."""
     document = json.loads(Path(path).read_text(encoding="utf-8"))
-    required = {"schema_version", "execution", "recommendations", "safety",
+    required = {"schema_version", "root", "execution", "recommendations", "safety",
                 "fingerprint_sha256"}
-    if document.get("schema_version") != 2 or not required.issubset(document):
+    if (document.get("schema_version") != 2 or not required.issubset(document)
+            or not isinstance(document["root"], str)
+            or not isinstance(document["execution"], dict)
+            or not isinstance(document["safety"], dict)
+            or not isinstance(document["recommendations"], list)
+            or not isinstance(document["fingerprint_sha256"], str)):
         raise ValueError("Unsupported or incomplete SANCHAY cleanup plan")
     return document
 
@@ -141,6 +165,8 @@ def _current_identity(path):
 
 
 def _identity_check(path, expected, role):
+    if not isinstance(expected, dict):
+        return f"{role} identity is missing from the plan"
     actual, error = _current_identity(path)
     if error:
         return error
@@ -150,11 +176,20 @@ def _identity_check(path, expected, role):
     return None
 
 
+def _inside_root(path, root, role):
+    try:
+        Path(path).resolve().relative_to(Path(root).resolve())
+    except (OSError, ValueError):
+        return f"{role} is outside the selected scan root"
+    return None
+
+
 def verify(document):
     """Recheck a review plan against the filesystem without changing it.
 
-    A valid result means the signed manifest and each retained safety proof
-    still match. It is a review gate, not an authorization to delete anything.
+    A valid result means the plan checksum and each retained recovery-evidence
+    check still match. It is a review gate, not an authorization to delete
+    anything.
     """
     result = {
         "valid": False,
@@ -170,13 +205,25 @@ def verify(document):
     regret._repo_cache.clear()
     for item in document["recommendations"]:
         reasons = []
+        if not isinstance(item, dict):
+            result["checked"] += 1
+            result["recommendations"].append({
+                "path": None,
+                "kind": None,
+                "valid": False,
+                "reasons": ["recommendation is not an object"],
+            })
+            continue
+
         kind = item.get("kind")
         path = item.get("path")
         if kind not in ACTION or not isinstance(path, str):
             reasons.append("unsupported recommendation")
         else:
-            changed = _identity_check(path, item.get("observed_identity", {}),
-                                      "candidate")
+            changed = _inside_root(path, document["root"], "candidate")
+            if not changed:
+                changed = _identity_check(path, item.get("observed_identity", {}),
+                                          "candidate")
             if changed:
                 reasons.append(changed)
             if kind == "duplicate":
@@ -184,8 +231,10 @@ def verify(document):
                 if not isinstance(survivor, str):
                     reasons.append("duplicate survivor is missing")
                 else:
-                    changed = _identity_check(
-                        survivor, item.get("survivor_identity", {}), "survivor")
+                    changed = _inside_root(survivor, document["root"], "survivor")
+                    if not changed:
+                        changed = _identity_check(
+                            survivor, item.get("survivor_identity", {}), "survivor")
                     if changed:
                         reasons.append(changed)
                     elif not dedup.same_content(path, survivor):

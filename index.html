@@ -170,10 +170,6 @@ header {
   transition: opacity 0.3s;
 }
 .card:hover::before { opacity: 1; }
-.card-icon {
-  font-size: 24px;
-  margin-bottom: 12px;
-}
 .card h3 {
   font-size: 16px;
   font-weight: 700;
@@ -359,27 +355,23 @@ button:focus-visible, a:focus-visible {
   <section class="hero">
     <span class="kicker">Track 2: AI at Application Level</span>
     <h2>Storage Recommendations That Preserve the Human Decision</h2>
-    <p>SANCHAY identifies recoverable storage candidates, records the proof for each recommendation, and produces a <strong>review-only plan</strong>. It never deletes or moves a user file.</p>
+    <p>SANCHAY identifies storage candidates, records the type and strength of recovery evidence for each recommendation, and produces a <strong>review-only plan</strong>. It never deletes or moves a user file.</p>
   </section>
 
   <div class="grid-4">
     <div class="card">
-      <div class="card-icon">🛡️</div>
       <h3>Protected-File Gate</h3>
       <p>Unique, untracked, uncached files are excluded from the plan before ranking.</p>
     </div>
     <div class="card">
-      <div class="card-icon">⚡</div>
       <h3>Two-Stage Runway</h3>
       <p>First-run mtime estimate, followed by measured net growth from later local snapshots.</p>
     </div>
     <div class="card">
-      <div class="card-icon">🎯</div>
-      <h3>Tiered Duplicate Proof</h3>
-      <p>Size -> 64 KB prefix -> full Blake2b, with hardlinks excluded and a named survivor retained.</p>
+      <h3>Tiered Duplicate Evidence</h3>
+      <p>Size -> 64 KB prefix -> full BLAKE2b-256 -> byte comparison, with hardlinks excluded and a named survivor retained.</p>
     </div>
     <div class="card">
-      <div class="card-icon">🇮🇳</div>
       <h3>Local by Default</h3>
       <p>Metadata stays local; file bytes are read locally only to confirm duplicate candidates.</p>
     </div>
@@ -418,7 +410,7 @@ button:focus-visible, a:focus-visible {
           <th>File Path</th>
           <th>Size</th>
           <th>Unchanged</th>
-          <th>Action / Safety Verdict</th>
+          <th>Review action / evidence</th>
         </tr>
       </thead>
       <tbody id="fileTable">
@@ -428,7 +420,7 @@ button:focus-visible, a:focus-visible {
           <td class="mono">/app/node_modules/.cache/webpack.pack</td>
           <td>1.45 GB</td>
           <td>90 days</td>
-          <td style="color: var(--emerald); font-weight: 600;">Review with owning build tool</td>
+          <td style="color: var(--emerald); font-weight: 600;">Path heuristic: review with owning build tool</td>
         </tr>
         <tr data-cat="disposable">
           <td><span class="pill pill-disposable">DISPOSABLE</span></td>
@@ -436,7 +428,7 @@ button:focus-visible, a:focus-visible {
           <td class="mono">/app/target/debug/incremental/mod.rlib</td>
           <td>850 MB</td>
           <td>45 days</td>
-          <td style="color: var(--emerald); font-weight: 600;">Review with owning build tool</td>
+          <td style="color: var(--emerald); font-weight: 600;">Path heuristic: review with owning build tool</td>
         </tr>
         <tr data-cat="duplicate">
           <td><span class="pill pill-duplicate">DUPLICATE</span></td>
@@ -444,7 +436,7 @@ button:focus-visible, a:focus-visible {
           <td class="mono">/home/user/downloads/ubuntu-24.04-live.iso</td>
           <td>4.80 GB</td>
           <td>120 days</td>
-          <td style="color: var(--cyan); font-weight: 600;">Review after survivor recheck: /var/lib/iso/</td>
+          <td style="color: var(--cyan); font-weight: 600;">Byte-for-byte match; recheck retained survivor: /var/lib/iso/</td>
         </tr>
         <tr data-cat="tracked">
           <td><span class="pill pill-tracked">GIT TRACKED</span></td>
@@ -452,7 +444,7 @@ button:focus-visible, a:focus-visible {
           <td class="mono">/home/user/code/linux-kernel/arch/x86/boot.o</td>
           <td>320 MB</td>
           <td>60 days</td>
-          <td style="color: var(--amber); font-weight: 600;">Review: clean file recoverable from Git HEAD</td>
+          <td style="color: var(--amber); font-weight: 600;">Repository state: clean Git HEAD; project-owner review</td>
         </tr>
         <tr data-cat="unique">
           <td><span class="pill pill-unique">UNIQUE</span></td>
@@ -512,25 +504,26 @@ const demoPlan = {
   schema_version: 2,
   execution: {automatic_deletion: false, requires_human_review: true},
   safety: {protected_unique_files: 2, candidate_count: 4},
+  integrity: {algorithm: 'SHA-256', purpose: 'detects accidental plan changes; not a signature'},
   recommendations: [
-    {kind: 'disposable', path: '/app/node_modules/.cache/webpack.pack', proof: 'known regenerable cache'},
-    {kind: 'duplicate', path: '/home/user/downloads/ubuntu-24.04-live.iso', survivor: '/var/lib/iso/ubuntu-24.04-live.iso'},
-    {kind: 'tracked', path: '/home/user/code/linux-kernel/arch/x86/boot.o', proof: 'clean Git HEAD'}
+    {kind: 'disposable', path: '/app/node_modules/.cache/webpack.pack', recovery_evidence: {type: 'known_regenerable_path', strength: 'heuristic'}},
+    {kind: 'duplicate', path: '/home/user/downloads/ubuntu-24.04-live.iso', survivor: '/var/lib/iso/ubuntu-24.04-live.iso', recovery_evidence: {type: 'byte_for_byte_match', strength: 'direct'}},
+    {kind: 'tracked', path: '/home/user/code/linux-kernel/arch/x86/boot.o', recovery_evidence: {type: 'clean_git_head', strength: 'repository_state'}}
   ]
 };
 
 async function generateDemoPlan() {
   const status = document.getElementById('manifestStatus');
   if (!window.crypto || !window.crypto.subtle) {
-    status.textContent = 'This browser cannot fingerprint the seeded plan.';
+    status.textContent = 'This browser cannot calculate the seeded integrity checksum.';
     return;
   }
-  status.textContent = 'Fingerprinting seeded plan…';
+  status.textContent = 'Calculating seeded integrity checksum…';
   const bytes = new TextEncoder().encode(JSON.stringify(demoPlan));
   const digest = await window.crypto.subtle.digest('SHA-256', bytes);
   const fingerprint = [...new Uint8Array(digest)]
     .map(value => value.toString(16).padStart(2, '0')).join('');
-  status.textContent = `Seeded plan ready — SHA-256 ${fingerprint.slice(0, 16)}…; no file action exists in this demo.`;
+  status.textContent = `Seeded plan ready — SHA-256 ${fingerprint.slice(0, 16)}… (not a signature); no file action exists in this demo.`;
 }
 
 // Treemap rendering

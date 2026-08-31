@@ -15,8 +15,9 @@ before you saw this list.
 
 {table}
 
-Group these into 3-4 cleanup actions. For each: what to remove, roughly how much
-it frees, and why it is safe. One short paragraph each. Do not suggest deleting
+Group these into 3-4 review actions. For each: what to inspect, roughly how much
+space is involved, and what recovery proof supports review. One short paragraph
+each. Do not suggest deleting
 anything not listed."""
 
 
@@ -28,7 +29,7 @@ def table(rows):
 
 def explain(rows, model=None):
     if not rows:
-        return "Nothing safe to reclaim."
+        return "No reviewable storage candidates."
     if not os.environ.get("ANTHROPIC_API_KEY"):
         return "Set ANTHROPIC_API_KEY for narrative advice.\n\n" + table(rows)
 

@@ -21,11 +21,12 @@ archiving recommendations to help users manage storage efficiently.
 
 ## Objective
 
-To make automatic disk cleanup safe enough that people will actually use it.
+To make storage cleanup recommendations auditable enough that people will
+actually review and use them.
 
 Every cleanup tool available today ranks files by how much space they free.
 SANCHAY ranks them by how bad it would be if the suggestion turned out to be
-wrong. A file that cannot be recovered is never suggested for deletion — no
+wrong. A file that lacks qualifying recovery evidence is never placed in the review plan — no
 matter how large it is, and no matter how long it has remained unchanged.
 
 ---
@@ -40,15 +41,19 @@ It then does six things.
 
 **1. Finds duplicates cheaply.** Files are grouped by size first. Only groups
 that collide get their first 64 KB hashed. Only what still collides after that
-gets hashed in full. Files whose sizes do not collide are never opened.
+gets a full BLAKE2b-256 digest. Before a duplicate becomes reviewable, SANCHAY
+also compares that file with its named survivor byte for byte. Files whose
+sizes do not collide are never opened.
 Hardlinks pointing at the same inode are not counted as duplicates, because
 deleting one of them frees no space.
 
 **2. Works out how recoverable each file is.** This is the core of the tool.
 Every file lands in one of four classes:
 
-- disposable — it lives in a narrow, known cache or build-output path
-  (__pycache__, .cache, target/debug, build/, dist/, .next/cache). Whole
+- disposable — it lives in a narrow, conventional cache or tool-specific
+  build-output path (__pycache__, .cache, target/debug, target/release,
+  .next/cache). This is a **path heuristic**, not a recovery proof: SANCHAY
+  requires a human to confirm the owning tool before clearing it. Whole
   dependency trees and virtual environments are deliberately not assumed to be
   regenerable from their path alone.
 - duplicate — an identical copy exists elsewhere and survives the delete.
@@ -77,11 +82,14 @@ three or more snapshots it also reports R-squared fit quality, giving the user
 a measurable forecast without uploading file names or contents.
 
 **5. Writes a review-only plan.** Each eligible recommendation records its
-classification, observed device/inode/size/mtime identity, and a safety proof.
-Duplicate candidates name the copy that will survive. The JSON plan is
-SHA-256 fingerprinted, and `sanchay --verify-plan cleanup-plan.json` rechecks
-the fingerprint, file identity, retained duplicate, and clean Git HEAD state
-where applicable. SANCHAY never deletes or moves files.
+classification, observed device/inode/size/mtime identity, and typed recovery
+evidence with a visible strength: direct full-content match for duplicates,
+repository-state evidence for clean Git files, or a clearly labelled heuristic
+for conventional cache paths. Duplicate candidates name the copy that will
+survive. The JSON plan carries a SHA-256 integrity checksum, which detects
+accidental plan changes but is not a digital signature. `sanchay --verify-plan
+cleanup-plan.json` rechecks the checksum, file identity, retained duplicate,
+and clean Git HEAD state where applicable. SANCHAY never deletes or moves files.
 
 **6. Shows and explains.** A treemap is drawn where each block is coloured by
 recoverability rather than size — green for disposable, red for irreplaceable —
@@ -89,9 +97,9 @@ so the user can see at a glance where the free space actually is. A language
 model then writes the findings up in plain English.
 
 The model receives the ranked list only after ranking is complete, and only the
-entries already judged safe. It cannot add a file, remove a file, or change an
+entries already judged eligible for review. It cannot add a file, remove a file, or change an
 order. If the model produced a completely wrong answer, the worst outcome is an
-awkward description — never a lost file.
+awkward description — never an automatic file action.
 
 ---
 
@@ -107,8 +115,8 @@ their measure the two are identical.
 
 SANCHAY introduces a regret model: an estimate of what it costs to be wrong
 about a file, derived from whether the system can reproduce that file. This
-changes the ranking objective from "how much space" to "how much space that is
-safe to review". Files classified as irreplaceable are structurally excluded
+changes the ranking objective from "how much space" to "how much space has
+evidence for review". Files classified as irreplaceable are structurally excluded
 from the candidate manifest, regardless of size or age; the tool then requires
 human review and never performs deletion itself.
 
@@ -185,7 +193,7 @@ Inbuilt Model.
 The model that makes the decisions — the regret classifier and the ranking
 function — was built by us. It is a rule-based, fully inspectable model rather
 than a trained one, chosen deliberately: every recommendation traces to a
-specific reason ("this is in a known cache path", "this has a duplicate at that path")
+specific reason ("this is a conventional cache path", "this has a duplicate at that path")
 that can be printed and challenged. A trained classifier would need labelled
 ground truth and a validation story before it could safely influence this gate.
 

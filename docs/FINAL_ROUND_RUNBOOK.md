@@ -58,8 +58,8 @@ Point out these concrete facts, not a generic dashboard:
   duplicates because they share one `(device, inode)` identity.
 - `workspace/node_modules/.cache/bundle.bin` is a reviewable regenerable-output
   candidate, not an automatically deleted file.
-- `cleanup-plan.json` has a SHA-256 fingerprint, candidate identity, and a
-  human-review requirement.
+- `cleanup-plan.json` has a SHA-256 integrity checksum (not a signature),
+  candidate identity, typed recovery evidence, and a human-review requirement.
 
 ## Fail-closed proof
 
@@ -85,10 +85,10 @@ fenced candidate list and cannot promote protected files or execute actions.
 the irreversible step has a different risk profile. SANCHAY supplies an
 auditable plan and revalidation gate so an operator retains authority.
 
-**How do you prove a duplicate is safe to review?** It uses size bucketing,
-prefix hashing, then full BLAKE2b confirmation; the plan names the survivor and
-verification rechecks both identities and matching content. Hardlinks are not
-counted as reclaimable copies.
+**How do you prove a duplicate is eligible for review?** It uses size bucketing,
+prefix hashing, then a full BLAKE2b-256 digest and a byte-for-byte comparison;
+the plan names the survivor and verification rechecks both identities and
+matching content. Hardlinks are not counted as reclaimable copies.
 
 **How reliable is the forecast?** A single scan is labelled as an mtime-based
 estimate. Later aggregate snapshots produce a local linear trend with an

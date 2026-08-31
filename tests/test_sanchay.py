@@ -30,6 +30,12 @@ class TestSanchay(unittest.TestCase):
         # A unique, untracked, uncached file must be classified as 'unique'
         self.assertEqual(regret.classify(self.files[3], duplicated=False), 'unique')
 
+    def test_direct_duplicate_evidence_precedes_a_path_heuristic(self):
+        cached_duplicate = scan.FileInfo(
+            '/tmp/.cache/build-output.bin', 4096, self.now, self.now, 105)
+        self.assertEqual(regret.classify(cached_duplicate, duplicated=True),
+                         'duplicate')
+
     def test_staleness_calculation(self):
         f = scan.FileInfo('/tmp/test', 100, self.now, self.now - 86400 * 365, 1)
         stale = regret.staleness(f, self.now)
@@ -98,18 +104,36 @@ class TestSanchay(unittest.TestCase):
         self.assertTrue(cleanup_plan['fingerprint_sha256'])
 
     def test_cleanup_plan_names_a_deterministic_duplicate_survivor(self):
-        duplicate_a = scan.FileInfo('/tmp/a.iso', 4096, self.now, self.now, 1)
-        duplicate_z = scan.FileInfo('/tmp/z.iso', 4096, self.now, self.now, 2)
-        cleanup_plan = plan.build(
-            [duplicate_z, duplicate_a], [[duplicate_z, duplicate_a]], '/tmp', now=self.now)
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            duplicate_a = root / 'a.iso'
+            duplicate_z = root / 'z.iso'
+            duplicate_a.write_bytes(b'x' * 4096)
+            duplicate_z.write_bytes(b'x' * 4096)
+            files = scan.scan(root)
+            cleanup_plan = plan.build(files, dedup.duplicates(files), root, now=self.now)
 
-        self.assertEqual(len(cleanup_plan['recommendations']), 1)
-        item = cleanup_plan['recommendations'][0]
-        self.assertEqual(item['kind'], 'duplicate')
-        self.assertEqual(item['path'], '/tmp/z.iso')
-        self.assertEqual(item['survivor_path'], '/tmp/a.iso')
-        self.assertIn('/tmp/a.iso', item['safety_proof'])
-        self.assertEqual(item['observed_identity']['size'], 4096)
+            self.assertEqual(len(cleanup_plan['recommendations']), 1)
+            item = cleanup_plan['recommendations'][0]
+            self.assertEqual(item['kind'], 'duplicate')
+            self.assertEqual(item['path'], str(duplicate_z))
+            self.assertEqual(item['survivor_path'], str(duplicate_a))
+            self.assertEqual(item['recovery_evidence']['type'], 'byte_for_byte_match')
+            self.assertEqual(item['recovery_evidence']['strength'], 'direct')
+            self.assertIn(str(duplicate_a), item['recovery_evidence']['detail'])
+            self.assertEqual(item['observed_identity']['size'], 4096)
+
+    def test_byte_comparison_confirms_duplicate_candidates(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            left = root / 'left.bin'
+            right = root / 'right.bin'
+            left.write_bytes(b'x' * 4096)
+            right.write_bytes(b'x' * 4096)
+            self.assertTrue(dedup.same_content(left, right))
+
+            right.write_bytes(b'y' * 4096)
+            self.assertFalse(dedup.same_content(left, right))
 
     def test_hardlinks_are_not_treated_as_reclaimable_duplicates(self):
         with tempfile.TemporaryDirectory() as tmp:
@@ -179,6 +203,40 @@ class TestSanchay(unittest.TestCase):
             self.assertFalse(stale['valid'])
             self.assertIn('candidate', stale['recommendations'][0]['reasons'][0])
 
+    def test_plan_verification_rejects_paths_outside_its_scan_root(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp) / 'scan-root'
+            root.mkdir()
+            keeper = root / 'a.iso'
+            duplicate = root / 'z.iso'
+            keeper.write_bytes(b'x' * 4096)
+            duplicate.write_bytes(b'x' * 4096)
+            cleanup_plan = plan.build(
+                scan.scan(root), dedup.duplicates(scan.scan(root)), root, now=self.now)
+
+            tampered = copy.deepcopy(cleanup_plan)
+            tampered['recommendations'][0]['path'] = str(Path(tmp) / 'outside.iso')
+            unsigned = {key: value for key, value in tampered.items()
+                        if key != 'fingerprint_sha256'}
+            tampered['fingerprint_sha256'] = plan._fingerprint(unsigned)
+
+            result = plan.verify(tampered)
+            self.assertFalse(result['valid'])
+            self.assertTrue(any(
+                'outside the selected scan root' in reason
+                for reason in result['recommendations'][0]['reasons']))
+
+    def test_cli_handles_an_invalid_plan_without_a_traceback(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            broken = Path(tmp) / 'broken-plan.json'
+            broken.write_text('{not json', encoding='utf-8')
+            output = io.StringIO()
+            with contextlib.redirect_stdout(output):
+                status = cli.main(['--verify-plan', str(broken)])
+
+            self.assertEqual(status, 2)
+            self.assertIn('unavailable for review', output.getvalue())
+
     def test_demo_fixture_exercises_safe_and_protected_paths(self):
         with tempfile.TemporaryDirectory() as tmp:
             root = demo.create(Path(tmp) / 'fixture')
@@ -236,6 +294,20 @@ class TestSanchay(unittest.TestCase):
             nested.write_bytes(b'x')
             self.assertEqual(report._display_path(nested, root),
                              'workspace/node_modules/bundle.bin')
+
+    def test_report_evidence_labels_do_not_expose_the_selected_root(self):
+        root = Path('/private/selected-root')
+        row = {
+            'kind': 'duplicate',
+            'survivor_path': str(root / 'archive' / 'source.iso'),
+            'recovery_evidence': {
+                'strength': 'direct',
+                'detail': f'full-content digest matches {root}',
+            },
+        }
+        label = report._evidence_label(row, root)
+        self.assertIn('archive/source.iso', label)
+        self.assertNotIn(str(root), label)
 
     def test_cli_history_uses_the_local_linear_trend(self):
         with tempfile.TemporaryDirectory() as tmp:

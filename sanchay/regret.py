@@ -23,7 +23,7 @@ import time
 # their presence alone is not proof that reinstalling them is possible.
 DISPOSABLE = (
     "/.cache/", "/var/cache/", "/__pycache__/", "/target/debug/",
-    "/target/release/", "/build/", "/dist/", "/.next/cache/", "/.tox/",
+    "/target/release/", "/.next/cache/", "/.tox/",
 )
 
 REGRET = {
@@ -44,7 +44,10 @@ _repo_cache = {}
 def _repo_root(path):
     d = os.path.dirname(path)
     while True:
-        if os.path.isdir(os.path.join(d, ".git")):
+        # Linked worktrees have a .git *file*, not a .git directory. Git -C
+        # handles both layouts once we have found the worktree root.
+        git_marker = os.path.join(d, ".git")
+        if os.path.isdir(git_marker) or os.path.isfile(git_marker):
             return d
         parent = os.path.dirname(d)
         if parent == d:
@@ -81,12 +84,15 @@ def in_repo(path):
 
 def classify(info, duplicated):
     p = _norm(info.path)
-    if any(marker in p for marker in DISPOSABLE):
-        return "disposable"
+    # Prefer direct evidence over a path convention. A duplicated cache is
+    # still best explained by its retained byte-confirmed survivor; a tracked
+    # cache is best explained by the clean repository state.
     if duplicated:
         return "duplicate"
     if in_repo(info.path):
         return "tracked"
+    if any(marker in p for marker in DISPOSABLE):
+        return "disposable"
     return "unique"
 
 
@@ -118,6 +124,6 @@ def score(info, duplicated=False, now=None):
 
 def rank(files, duplicate_paths=frozenset(), now=None, limit=25):
     scored = [score(f, f.path in duplicate_paths, now) for f in files]
-    safe = [s for s in scored if s["kind"] != "unique"]
-    safe.sort(key=lambda s: s["priority"], reverse=True)
-    return safe[:limit]
+    eligible = [s for s in scored if s["kind"] != "unique"]
+    eligible.sort(key=lambda s: s["priority"], reverse=True)
+    return eligible[:limit]

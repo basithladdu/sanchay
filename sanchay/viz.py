@@ -45,7 +45,7 @@ def figure(files, dup_paths=frozenset(), limit=4000, root=None):
     df = pd.DataFrame(rows)
     fig = px.treemap(df, path=[f"L{i}" for i in range(DEPTH)], values="size",
                      color="kind", color_discrete_map=COLOURS,
-                     title="Disk usage by deletion regret")
+                     title="Disk usage by recoverability evidence")
     fig.update_traces(marker_line_width=0.5, marker_line_color="white")
     fig.update_layout(margin=dict(t=10, l=0, r=0, b=0),
                       paper_bgcolor="rgba(0,0,0,0)",

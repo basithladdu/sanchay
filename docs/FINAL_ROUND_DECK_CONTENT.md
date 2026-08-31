@@ -30,7 +30,7 @@ irreversible.
 
 Use one simple left-to-right flow:
 
-local scan → duplicate proof / Git proof / cache evidence → protected-file gate
+local scan → duplicate content match / clean-Git state / cache-path heuristic → protected-file gate
 → review-only plan → human review
 
 Headline: “Unique, untracked, uncached files are excluded from the plan before
@@ -43,8 +43,8 @@ file, alter an order, or execute an action.
 
 Show the actual proof chain:
 
-same size → same 64 KB prefix → same full BLAKE2b → named survivor → identity
-recheck
+same size → same 64 KB prefix → same full BLAKE2b-256 digest → byte-for-byte
+confirmation → named survivor → identity recheck
 
 Three claims only:
 
@@ -82,7 +82,8 @@ Put the command in small monospace text only:
 - Local core workflow; no file contents transmitted.
 - One filesystem by default; cross-filesystem traversal is explicit.
 - Dependency-free Python core; TUI, plots, and narrative are optional.
-- Inspectable JSON manifest with SHA-256 fingerprint and observed identity.
+- Inspectable JSON manifest with SHA-256 integrity checksum (not a signature)
+  and observed identity.
 
 Phrase this as a product fit inferred from C-DAC's Secure OS context, not a
 claim of C-DAC endorsement or scoring criteria.

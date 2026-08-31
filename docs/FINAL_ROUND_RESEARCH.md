@@ -40,7 +40,7 @@ endorses SANCHAY or defines the hackathon scoring rubric.
 | Need | SANCHAY decision | Status |
 | --- | --- | --- |
 | Avoid catastrophic loss | No automatic deletion or file movement; write a review-only plan instead. | Implemented |
-| Make every recommendation auditable | Include class, proof, survivor path for duplicates, observed device/inode/size/mtime, and a SHA-256 plan fingerprint. | Implemented |
+| Make every recommendation auditable | Include class, typed recovery evidence with strength, survivor path for duplicates, observed device/inode/size/mtime, and a SHA-256 integrity checksum (not a signature). | Implemented |
 | Preserve source-of-truth and hardlinks | Keep a deterministic duplicate survivor; identify hardlinks by `(device, inode)`, not inode alone. | Implemented |
 | Avoid crossing a governance boundary silently | Scan one filesystem by default; cross-filesystem traversal requires an explicit flag. | Implemented |
 | Keep forecasting honest | Label the first pass an mtime-derived estimate; capture aggregate local snapshots for observed growth and an explainable local linear trend. | Implemented |
@@ -60,5 +60,5 @@ sanchay /home/user --compare baseline.json --snapshot current.json
 
 The plan is a recommendation artifact. Before any separate, explicitly
 reviewed cleanup action, `sanchay --verify-plan cleanup-plan.json` rechecks the
-plan fingerprint, each candidate identity, the retained duplicate, and clean
+integrity checksum, each candidate identity, the retained duplicate, and clean
 Git HEAD state where applicable. SANCHAY still does not delete or move files.
