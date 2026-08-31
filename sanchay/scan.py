@@ -15,11 +15,12 @@ from . import storage
 # storage candidates. Prune them before metadata collection and before any
 # duplicate-candidate hashing can open a file.
 DEFAULT_SKIP_DIRS = frozenset({
-    ".aws", ".git", ".gnupg", ".hg", ".kube", ".password-store", ".pki",
-    ".ssh", ".svn",
+    ".aws", ".azure", ".docker", ".git", ".gnupg", ".hg", ".kube",
+    ".oci", ".password-store", ".pki", ".ssh", ".svn", ".terraform.d",
 })
 DEFAULT_SKIP_FILES = frozenset({
-    ".env", ".netrc", ".pypirc", "credentials", "credentials.json",
+    ".boto", ".env", ".git-credentials", ".netrc", ".npmrc", ".pypirc",
+    ".terraformrc", "credentials", "credentials.json", "credentials.tfrc.json",
     "id_dsa", "id_ecdsa", "id_ed25519", "id_rsa", "secrets.json",
 })
 DEFAULT_SKIP_SUFFIXES = (".kdbx", ".key", ".p12", ".pem", ".pfx")

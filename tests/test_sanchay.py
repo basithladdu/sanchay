@@ -660,28 +660,36 @@ class TestSanchay(unittest.TestCase):
             root = Path(tmp)
             visible = root / 'visible.txt'
             visible.write_text('candidate', encoding='utf-8')
-            (root / '.git').mkdir()
-            (root / '.git' / 'config').write_text('sensitive repo metadata', encoding='utf-8')
-            (root / '.ssh').mkdir()
-            (root / '.ssh' / 'id_ed25519').write_text('sensitive key material', encoding='utf-8')
+            for name in ('.git', '.ssh', '.docker', '.azure', '.oci',
+                         '.terraform.d'):
+                protected = root / name
+                protected.mkdir()
+                (protected / 'credential-material').write_text(
+                    'sensitive credential material', encoding='utf-8')
 
             paths = {item.path for item in scan.scan(root)}
             self.assertEqual(paths, {str(visible)})
-            with self.assertRaises(ValueError):
-                scan.scan(root / '.ssh')
+            for name in ('.ssh', '.docker', '.azure', '.oci', '.terraform.d'):
+                with self.subTest(name=name), self.assertRaises(ValueError):
+                    scan.scan(root / name)
 
     def test_scan_excludes_common_secret_files_before_metadata_or_hashing(self):
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
             visible = root / 'visible.txt'
             visible.write_text('candidate', encoding='utf-8')
-            for name in ('.env', '.env.local', 'id_ed25519', 'service.pem',
-                         'token.key', 'vault.kdbx', 'credentials.json'):
+            for name in ('.env', '.env.local', '.npmrc', '.git-credentials',
+                         '.terraformrc', 'credentials.tfrc.json', 'id_ed25519',
+                         'service.pem', 'token.key', 'vault.kdbx',
+                         'credentials.json'):
                 (root / name).write_text('secret material', encoding='utf-8')
             (root / '.env.example').write_text('example only', encoding='utf-8')
+            (root / 'config.json').write_text('ordinary app configuration',
+                                              encoding='utf-8')
 
             paths = {item.path for item in scan.scan(root)}
-            self.assertEqual(paths, {str(visible), str(root / '.env.example')})
+            self.assertEqual(paths, {
+                str(visible), str(root / '.env.example'), str(root / 'config.json')})
 
     def test_whole_dependency_and_environment_trees_are_not_assumed_regenerable(self):
         package = scan.FileInfo('/usr/lib/python3.12/site-packages/tool.py', 4096,

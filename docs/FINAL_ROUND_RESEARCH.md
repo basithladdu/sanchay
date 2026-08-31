@@ -11,6 +11,11 @@ endorses SANCHAY or defines the hackathon scoring rubric.
   Indian-language support, relevant to government use; it also identifies use
   by government agencies and defence establishments. Source: [C-DAC Free/Open
   Source Software](https://www.cdac.in/index.aspx?id=st_oss_free_open_source_software).
+- C-DAC describes Secure BOSS as a hardened operating system for critical end
+  nodes, with full-disk encryption, eToken support, policy management, and
+  security logging, monitoring, and alerts. This supports a conservative local
+  credential boundary, but is not a claim of C-DAC endorsement or integration.
+  Source: [C-DAC Secure BOSS Linux](https://www.cdac.in/index.aspx?id=product_details&productId=SecureBOSSLinux).
 - A 2026 C-DAC Secure OS tender calls out secure local and distributed storage,
   fault tolerance, redundancy, disaster recovery, observability, accessibility,
   and AI-based performance optimisation. It is useful product context, not a
@@ -33,6 +38,14 @@ endorses SANCHAY or defines the hackathon scoring rubric.
   `flatpak uninstall --unused` for unused runtimes and extensions. SANCHAY
   therefore treats the system installation as tool-owned storage rather than
   loose files. Source: [Flatpak documentation](https://docs.flatpak.org/en/latest/using-flatpak.html).
+- Docker documents that a Linux user's `~/.docker/config.json` can store
+  registry credentials; npm documents registry credentials in the user's
+  `.npmrc`; and Terraform documents API tokens in `.terraformrc` or
+  `credentials.tfrc.json`. SANCHAY excludes these exact credential paths before
+  metadata collection and duplicate hashing. Sources: [Docker login](https://docs.docker.com/reference/cli/docker/login/),
+  [npm configuration](https://docs.npmjs.com/cli/v8/configuring-npm/npmrc/), and
+  [Terraform CLI configuration](https://developer.hashicorp.com/terraform/cli/config/config-file)
+  and [Terraform login](https://developer.hashicorp.com/terraform/cli/commands/login).
 
 ### Storage-systems research
 
@@ -71,6 +84,7 @@ endorses SANCHAY or defines the hackathon scoring rubric.
 | Make every recommendation auditable | Include class, typed recovery evidence with strength, survivor path for duplicates, observed device/inode/logical-size/allocated-size/mtime-nanoseconds/link count, and a SHA-256 integrity checksum (not a signature). | Implemented |
 | Preserve source-of-truth and hardlinks | Keep a deterministic duplicate survivor; identify hardlinks by `(device, inode)`, count each inode once, and exclude individual hardlinked paths because one unlink releases no bytes. | Implemented |
 | Avoid treating a path swap as duplicate proof | On Linux, walk from the canonical scan-root descriptor with `openat` plus no-follow flags; reject non-regular files or identity drift before/after a content read. | Implemented |
+| Avoid collecting tool credentials | Exclude documented Docker, npm, and Terraform credential paths alongside existing cloud, key, vault, and environment-file safeguards before metadata collection or hashing. | Implemented |
 | Make BOSS storage operations safer | Measure APT archive and persistent systemd-journal storage separately; defer action to the owning tool and approved package/log-retention policy instead of raw file deletion or reclaim-target selection. | Implemented |
 | Protect managed application stores | When present, report Docker, containerd, and Flatpak system stores as tool-owned advisories; do not hash, rank, or raw-delete their files. | Implemented |
 | Avoid crossing a governance boundary silently | Scan one filesystem by default; cross-filesystem traversal requires an explicit flag and is inventory-only across mounts. | Implemented |

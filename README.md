@@ -186,8 +186,9 @@ sanchay-ui .
 
 * **Local by default**: Analysis and duplicate hashing run on-device. No file content is transmitted; `--explain` is optional and may send ranked file paths to the configured model provider.
 * **Credential boundary**: Common credential directories, environment files,
-  private-key formats, and local credential vaults are excluded before metadata
-  collection or duplicate hashing.
+  private-key formats, local credential vaults, Docker configuration, and npm
+  and Terraform CLI credential files are excluded before metadata collection or
+  duplicate hashing.
 * **Content-read boundary**: Duplicate evidence is tied to the inode observed
   during the scan. Linux reads are rooted at the canonical scan directory and
   reject symlink components; all platforms reject non-regular files and
