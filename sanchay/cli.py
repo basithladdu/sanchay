@@ -67,7 +67,6 @@ def main(argv=None):
     print(f"{len(files):,} files, {human(total)}\n")
 
     groups = dedup.duplicates(files)
-    dup_paths = set(dedup.duplicate_map(groups))
     print(f"duplicates: {len(groups)} groups, {human(dedup.reclaimable(groups))} potential duplicate bytes")
 
     free = shutil.disk_usage(args.root).free
@@ -126,7 +125,7 @@ def main(argv=None):
 
     if args.viz:
         from . import viz
-        print(f"\ntreemap -> {viz.treemap(files, dup_paths, args.viz, root=args.root)}")
+        print(f"\ntreemap -> {viz.treemap(files, plan.duplicate_evidence_paths(cleanup_plan), args.viz, root=args.root)}")
 
     if args.explain:
         print("\n" + explain.explain(rows))

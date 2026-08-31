@@ -122,6 +122,9 @@ class TestSanchay(unittest.TestCase):
             self.assertEqual(item['recovery_evidence']['strength'], 'direct')
             self.assertIn(str(duplicate_a), item['recovery_evidence']['detail'])
             self.assertEqual(item['observed_identity']['size'], 4096)
+            self.assertEqual(
+                plan.duplicate_evidence_paths(cleanup_plan),
+                frozenset({str(duplicate_a), str(duplicate_z)}))
 
     def test_byte_comparison_confirms_duplicate_candidates(self):
         with tempfile.TemporaryDirectory() as tmp:

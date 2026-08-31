@@ -91,7 +91,7 @@ class Sanchay(App):
             yield Stat("on disk")
             yield Stat("duplicated")
             yield Stat("reviewable")
-            yield Stat("disk fills in")
+            yield Stat("first-pass runway")
         yield Static("Scanning filesystem...", id="status")
         yield DataTable(id="table", zebra_stripes=True, cursor_type="row")
         yield Static("", id="guard")
@@ -126,8 +126,8 @@ class Sanchay(App):
             days = forecast.days_until_full(files, shutil.disk_usage(self.root).free)
         except OSError:
             days = None
-        stats[3].set(f"{days:.0f} days" if days else "—",
-                     f"{human(forecast.rate(files))}/day")
+        stats[3].set(f"~{days:.0f} days" if days else "—",
+                     f"{human(forecast.rate(files))}/day mtime estimate")
 
         self.update_status_bar()
         self.query_one("#guard", Static).update(Text.assemble(

@@ -91,10 +91,10 @@ def build(files, root, free_bytes, out="sanchay-report.html", limit=50):
     from . import viz
 
     groups = dedup.duplicates(files)
-    dup_paths = set(dedup.duplicate_map(groups))
     cleanup_plan = plan.build(files, groups, root, limit=limit)
     rows = cleanup_plan["recommendations"]
     protected_count = cleanup_plan["safety"]["protected_unique_files"]
+    dup_paths = plan.duplicate_evidence_paths(cleanup_plan)
 
     total = sum(f.size for f in files)
     reviewable = sum(r["size"] for r in rows)
@@ -126,7 +126,7 @@ def build(files, root, free_bytes, out="sanchay-report.html", limit=50):
 <div class="wrap">
   <header>
     <div>
-      <h1>💾 SANCHAY <span class="badge-regret">Regret-Aware Storage</span></h1>
+      <h1>SANCHAY <span class="badge-regret">Regret-Aware Storage</span></h1>
       <div class="sub">Selected local root &middot; Generated {time.strftime('%d %b %Y, %H:%M')}</div>
     </div>
   </header>
@@ -135,12 +135,12 @@ def build(files, root, free_bytes, out="sanchay-report.html", limit=50):
     {_card("Scanned on disk", human(total), f"{len(files):,} total files")}
     {_card("Duplicate candidates", human(dedup.reclaimable(groups)), f"{len(groups):,} groups before survivor review", "#84cc16")}
     {_card("Reviewable candidates", human(reviewable), f"top {len(rows)} recommendations; human review required", "#10b981")}
-    {_card("Disk runway", f"{days:.0f} days" if days else "—", f"{human(forecast.rate(files))}/day growth rate", "#3b82f6")}
+    {_card("First-run runway estimate", f"~{days:.0f} days" if days else "—", f"{human(forecast.rate(files))}/day from mtime; capture snapshots for observed growth", "#3b82f6")}
   </div>
 
   <div class="panel">
     <h2>Storage Recoverability Treemap</h2>
-    <p class="h">Treemap blocks are coloured by recoverability evidence: green has cache or duplicate evidence; red has no known recovery proof.</p>
+    <p class="h">Treemap blocks are coloured by recoverability evidence: green has cache or byte-confirmed duplicate evidence; red has no known recovery proof.</p>
     {chart}
   </div>
 

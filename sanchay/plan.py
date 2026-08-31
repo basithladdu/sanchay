@@ -134,6 +134,25 @@ def write(document, out):
     return str(path)
 
 
+def duplicate_evidence_paths(document):
+    """Return both sides of each byte-confirmed duplicate relationship.
+
+    A treemap should show the retained survivor as duplicate evidence too; only
+    the alternate copy is a review recommendation.
+    """
+    paths = set()
+    for item in document.get("recommendations", []):
+        if not isinstance(item, dict) or item.get("kind") != "duplicate":
+            continue
+        path = item.get("path")
+        survivor = item.get("survivor_path")
+        if isinstance(path, str):
+            paths.add(path)
+        if isinstance(survivor, str):
+            paths.add(survivor)
+    return frozenset(paths)
+
+
 def read(path):
     """Load a plan without performing any filesystem action."""
     document = json.loads(Path(path).read_text(encoding="utf-8"))
