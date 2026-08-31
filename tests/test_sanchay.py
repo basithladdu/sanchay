@@ -155,6 +155,9 @@ class TestSanchay(unittest.TestCase):
         self.assertIn('Persistent systemd journal', page)
         self.assertIn('excluded from file-level reclamation', page)
         self.assertIn('not calculated across multiple filesystems', page)
+        self.assertIn('Cross-filesystem inventory; no aggregate free-space or reclaim target', page)
+        self.assertIn('Allocated inventory', page)
+        self.assertIn('no shared free-space claim', page)
 
     def test_cli_labels_managed_storage_as_deferred_not_reclaimable(self):
         files = [
@@ -197,6 +200,16 @@ class TestSanchay(unittest.TestCase):
     def test_cross_filesystem_rejects_a_shared_reclaim_target(self):
         with self.assertRaises(SystemExit), contextlib.redirect_stderr(io.StringIO()):
             cli.main(['/', '--cross-filesystems', '--target-reclaim', '1G'])
+
+    def test_cross_filesystem_plan_carries_its_capacity_boundary(self):
+        document = plan.build(self.files, [], '/', cross_filesystems=True)
+        self.assertEqual(document['safety']['scan_scope'],
+                         'cross_filesystem_inventory')
+        self.assertIn('no shared free-space',
+                      document['safety']['capacity_boundary'])
+        with self.assertRaisesRegex(ValueError, 'shared reclaim target'):
+            plan.build(self.files, [], '/', target_reclaim_bytes=1,
+                       cross_filesystems=True)
 
     def test_cross_filesystem_rejects_capacity_history_inputs(self):
         inputs = (

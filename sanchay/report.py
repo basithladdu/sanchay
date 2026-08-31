@@ -132,15 +132,30 @@ def build(files, root, free_bytes, out="sanchay-report.html", limit=50,
 
     groups = dedup.duplicates(managed.content_candidates(files), root=root)
     cleanup_plan = plan.build(files, groups, root, limit=limit,
-                              target_reclaim_bytes=target_reclaim_bytes)
+                              target_reclaim_bytes=target_reclaim_bytes,
+                              cross_filesystems=cross_filesystems)
     rows = cleanup_plan["recommendations"]
     protected_count = cleanup_plan["safety"]["protected_unique_files"]
     managed_storage = cleanup_plan["safety"]["managed_operational_storage"]
     dup_paths = plan.duplicate_evidence_paths(cleanup_plan)
 
-    total = storage.physical_bytes(files)
+    physical = storage.physical_records(files)
+    total = sum(storage.allocated_bytes(info) for info in physical)
     aliases = storage.hardlink_alias_count(files)
     reviewable = sum(r["size"] for r in rows)
+    filesystem_count = len({getattr(info, "device", None) for info in physical})
+    allocation_title = ("Allocated inventory" if cross_filesystems
+                        else "Allocated on disk")
+    allocation_note = (
+        f"{len(files):,} entries across {filesystem_count:,} filesystem"
+        f"{'s' if filesystem_count != 1 else ''}; no shared free-space claim"
+        if cross_filesystems else
+        f"{len(files):,} entries; {aliases:,} hardlink aliases not double-counted"
+    )
+    header_scope = (
+        "Cross-filesystem inventory; no aggregate free-space or reclaim target"
+        if cross_filesystems else "Selected local root"
+    )
     days = (None if cross_filesystems
             else forecast.days_until_full(files, free_bytes))
     runway_note = ("not calculated across multiple filesystems; scan one filesystem "
@@ -203,12 +218,12 @@ def build(files, root, free_bytes, out="sanchay-report.html", limit=50,
   <header>
     <div>
       <h1>SANCHAY <span class="badge-regret">Regret-Aware Storage</span></h1>
-      <div class="sub">Selected local root &middot; Generated {time.strftime('%d %b %Y, %H:%M')}</div>
+      <div class="sub">{header_scope} &middot; Generated {time.strftime('%d %b %Y, %H:%M')}</div>
     </div>
   </header>
 
   <div class="cards">
-    {_card("Allocated on disk", human(total), f"{len(files):,} entries; {aliases:,} hardlink aliases not double-counted")}
+    {_card(allocation_title, human(total), allocation_note)}
     {_card("Duplicate candidates", human(dedup.reclaimable(groups)), f"{len(groups):,} content groups; allocated reclaim only", "#84cc16")}
     {_card("Reviewable candidates", human(reviewable), review_note, "#10b981")}
     {_card("First-run runway estimate", forecast.runway_label(days), runway_note, "#3b82f6")}

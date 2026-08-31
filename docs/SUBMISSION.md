@@ -98,7 +98,8 @@ recovery-evidence gate cannot meet the target, it reports the shortfall rather
 than expanding into protected files. This target is intentionally scoped to one
 filesystem: explicit cross-filesystem traversal is inventory-only and rejects a
 combined target because releasing space on another mount does not relieve the
-filesystem under pressure.
+filesystem under pressure. A plan written in that mode carries an explicit
+`cross_filesystem_inventory` scope and capacity-boundary note.
 
 **4. Estimates storage runway.** Normally this needs weeks of snapshots. On a
 first run, SANCHAY derives an initial bytes-per-day estimate from the

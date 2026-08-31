@@ -133,10 +133,12 @@ def _fingerprint_valid(document):
 
 
 def build(files, duplicate_groups, root, now=None, limit=25,
-          target_reclaim_bytes=None):
+          target_reclaim_bytes=None, cross_filesystems=False):
     """Build a non-executing cleanup manifest from one scan result."""
     if target_reclaim_bytes is not None and target_reclaim_bytes <= 0:
         raise ValueError("Reclaim target must be greater than zero")
+    if cross_filesystems and target_reclaim_bytes is not None:
+        raise ValueError("A cross-filesystem inventory cannot use a shared reclaim target")
     duplicate_of = dedup.confirmed_duplicate_map(duplicate_groups, root=root)
     by_path = {info.path: info for info in files}
     managed_advisories = managed.advisories(files)
@@ -218,6 +220,12 @@ def build(files, duplicate_groups, root, now=None, limit=25,
         "decision_model": DECISION_MODEL,
         "recommendations": recommendations,
     }
+    if cross_filesystems:
+        document["safety"]["scan_scope"] = "cross_filesystem_inventory"
+        document["safety"]["capacity_boundary"] = (
+            "Candidates may span mounts; this plan makes no shared free-space "
+            "or reclaim-target claim"
+        )
     if target_reclaim_bytes is not None:
         selected_bytes = sum(item["size"] for item in recommendations)
         document["selection"] = {

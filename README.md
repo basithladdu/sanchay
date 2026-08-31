@@ -75,7 +75,8 @@ multi-mount **inventory** mode: it may show candidates across mounted filesystem
 but it deliberately refuses `--target-reclaim`, snapshots, comparisons, and
 history-based forecasts. A byte released on another mount does not create free
 space on the filesystem under pressure, so SANCHAY makes no combined capacity or
-runway claim.
+runway claim. The review plan records this as
+`scan_scope: cross_filesystem_inventory` with the same capacity boundary.
 
 ### 3. Tiered Fast Content Hashing
 Deduplicating large files can saturate I/O. SANCHAY uses a 3-tier cascade:

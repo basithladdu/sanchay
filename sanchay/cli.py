@@ -158,7 +158,8 @@ def main(argv=None):
               + "; save a snapshot to measure future net growth")
 
     cleanup_plan = plan.build(files, groups, args.root, limit=args.limit,
-                              target_reclaim_bytes=args.target_reclaim)
+                              target_reclaim_bytes=args.target_reclaim,
+                              cross_filesystems=args.cross_filesystems)
     rows = cleanup_plan["recommendations"]
     excluded = cleanup_plan["safety"]["protected_unique_files"]
     print(f"candidates: {len(rows)} shown, {cleanup_plan['safety']['candidate_count']:,} eligible, "
