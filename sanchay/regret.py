@@ -125,5 +125,5 @@ def score(info, duplicated=False, now=None):
 def rank(files, duplicate_paths=frozenset(), now=None, limit=25):
     scored = [score(f, f.path in duplicate_paths, now) for f in files]
     eligible = [s for s in scored if s["kind"] != "unique"]
-    eligible.sort(key=lambda s: s["priority"], reverse=True)
+    eligible.sort(key=lambda s: (-s["priority"], _norm(s["path"])))
     return eligible[:limit]

@@ -43,7 +43,7 @@ human acts.
 DEMO_ROOT="$(mktemp -d /tmp/sanchay-demo.XXXXXX)"
 sanchay-demo "$DEMO_ROOT"
 
-sanchay "$DEMO_ROOT" --limit 10 --plan cleanup-plan.json --snapshot baseline.json
+sanchay "$DEMO_ROOT" --target-reclaim 600K --limit 10 --plan cleanup-plan.json --snapshot baseline.json
 python -m json.tool cleanup-plan.json | less
 sanchay --verify-plan cleanup-plan.json
 ```
@@ -59,6 +59,8 @@ Point out these concrete facts, not a generic dashboard:
   one physical file in the on-disk total, forecast, snapshot, and treemap.
 - `workspace/node_modules/.cache/bundle.bin` is a reviewable regenerable-output
   candidate, not an automatically deleted file.
+- The explicit `600K` reclaim request selects 712 KB of reviewable evidence;
+  it does not broaden into the thesis or hardlinked entries to meet a target.
 - `cleanup-plan.json` has a SHA-256 integrity checksum (not a signature),
   candidate identity including link count, typed recovery evidence, and a
   human-review requirement.
@@ -86,6 +88,11 @@ fenced candidate list and cannot promote protected files or execute actions.
 **Why not automate deletion?** The requested problem includes recommendations;
 the irreversible step has a different risk profile. SANCHAY supplies an
 auditable plan and revalidation gate so an operator retains authority.
+
+**What if an operator needs a stated amount of free space?** `--target-reclaim`
+selects enough evidence-backed candidates in deterministic priority order and
+reports whether the target is met. If it cannot be met safely, it reports a
+shortfall rather than recommending protected files.
 
 **How do you prove a duplicate is eligible for review?** It uses size bucketing,
 prefix hashing, then a full BLAKE2b-256 digest and a byte-for-byte comparison;

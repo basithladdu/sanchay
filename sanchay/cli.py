@@ -1,5 +1,6 @@
 """sanchay -- regret-aware storage intelligence for Linux."""
 import argparse
+import re
 import shutil
 
 from . import dedup, explain, forecast, plan, regret, scan, snapshot, storage
@@ -13,6 +14,30 @@ def human(n):
     return f"{n:.1f}PB"
 
 
+def parse_reclaim_bytes(value):
+    """Parse a human storage target such as 600M or 1.5G."""
+    normalized = str(value).strip().upper().replace("IB", "B")
+    match = re.fullmatch(r"(\d+(?:\.\d+)?)\s*([KMGT]?B?)?", normalized)
+    units = {
+        "": 1,
+        "B": 1,
+        "K": 1024,
+        "KB": 1024,
+        "M": 1024 ** 2,
+        "MB": 1024 ** 2,
+        "G": 1024 ** 3,
+        "GB": 1024 ** 3,
+        "T": 1024 ** 4,
+        "TB": 1024 ** 4,
+    }
+    if not match or match.group(2) not in units:
+        raise argparse.ArgumentTypeError("use bytes or a K/M/G/T suffix, for example 600M or 1.5G")
+    parsed = int(float(match.group(1)) * units[match.group(2)])
+    if parsed <= 0:
+        raise argparse.ArgumentTypeError("reclaim target must be greater than zero")
+    return parsed
+
+
 def main(argv=None):
     ap = argparse.ArgumentParser(prog="sanchay", description=__doc__)
     ap.add_argument("root", nargs="?")
@@ -24,6 +49,8 @@ def main(argv=None):
     ap.add_argument("--report", metavar="OUT.html", help="write a shareable HTML report")
     ap.add_argument("--plan", metavar="OUT.json",
                     help="write a review-only cleanup plan; SANCHAY never deletes files")
+    ap.add_argument("--target-reclaim", metavar="SIZE", type=parse_reclaim_bytes,
+                    help="select enough reviewable candidates to reclaim SIZE (for example 600M); never deletes files")
     ap.add_argument("--snapshot", metavar="OUT.json",
                     help="save aggregate local usage for a later observed-growth comparison")
     forecast_group = ap.add_mutually_exclusive_group()
@@ -105,7 +132,8 @@ def main(argv=None):
               + (f"full in {forecast.runway_label(days)}" if days else "no measurable growth")
               + "; save a snapshot to measure future net growth")
 
-    cleanup_plan = plan.build(files, groups, args.root, limit=args.limit)
+    cleanup_plan = plan.build(files, groups, args.root, limit=args.limit,
+                              target_reclaim_bytes=args.target_reclaim)
     rows = cleanup_plan["recommendations"]
     excluded = cleanup_plan["safety"]["protected_unique_files"]
     print(f"candidates: {len(rows)} shown, {cleanup_plan['safety']['candidate_count']:,} eligible, "
@@ -113,6 +141,12 @@ def main(argv=None):
     hardlinks = cleanup_plan["safety"]["excluded_hardlink_entries"]
     if hardlinks:
         print(f"hardlinks: {hardlinks:,} entries excluded; a single link removal releases no physical bytes")
+    selection = cleanup_plan.get("selection")
+    if selection:
+        state = "target met" if selection["target_met"] else (
+            f"short by {human(selection['shortfall_bytes'])}")
+        print(f"intent: reclaim {human(selection['target_reclaim_bytes'])}; "
+              f"{human(selection['selected_reclaim_bytes'])} selected ({state})")
     print()
 
     print(f"{'size':>10}  {'kind':<11} {'unchanged':>9}  path")
@@ -123,7 +157,8 @@ def main(argv=None):
 
     if args.report:
         from . import report
-        print("report -> " + report.build(files, args.root, free, args.report))
+        print("report -> " + report.build(files, args.root, free, args.report,
+                                           target_reclaim_bytes=args.target_reclaim))
 
     if args.plan:
         print("plan -> " + plan.write(cleanup_plan, args.plan))

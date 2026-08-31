@@ -72,6 +72,11 @@ unchanged for a year, and regret is a fixed weight per class (0.02 disposable,
 not been read: access timestamps are mount-policy dependent and hashing can
 touch them.
 
+An operator can also state a reclaim target such as `--target-reclaim 5G`.
+SANCHAY then selects enough already-eligible candidates in deterministic
+priority order to meet it. If the recovery-evidence gate cannot meet the
+target, it reports the shortfall rather than expanding into protected files.
+
 **4. Estimates storage runway.** Normally this needs weeks of snapshots. On a
 first run, SANCHAY derives an initial bytes-per-day estimate from the
 distribution of modification times across the scan and compares it with current

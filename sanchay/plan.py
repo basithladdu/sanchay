@@ -70,8 +70,11 @@ def _fingerprint_valid(document):
     return isinstance(claimed, str) and hmac.compare_digest(claimed, expected)
 
 
-def build(files, duplicate_groups, root, now=None, limit=25):
+def build(files, duplicate_groups, root, now=None, limit=25,
+          target_reclaim_bytes=None):
     """Build a non-executing cleanup manifest from one scan result."""
+    if target_reclaim_bytes is not None and target_reclaim_bytes <= 0:
+        raise ValueError("Reclaim target must be greater than zero")
     duplicate_of = dedup.confirmed_duplicate_map(duplicate_groups)
     by_path = {info.path: info for info in files}
     eligible = []
@@ -92,9 +95,20 @@ def build(files, duplicate_groups, root, now=None, limit=25):
             continue
         eligible.append((row, info))
 
-    eligible.sort(key=lambda item: item[0]["priority"], reverse=True)
+    eligible.sort(key=lambda item: (-item[0]["priority"],
+                                    item[0]["path"].replace("\\", "/")))
+    selected = eligible[:limit]
+    if target_reclaim_bytes is not None:
+        selected = []
+        selected_bytes = 0
+        for item in eligible:
+            if selected_bytes >= target_reclaim_bytes:
+                break
+            selected.append(item)
+            selected_bytes += item[0]["size"]
+
     recommendations = []
-    for row, info in eligible[:limit]:
+    for row, info in selected:
         item = {
             **row,
             "proposed_action": ACTION[row["kind"]],
@@ -134,6 +148,16 @@ def build(files, duplicate_groups, root, now=None, limit=25):
         },
         "recommendations": recommendations,
     }
+    if target_reclaim_bytes is not None:
+        selected_bytes = sum(item["size"] for item in recommendations)
+        document["selection"] = {
+            "intent": "reclaim_at_least",
+            "target_reclaim_bytes": target_reclaim_bytes,
+            "selected_reclaim_bytes": selected_bytes,
+            "target_met": selected_bytes >= target_reclaim_bytes,
+            "shortfall_bytes": max(0, target_reclaim_bytes - selected_bytes),
+            "method": "deterministic priority order after the recovery-evidence safety gate; no file action is executed",
+        }
     document["fingerprint_sha256"] = _fingerprint(document)
     return document
 

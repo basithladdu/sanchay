@@ -31,7 +31,7 @@ irreversible.
 Use one simple left-to-right flow:
 
 local scan → duplicate content match / clean-Git state / cache-path heuristic → protected-file gate
-→ review-only plan → human review
+→ optional reclaim target → review-only plan → human review
 
 Headline: “Unique, untracked, uncached files are excluded from the plan before
 priority ranking.”
@@ -71,13 +71,14 @@ Use the deterministic SANCHAY fixture and terminal output:
 - a duplicate has a named survivor;
 - a hardlink is excluded from reclaimable duplicates and does not inflate the
   disk total;
+- a 600 KB target is met only with reviewable evidence-backed candidates;
 - a build cache is reviewable, not deleted;
 - --verify-plan passes before change and fails closed after a synthetic fixture
   change.
 
 Put the command in small monospace text only:
 
-    sanchay-demo /tmp/sanchay-demo && sanchay /tmp/sanchay-demo --plan cleanup-plan.json && sanchay --verify-plan cleanup-plan.json
+    sanchay-demo /tmp/sanchay-demo && sanchay /tmp/sanchay-demo --target-reclaim 600K --plan cleanup-plan.json && sanchay --verify-plan cleanup-plan.json
 
 ## Slide 7 — Fit for a secure, sovereign Linux workflow
 

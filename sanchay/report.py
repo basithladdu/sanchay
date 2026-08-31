@@ -106,11 +106,13 @@ def _evidence_label(row, root):
     return f"{strength}: {evidence['detail']}"
 
 
-def build(files, root, free_bytes, out="sanchay-report.html", limit=50):
+def build(files, root, free_bytes, out="sanchay-report.html", limit=50,
+          target_reclaim_bytes=None):
     from . import viz
 
     groups = dedup.duplicates(files)
-    cleanup_plan = plan.build(files, groups, root, limit=limit)
+    cleanup_plan = plan.build(files, groups, root, limit=limit,
+                              target_reclaim_bytes=target_reclaim_bytes)
     rows = cleanup_plan["recommendations"]
     protected_count = cleanup_plan["safety"]["protected_unique_files"]
     dup_paths = plan.duplicate_evidence_paths(cleanup_plan)
@@ -119,6 +121,13 @@ def build(files, root, free_bytes, out="sanchay-report.html", limit=50):
     aliases = storage.hardlink_alias_count(files)
     reviewable = sum(r["size"] for r in rows)
     days = forecast.days_until_full(files, free_bytes)
+    selection = cleanup_plan.get("selection")
+    review_note = f"top {len(rows)} recommendations; human review required"
+    if selection:
+        state = "target met" if selection["target_met"] else (
+            f"short by {human(selection['shortfall_bytes'])}")
+        review_note = (f"{human(selection['selected_reclaim_bytes'])} selected for "
+                       f"{human(selection['target_reclaim_bytes'])} target; {state}")
 
     fig = viz.figure(files, dup_paths, root=root)
     chart = fig.to_html(full_html=False, include_plotlyjs=True,
@@ -154,7 +163,7 @@ def build(files, root, free_bytes, out="sanchay-report.html", limit=50):
   <div class="cards">
     {_card("Scanned on disk", human(total), f"{len(files):,} entries; {aliases:,} hardlink aliases not double-counted")}
     {_card("Duplicate candidates", human(dedup.reclaimable(groups)), f"{len(groups):,} content groups; individual review only", "#84cc16")}
-    {_card("Reviewable candidates", human(reviewable), f"top {len(rows)} recommendations; human review required", "#10b981")}
+    {_card("Reviewable candidates", human(reviewable), review_note, "#10b981")}
     {_card("First-run runway estimate", forecast.runway_label(days), f"{human(forecast.rate(files))}/day from mtime; capture snapshots for observed growth", "#3b82f6")}
   </div>
 

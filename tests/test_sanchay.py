@@ -3,6 +3,7 @@ import tempfile
 import time
 import unittest
 from unittest import mock
+import argparse
 import os
 import copy
 import contextlib
@@ -57,6 +58,59 @@ class TestSanchay(unittest.TestCase):
         days = forecast.days_until_full(self.files, free_bytes=1000000000)
         self.assertIsNotNone(days)
         self.assertGreater(days, 0)
+
+    def test_reclaim_target_parser_accepts_human_units(self):
+        self.assertEqual(cli.parse_reclaim_bytes('600M'), 600 * 1024 ** 2)
+        self.assertEqual(cli.parse_reclaim_bytes('1.5 GiB'), int(1.5 * 1024 ** 3))
+        with self.assertRaises(argparse.ArgumentTypeError):
+            cli.parse_reclaim_bytes('0')
+        with self.assertRaises(argparse.ArgumentTypeError):
+            cli.parse_reclaim_bytes('enough')
+
+    def test_reclaim_target_selects_only_evidence_backed_candidates_until_met(self):
+        candidates = [
+            scan.FileInfo('/app/.cache/large.bin', 5000, self.now, self.now - 86400 * 90, 301),
+            scan.FileInfo('/app/.cache/small.bin', 4000, self.now, self.now - 86400 * 45, 302),
+            scan.FileInfo('/home/user/only-copy.bin', 50000, self.now, self.now - 86400 * 365, 303),
+        ]
+        cleanup_plan = plan.build(candidates, [], '/app', now=self.now, limit=1,
+                                  target_reclaim_bytes=6000)
+        selection = cleanup_plan['selection']
+
+        self.assertEqual([item['path'] for item in cleanup_plan['recommendations']],
+                         ['/app/.cache/large.bin', '/app/.cache/small.bin'])
+        self.assertEqual(selection['target_reclaim_bytes'], 6000)
+        self.assertEqual(selection['selected_reclaim_bytes'], 9000)
+        self.assertTrue(selection['target_met'])
+        self.assertEqual(selection['shortfall_bytes'], 0)
+        self.assertNotIn('/home/user/only-copy.bin',
+                         [item['path'] for item in cleanup_plan['recommendations']])
+
+    def test_reclaim_target_reports_an_evidence_limited_shortfall(self):
+        candidates = [
+            scan.FileInfo('/app/.cache/only.bin', 4000, self.now, self.now - 86400 * 90, 304),
+            scan.FileInfo('/home/user/only-copy.bin', 50000, self.now, self.now - 86400 * 365, 305),
+        ]
+        cleanup_plan = plan.build(candidates, [], '/app', now=self.now,
+                                  target_reclaim_bytes=6000)
+        selection = cleanup_plan['selection']
+
+        self.assertFalse(selection['target_met'])
+        self.assertEqual(selection['selected_reclaim_bytes'], 4000)
+        self.assertEqual(selection['shortfall_bytes'], 2000)
+
+    def test_equal_priority_targets_are_selected_by_normalized_path(self):
+        candidates = [
+            scan.FileInfo('/app/.cache/z-last.bin', 4096, self.now,
+                          self.now - 86400 * 90, 306),
+            scan.FileInfo('/app/.cache/a-first.bin', 4096, self.now,
+                          self.now - 86400 * 90, 307),
+        ]
+        cleanup_plan = plan.build(candidates, [], '/app', now=self.now,
+                                  target_reclaim_bytes=4096)
+
+        self.assertEqual([item['path'] for item in cleanup_plan['recommendations']],
+                         ['/app/.cache/a-first.bin'])
 
     def test_runway_label_avoids_false_long_range_precision(self):
         self.assertEqual(forecast.runway_label(None), '—')

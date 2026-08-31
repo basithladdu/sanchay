@@ -80,6 +80,14 @@ Interactive visualization color-coded by recoverability class rather than raw di
 
 ---
 
+### 5. Intent-Aware, Evidence-Bounded Reclamation
+When an operator needs a specific amount of space, `--target-reclaim 5G` selects
+only enough already-eligible candidates in deterministic priority order to meet
+that target. If the recovery-evidence gate cannot meet it, SANCHAY reports the
+shortfall instead of widening scope to protected files.
+
+---
+
 ## 🖥️ Terminal & Web Visualizations
 
 ### Rich Terminal Dashboard (`sanchay-ui`)
@@ -96,23 +104,26 @@ sanchay /home/user --limit 10
 # 2. Write an integrity-checked, review-only cleanup plan
 sanchay /home/user --plan cleanup-plan.json
 
-# 3. Recheck that a plan is still valid before any human acts on it
+# 3. Ask for enough evidence-backed candidates to reclaim a stated amount
+sanchay /home/user --target-reclaim 5G --plan cleanup-plan.json
+
+# 4. Recheck that a plan is still valid before any human acts on it
 sanchay --verify-plan cleanup-plan.json
 
-# 4. Save an aggregate local snapshot for a later measured-growth comparison
+# 5. Save an aggregate local snapshot for a later measured-growth comparison
 sanchay /home/user --snapshot before.json
 sanchay /home/user --compare before.json
 
-# 5. Fit a local trend once you have multiple earlier snapshots
+# 6. Fit a local trend once you have multiple earlier snapshots
 sanchay /home/user --history day-1.json day-7.json day-14.json
 
-# 6. Generate an interactive Plotly HTML report
+# 7. Generate an interactive Plotly HTML report
 sanchay /home/user --report report.html
 
-# 7. Create a harmless, reproducible final-round demo fixture
+# 8. Create a harmless, reproducible final-round demo fixture
 sanchay-demo /tmp/sanchay-demo
 
-# 8. Launch interactive Textual Terminal Dashboard
+# 9. Launch interactive Textual Terminal Dashboard
 sanchay-ui /home/user
 ```
 
