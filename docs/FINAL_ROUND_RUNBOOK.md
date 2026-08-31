@@ -153,7 +153,10 @@ case where byte space remains but no file entry can be created. It does not
 identify a file to remove or claim a cause when the counters are unavailable.
 It also distinguishes free blocks from blocks actually available to the
 unprivileged operator, so a filesystem policy/reservation boundary is visible
-without recommending a change to that policy.
+without recommending a change to that policy. SANCHAY also counts nested mount
+points under the selected root: the active namespace can obscure older entries
+beneath a child mount, so that topology is called out as a possible contributor
+to an accounting gap. It never unmounts or remounts a path to inspect it.
 
 **Why does SANCHAY show mount context?** C-DAC describes Secure BOSS as
 LVM-encrypted, so filesystem-free bytes alone do not establish volume-group or

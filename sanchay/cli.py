@@ -248,6 +248,9 @@ def main(argv=None):
         if filesystem_context.get("advisory"):
             print(f"capacity: {filesystem_context['advisory']}")
             print(f"  review: {filesystem_context['review_action']}")
+        if filesystem_context.get("nested_mount_boundary"):
+            print("mount topology: " + filesystem_context["nested_mount_boundary"])
+            print("  review: " + filesystem_context["nested_mount_review_action"])
     if not scan_coverage["complete"]:
         print("coverage: incomplete; "
               f"{scan_coverage['unreadable_directories']:,} directory(ies) and "

@@ -167,6 +167,10 @@ class Sanchay(App):
             guard.append(
                 f" {filesystem_context['label']}: {filesystem_context['advisory']}",
                 style="dim")
+        if filesystem_context and filesystem_context.get("nested_mount_boundary"):
+            guard.append(
+                f" Nested mount topology: {filesystem_context['nested_mount_boundary']}",
+                style="dim")
         if not scan_coverage["complete"]:
             guard.append(
                 f" {scan_coverage['unreadable_directories']:,} directory(ies) and "

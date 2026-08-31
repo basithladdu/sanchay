@@ -96,6 +96,10 @@ Show two stages, not a fake exact date:
    excluded from the readable inventory if stored beneath the root; their bytes
    remain in the mount metric, but they cannot become self-referential cleanup
    candidates.
+10. Count nested mount points below the selected root. A path walk sees the
+    mounted view, so older entries covered by a child mount may be absent from
+    the readable inventory; SANCHAY calls this a topology boundary and never
+    unmounts or remounts a path to inspect it.
 
 Footer: “A first scan is an inventory estimate; same-mount observed history is stronger evidence.”
 

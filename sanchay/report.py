@@ -334,15 +334,30 @@ def build(files, root, free_bytes, out="sanchay-report.html", limit=50,
 
     mount_panel = ""
     mount_context = cleanup_plan["safety"].get("filesystem_context")
-    if mount_context and mount_context.get("advisory"):
-        mount_panel = f"""
-  <div class="panel">
-    <h2>{html.escape(mount_context["label"])}</h2>
-    <p class="h">{html.escape(mount_context["capacity_scope"])}</p>
+    topology_note = ""
+    if isinstance(mount_context, dict):
+        nested_count = mount_context.get("nested_mount_point_count")
+        if (isinstance(nested_count, int) and not isinstance(nested_count, bool)
+                and nested_count > 0 and mount_context.get("nested_mount_boundary")
+                and mount_context.get("nested_mount_review_action")):
+            topology_note = f"""
+    <p class="h"><b>Nested mount topology:</b> {html.escape(mount_context['nested_mount_boundary'])} {html.escape(mount_context['nested_mount_review_action'])}</p>
+"""
+    if mount_context and (mount_context.get("advisory") or topology_note):
+        mount_details = ""
+        if mount_context.get("advisory"):
+            mount_details = f"""
+    <p class="h">{html.escape(mount_context.get('capacity_scope', 'Capacity claims are mount-scoped.'))}</p>
     <table>
       <thead><tr><th>Filesystem</th><th>Source class</th><th>Capacity boundary</th><th>Human review</th></tr></thead>
       <tbody><tr><td>{html.escape(mount_context["filesystem"])}</td><td>{html.escape(mount_context["source_class"])}</td><td class="evidence">{html.escape(mount_context["advisory"])}</td><td class="evidence">{html.escape(mount_context["review_action"])}</td></tr></tbody>
     </table>
+"""
+        mount_panel = f"""
+  <div class="panel">
+    <h2>{html.escape(mount_context.get("label", "Mount topology boundary"))}</h2>
+    {mount_details}
+    {topology_note}
   </div>
 """
 

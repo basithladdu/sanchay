@@ -79,6 +79,29 @@ def _contains(mount_point, target):
     return target == mount_point or target.startswith(mount_point + "/")
 
 
+def nested_mounts(path, mountinfo_path=MOUNTINFO):
+    """Return visible child mount points beneath *path* once each.
+
+    A path walk sees the active mount namespace. A child mount can therefore
+    obscure older directory entries below its mount point, even though those
+    entries may still consume blocks on the parent filesystem. This is not
+    proof that hidden bytes exist; it is topology evidence for interpreting a
+    directory-to-filesystem accounting gap without unmounting anything.
+    """
+    target = _target_path(path)
+    nested = {}
+    for record in entries(mountinfo_path):
+        mount_point = posixpath.normpath(record.mount_point)
+        if mount_point == target or not _contains(target, mount_point):
+            continue
+        existing = nested.get(mount_point)
+        # Stacked mounts can share one visible path. Keep the most recently
+        # mounted record while reporting the path only once.
+        if existing is None or record.mount_id > existing.mount_id:
+            nested[mount_point] = record
+    return tuple(nested[key] for key in sorted(nested))
+
+
 def mount_for(path, mountinfo_path=MOUNTINFO):
     """Return the most specific observable mount containing *path*."""
     target = _target_path(path)
@@ -122,6 +145,23 @@ def capacity_context(path, mountinfo_path=MOUNTINFO):
         "source_class": _source_class(record.source),
         "capacity_scope": "free-space and reclaim claims are scoped to this mounted filesystem",
     }
+    nested = nested_mounts(path, mountinfo_path)
+    if nested:
+        count = len(nested)
+        noun = "mount point" if count == 1 else "mount points"
+        context.update({
+            "nested_mount_point_count": count,
+            "nested_mount_boundary": (
+                f"{count} nested {noun} lie below the selected root. A path walk "
+                "sees the mounted view, so older directory entries beneath a child "
+                "mount may be absent from the readable inventory and contribute to "
+                "an accounting gap."
+            ),
+            "nested_mount_review_action": (
+                "Ask the platform owner to review the active mount topology. "
+                "SANCHAY does not unmount, remount, or inspect a covered directory."
+            ),
+        })
     if record.filesystem == "btrfs":
         context.update({
             "label": "Btrfs capacity boundary",

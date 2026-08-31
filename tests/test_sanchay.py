@@ -419,10 +419,19 @@ class TestSanchay(unittest.TestCase):
             'free_bytes': 8192, 'available_bytes': 4096,
             'free_unavailable_to_unprivileged_bytes': 4096,
         }
+        context = {
+            'filesystem': 'ext4',
+            'mount_point': '/mnt/data',
+            'source_class': 'block_device',
+            'capacity_scope': 'free-space claims stay on one mounted filesystem',
+            'nested_mount_point_count': 1,
+            'nested_mount_boundary': '1 nested mount point may obscure older entries.',
+            'nested_mount_review_action': 'Review mount topology without a mount operation.',
+        }
         with tempfile.TemporaryDirectory() as tmp:
             output = Path(tmp) / 'report.html'
             report.build(files, '/mnt/data', 1000000, output,
-                         capacity_accounting=audit)
+                         capacity_accounting=audit, filesystem_context=context)
             page = output.read_text(encoding='utf-8')
 
         self.assertIn('Filesystem accounting boundary', page)
@@ -434,6 +443,9 @@ class TestSanchay(unittest.TestCase):
         self.assertIn('1,000 file entries; 12 free; 98.8% used', page)
         self.assertIn('Block availability advisory', page)
         self.assertIn('8.0 KB free; 4.0 KB available', page)
+        self.assertIn('Mount topology boundary', page)
+        self.assertIn('Nested mount topology:', page)
+        self.assertIn('1 nested mount point may obscure older entries.', page)
 
     def test_cli_labels_managed_storage_as_deferred_not_reclaimable(self):
         files = [
@@ -479,6 +491,9 @@ class TestSanchay(unittest.TestCase):
             'mount_point': '/restricted',
             'source_class': 'device_mapper',
             'capacity_scope': 'private mount details must stay local',
+            'nested_mount_point_count': 4,
+            'nested_mount_boundary': 'Private mount detail must stay local.',
+            'nested_mount_review_action': 'Private topology action must stay local.',
         }
         cleanup_plan = plan.build(files, [], root, filesystem_context=context)
         held = processes.DeletedOpenFile(
@@ -507,6 +522,7 @@ class TestSanchay(unittest.TestCase):
         self.assertEqual(document['scope']['mount_context'], {
             'context_observed': True,
             'source_class': 'device_mapper',
+            'nested_mount_point_count': 4,
         })
         self.assertEqual(document['review']['selected_by_evidence_class']['disposable'], {
             'count': 1,
@@ -534,7 +550,8 @@ class TestSanchay(unittest.TestCase):
             })
         for sensitive in (root, 'private-note.txt', '.aws', 'credentials',
                           'private-service', '9101', 'deleted-audit.log',
-                          '/var/log/secure-audit.log'):
+                          '/var/log/secure-audit.log', 'Private mount detail',
+                          'Private topology action'):
             self.assertNotIn(sensitive, rendered)
 
         changed = copy.deepcopy(document)
@@ -765,6 +782,26 @@ class TestSanchay(unittest.TestCase):
         self.assertEqual('device_mapper', mapper['source_class'])
         self.assertIn('does not run LVM commands', mapper['review_action'])
 
+    def test_mount_context_surfaces_nested_mount_topology_without_inspecting_it(self):
+        mountinfo = (
+            '36 35 8:1 / / rw,relatime - ext4 /dev/sda1 rw\n'
+            '37 36 253:0 / /secure rw,relatime - ext4 /dev/mapper/boss-root rw\n'
+            '38 37 0:55 / /secure/telemetry rw,relatime - tmpfs tmpfs rw\n'
+            '39 37 8:2 / /secure/import rw,relatime - ext4 /dev/sdb1 rw\n'
+            '40 36 8:3 / /outside rw,relatime - ext4 /dev/sdc1 rw\n'
+        )
+        with tempfile.TemporaryDirectory() as tmp:
+            source = Path(tmp) / 'mountinfo'
+            source.write_text(mountinfo, encoding='utf-8')
+            nested = mounts.nested_mounts('/secure', source)
+            context = mounts.capacity_context('/secure', source)
+
+        self.assertEqual([record.mount_point for record in nested],
+                         ['/secure/import', '/secure/telemetry'])
+        self.assertEqual(context['nested_mount_point_count'], 2)
+        self.assertIn('mounted view', context['nested_mount_boundary'])
+        self.assertIn('does not unmount, remount', context['nested_mount_review_action'])
+
     def test_cli_reports_a_mount_capacity_boundary_without_an_action(self):
         files = [
             scan.FileInfo('/home/user/.cache/build.bin', 4000, self.now,
@@ -778,6 +815,9 @@ class TestSanchay(unittest.TestCase):
             'label': 'Overlay filesystem boundary',
             'advisory': 'An overlay layer is not a host-wide capacity measurement.',
             'review_action': 'Confirm the backing filesystem; no host-wide claim.',
+            'nested_mount_point_count': 2,
+            'nested_mount_boundary': '2 nested mount points may obscure older directory entries.',
+            'nested_mount_review_action': 'Review mount topology; no mount operation.',
         }
         output = io.StringIO()
         with tempfile.TemporaryDirectory() as tmp:
@@ -796,6 +836,9 @@ class TestSanchay(unittest.TestCase):
         self.assertIn('filesystem: overlay at / (overlay_layer)', rendered)
         self.assertIn('not a host-wide capacity measurement', rendered)
         self.assertIn('Confirm the backing filesystem', rendered)
+        self.assertIn('mount topology: 2 nested mount points may obscure older directory entries.',
+                      rendered)
+        self.assertIn('Review mount topology; no mount operation.', rendered)
         self.assertEqual(document['safety']['filesystem_context'], context)
         self.assertTrue(document['safety']['scan_coverage']['complete'])
 

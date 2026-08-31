@@ -78,6 +78,8 @@ def _mount_summary(filesystem_context):
     return {
         "context_observed": bool(context),
         "source_class": source_class if source_class in _SOURCE_CLASSES else "other_or_unknown",
+        "nested_mount_point_count": _non_negative_int(
+            context.get("nested_mount_point_count")),
     }
 
 
