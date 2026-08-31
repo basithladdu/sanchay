@@ -6,6 +6,8 @@ readable-inventory aggregate for diagnosis. Snapshots contain counts and bytes
 only; they never copy a file list or file contents.
 """
 from datetime import datetime, timezone
+import hashlib
+import hmac
 import json
 import math
 from pathlib import Path
@@ -14,7 +16,7 @@ import time
 from . import scan, storage
 
 
-SNAPSHOT_SCHEMA_VERSION = 5
+SNAPSHOT_SCHEMA_VERSION = 6
 MIN_FORECAST_SPAN_SECONDS = 24 * 60 * 60
 # A two-point line always has a perfect apparent fit.  SANCHAY therefore
 # treats a rate from two captures as useful observation, but not as enough
@@ -31,6 +33,31 @@ MIN_RISK_SPAN_SECONDS = 7 * 24 * 60 * 60
 MIN_RISK_INTERVAL_SECONDS = 12 * 60 * 60
 CAPACITY_RISK_MODEL = "brownian_motion_with_drift_hitting_risk"
 _LOG_SQRT_2PI = 0.5 * math.log(2 * math.pi)
+
+
+class SnapshotIntegrityError(ValueError):
+    """Raised when a stored aggregate snapshot no longer matches its checksum."""
+
+
+def _fingerprint(document):
+    payload = json.dumps(document, sort_keys=True, separators=(",", ":"),
+                         ensure_ascii=False).encode("utf-8")
+    return hashlib.sha256(payload).hexdigest()
+
+
+def fingerprint_valid(document):
+    """Return whether an aggregate snapshot still matches its stored checksum.
+
+    The checksum detects a mismatch against its stored aggregate content; it
+    is deliberately not a signature, device attestation, or authorization to
+    take a storage action.
+    """
+    claimed = document.get("fingerprint_sha256") if isinstance(document, dict) else None
+    unsigned = ({key: value for key, value in document.items()
+                 if key != "fingerprint_sha256"}
+                if isinstance(document, dict) else {})
+    return (isinstance(claimed, str)
+            and hmac.compare_digest(claimed, _fingerprint(unsigned)))
 
 
 def _normal_survival(value):
@@ -137,7 +164,7 @@ def capture(files, root, *, filesystem_total_bytes, filesystem_used_bytes,
     _require_filesystem_accounting(accounting)
     captured_at = now if now is not None else time.time()
     physical = storage.physical_records(files)
-    return {
+    document = {
         "schema_version": SNAPSHOT_SCHEMA_VERSION,
         "root": str(Path(root).resolve()),
         "captured_at": captured_at,
@@ -149,6 +176,8 @@ def capture(files, root, *, filesystem_total_bytes, filesystem_used_bytes,
         **accounting,
         "scan_coverage": coverage,
     }
+    document["fingerprint_sha256"] = _fingerprint(document)
+    return document
 
 
 def write(snapshot, out):
@@ -164,7 +193,7 @@ def read(path):
     required = {
         "schema_version", "root", "captured_at", "readable_file_count",
         "readable_physical_file_count", "readable_hardlink_alias_count",
-        "scan_coverage",
+        "scan_coverage", "fingerprint_sha256",
     }
     if document.get("schema_version") != SNAPSHOT_SCHEMA_VERSION:
         raise ValueError("Unsupported SANCHAY snapshot; recapture it with mounted-filesystem accounting")
@@ -174,6 +203,8 @@ def read(path):
         raise ValueError("Snapshot does not have complete SANCHAY scan coverage") from None
     if not required.issubset(document):
         raise ValueError("Unsupported or incomplete SANCHAY snapshot; recapture it with mounted-filesystem accounting")
+    if not fingerprint_valid(document):
+        raise SnapshotIntegrityError("snapshot integrity checksum does not match")
     _require_filesystem_accounting(document)
     return document
 

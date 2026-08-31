@@ -71,11 +71,13 @@ Three claims only:
 Show two stages, not a fake exact date:
 
 1. An initial readable-inventory mtime estimate gives immediate orientation.
-2. Schema-5 local snapshots record mounted filesystem total, used, and free
+2. Schema-6 local snapshots record mounted filesystem total, used, and free
    bytes separately from the readable inventory. The explainable trend uses the
    mounted-filesystem used-byte series, requires the same root/device, and
    waits for a 24-hour first-to-latest span before reporting bytes/day or
-   R-squared from the third snapshot onward.
+   R-squared from the third snapshot onward. Each aggregate snapshot carries a
+   SHA-256 checksum that detects a mismatch against its stored aggregate
+   content; it is not a signature or device attestation.
 3. If `/proc` shows a deleted regular file still held open, identify its PID and
    allocated bytes as a separate advisory, never as a cleanup recommendation.
 4. Record the root mount context. Btrfs, overlay, and device-mapper sources

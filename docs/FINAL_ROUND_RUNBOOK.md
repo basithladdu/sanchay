@@ -56,6 +56,7 @@ sanchay-demo "$DEMO_ROOT"
 
 sanchay --verify-archive "$DEMO_ROOT/downloads/boss-image-copy.iso" "$DEMO_ROOT/archive/boss-image.iso"
 sanchay "$DEMO_ROOT" --target-reclaim 600K --limit 10 --plan cleanup-plan.json --snapshot baseline.json --explain
+sanchay --verify-snapshot baseline.json
 python -m json.tool cleanup-plan.json | less
 sanchay --verify-plan cleanup-plan.json
 ```
@@ -222,7 +223,7 @@ no evidence rather than reading a substituted path. Hardlinks are not counted
 as reclaimable copies.
 
 **How reliable is the forecast?** A single scan is labelled as a
-readable-inventory mtime estimate. Later schema-5 snapshots compare the same
+readable-inventory mtime estimate. Later schema-6 snapshots compare the same
 mounted filesystem's reported used bytes, require the same root/device, and
 require a 24-hour first-to-latest history before producing a local linear trend
 with an explicit slope and, from three observations onward, R-squared—rather
@@ -231,8 +232,10 @@ A two-point slope remains visible as an observation, but SANCHAY withholds a
 runway date until at least three captures expose an R² of 0.80 or higher. That
 conservative product gate does not make the forecast a guarantee; it prevents
 a perfect-looking two-point line or a weak fit from becoming an invented
-full-disk date. Legacy inventory-only snapshots are rejected and must be
-recaptured.
+full-disk date. Each aggregate snapshot has a SHA-256 checksum, so a
+checksum-mismatched history artifact is rejected before it can influence the
+comparison. That checksum is not a signature or device attestation. Legacy
+inventory-only or unsealed snapshots are rejected and must be recaptured.
 
 **What happens if the filesystem was resized?** SANCHAY still shows its
 observed mounted-use rate, but withholds a `full in` runway date and withholds

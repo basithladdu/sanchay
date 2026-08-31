@@ -71,7 +71,7 @@ the authoritative copy or prove a backup, so the plan explicitly requires an
 operator to choose which copy to retain before any manual removal.
 
 ### 2. Two-Stage Runway Measurement
-SANCHAY derives an initial storage-growth estimate from the **readable-inventory inode modification-time distribution (`mtime`) on run #1**. It is directional, not a guaranteed exhaustion date. A later local snapshot records the selected mounted filesystem's total, used, and free bytes separately from the readable inventory. Comparisons and local linear trends use only the mounted-filesystem used-byte series; they require complete readable coverage, the same resolved root and filesystem device, and at least a 24-hour first-to-latest observation span. The gate prevents seconds of ordinary background activity from becoming a fictional runway. With three or more snapshots, SANCHAY also reports fit quality. The readable inventory, review plan, and treemap count each physical `(device, inode)` once and use allocated blocks (`st_blocks × 512`) where the filesystem exposes them, so hardlink aliases and sparse logical length do not inflate those diagnostic totals. Snapshot schema 5 deliberately rejects earlier inventory-only snapshot files: recapture a fresh baseline rather than mixing metrics.
+SANCHAY derives an initial storage-growth estimate from the **readable-inventory inode modification-time distribution (`mtime`) on run #1**. It is directional, not a guaranteed exhaustion date. A later local snapshot records the selected mounted filesystem's total, used, and free bytes separately from the readable inventory. Comparisons and local linear trends use only the mounted-filesystem used-byte series; they require complete readable coverage, the same resolved root and filesystem device, and at least a 24-hour first-to-latest observation span. The gate prevents seconds of ordinary background activity from becoming a fictional runway. With three or more snapshots, SANCHAY also reports fit quality. The readable inventory, review plan, and treemap count each physical `(device, inode)` once and use allocated blocks (`st_blocks × 512`) where the filesystem exposes them, so hardlink aliases and sparse logical length do not inflate those diagnostic totals. Schema 6 adds a SHA-256 checksum over each aggregate snapshot; it detects a mismatch against stored aggregate content, but is not a digital signature or device attestation. Earlier inventory-only or unsealed snapshot files are rejected: recapture a fresh baseline rather than mixing metrics.
 
 A mounted-filesystem capacity resize also withholds a runway date. An LVM
 provisioning event changes what a historical free-space runway means, even if
@@ -279,6 +279,7 @@ sanchay --verify-archive /home/user/downloads/ubuntu.iso /mnt/archive/ubuntu.iso
 # It records mounted total/used/free bytes plus a separate readable-inventory
 # aggregate. Complete readable-path coverage and a 24-hour comparison span are required.
 sanchay /home/user --snapshot before.json
+sanchay --verify-snapshot before.json
 sanchay /home/user --compare before.json
 
 # 7. Fit a mounted-filesystem trend once you have multiple earlier snapshots

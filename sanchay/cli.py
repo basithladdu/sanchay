@@ -67,7 +67,7 @@ def _invocation_artifact_paths(args):
     or rewrites it. The mounted-filesystem measurement remains unchanged: it
     correctly includes every physical byte on that filesystem.
     """
-    paths = [args.snapshot, args.compare, args.plan, args.report,
+    paths = [args.snapshot, args.compare, args.verify_snapshot, args.plan, args.report,
              args.operator_brief]
     if args.history:
         paths.extend(args.history)
@@ -99,6 +99,8 @@ def main(argv=None):
                     help="compare a complete mount-root readable inventory with filesystem used space; never remediates a gap")
     ap.add_argument("--snapshot", metavar="OUT.json",
                     help="save local mount usage plus inventory aggregates for a later observed-growth comparison")
+    ap.add_argument("--verify-snapshot", metavar="SNAPSHOT.json",
+                    help="verify a stored aggregate snapshot checksum; never scans or changes the endpoint")
     forecast_group = ap.add_mutually_exclusive_group()
     forecast_group.add_argument("--compare", metavar="SNAPSHOT.json",
                                 help="compare this mounted filesystem with a prior SANCHAY snapshot")
@@ -125,6 +127,9 @@ def main(argv=None):
         ap.error("use either --verify-plan or --verify-archive, not both")
     if args.verify_operator_brief and (args.verify_plan or args.verify_archive):
         ap.error("use operator brief verification by itself")
+    if args.verify_snapshot and (args.verify_plan or args.verify_archive
+                                 or args.verify_operator_brief):
+        ap.error("use snapshot verification by itself")
     if args.verify_plan and args.capacity_audit:
         ap.error("--capacity-audit requires a scan root, not --verify-plan")
     if args.verify_plan and args.operator_brief:
@@ -179,6 +184,31 @@ def main(argv=None):
               + ("matches" if valid else "does not match"))
         print("action boundary: no file was read from the endpoint, transmitted, or changed")
         return 0 if valid else 1
+
+    if args.verify_snapshot:
+        if any((args.root, args.cross_filesystems, args.explain, args.viz,
+                args.report, args.operator_brief, args.plan,
+                args.target_reclaim is not None, args.snapshot, args.compare,
+                args.history, args.risk_horizon is not None, args.capacity_audit,
+                args.tui)):
+            ap.error("--verify-snapshot is a standalone read-only check")
+        try:
+            document = snapshot.read(args.verify_snapshot)
+        except snapshot.SnapshotIntegrityError as exc:
+            print(f"snapshot: not valid ({exc})")
+            print("action boundary: no endpoint directory was scanned, transmitted, or changed")
+            return 1
+        except (OSError, ValueError) as exc:
+            print(f"snapshot: unavailable for review ({exc})")
+            return 2
+        print("snapshot: integrity checksum matches")
+        print("snapshot evidence: "
+              f"{document['readable_file_count']:,} readable file entries; "
+              "aggregate mounted-filesystem counters")
+        print("integrity boundary: detects a mismatch against the stored checksum; "
+              "not a signature or device attestation")
+        print("action boundary: no endpoint directory was scanned, transmitted, or changed")
+        return 0
 
     if args.verify_archive:
         if any((args.root, args.cross_filesystems, args.explain, args.viz,

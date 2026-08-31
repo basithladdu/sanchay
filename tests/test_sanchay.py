@@ -1209,7 +1209,8 @@ class TestSanchay(unittest.TestCase):
                 files, root, used=409600, free=1000, now=100)
             self.assertEqual(storage.physical_bytes(files), 4096)
             self.assertEqual(storage.hardlink_alias_count(files), 1)
-            self.assertEqual(captured['schema_version'], 5)
+            self.assertEqual(captured['schema_version'], 6)
+            self.assertTrue(snapshot.fingerprint_valid(captured))
             self.assertEqual(captured['filesystem_used_bytes'], 409600)
             self.assertEqual(captured['readable_inventory_allocated_bytes'], 4096)
             self.assertEqual(captured['readable_inventory_logical_bytes'], 4096)
@@ -1248,7 +1249,8 @@ class TestSanchay(unittest.TestCase):
                          ['logical_size_bytes'], 1024 ** 3)
 
         captured = self._capture_snapshot(files, used=500000, free=1000, now=100)
-        self.assertEqual(captured['schema_version'], 5)
+        self.assertEqual(captured['schema_version'], 6)
+        self.assertTrue(snapshot.fingerprint_valid(captured))
         self.assertEqual(captured['filesystem_used_bytes'], 500000)
         self.assertEqual(captured['readable_inventory_allocated_bytes'], 12288)
         self.assertEqual(captured['readable_inventory_logical_bytes'], 1024 ** 3 + 8192)
@@ -1416,6 +1418,38 @@ class TestSanchay(unittest.TestCase):
             with self.assertRaisesRegex(
                     ValueError, 'recapture it with mounted-filesystem accounting'):
                 snapshot.read(malformed_path)
+
+    def test_snapshot_checksum_rejects_changed_history_and_cli_verifies(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            snapshot_path = Path(tmp) / 'baseline.json'
+            captured = self._capture_snapshot(self.files, used=1000000,
+                                              free=1000000, now=100)
+            snapshot.write(captured, snapshot_path)
+
+            valid_output = io.StringIO()
+            with contextlib.redirect_stdout(valid_output):
+                valid_status = cli.main(['--verify-snapshot', str(snapshot_path)])
+
+            changed = json.loads(snapshot_path.read_text(encoding='utf-8'))
+            changed['filesystem_used_bytes'] += 1
+            snapshot_path.write_text(json.dumps(changed), encoding='utf-8')
+            with self.assertRaisesRegex(snapshot.SnapshotIntegrityError,
+                                        'integrity checksum'):
+                snapshot.read(snapshot_path)
+
+            changed_output = io.StringIO()
+            with contextlib.redirect_stdout(changed_output):
+                changed_status = cli.main(['--verify-snapshot', str(snapshot_path)])
+
+        self.assertEqual(valid_status, 0)
+        self.assertIn('snapshot: integrity checksum matches', valid_output.getvalue())
+        self.assertIn('aggregate mounted-filesystem counters', valid_output.getvalue())
+        self.assertIn('not a signature or device attestation', valid_output.getvalue())
+        self.assertEqual(changed_status, 1)
+        self.assertIn('snapshot: not valid (snapshot integrity checksum does not match)',
+                      changed_output.getvalue())
+        self.assertIn('no endpoint directory was scanned, transmitted, or changed',
+                      changed_output.getvalue())
 
     def test_cleanup_plan_verification_rechecks_manifest_and_duplicate(self):
         with tempfile.TemporaryDirectory() as tmp:
@@ -1844,7 +1878,7 @@ class TestSanchay(unittest.TestCase):
         self.assertIn('free but unavailable to an unprivileged process', source_page)
         self.assertIn('FILE-ENTRY CAPACITY', source_page)
         self.assertIn('LOCAL CLI ONLY', source_page)
-        self.assertIn('Schema-5 mount snapshot', source_page)
+        self.assertIn('Schema-6 mount snapshot', source_page)
         self.assertIn('At least 24 hours', source_page)
         self.assertIn('Seeded orientation only.', source_page)
 

@@ -171,7 +171,7 @@ distribution of modification times across the readable inventory and compares
 it with current free space. It reports this as an estimate, not a guaranteed
 exhaustion date: later writes, deletes, and workload changes can alter it.
 
-Each schema-5 snapshot records the selected mounted filesystem's total, used,
+Each schema-6 snapshot records the selected mounted filesystem's total, used,
 and free bytes, its filesystem device, and a separate readable-inventory
 aggregate. After two or more time-separated snapshots from the same resolved
 root and filesystem device, SANCHAY fits its explainable local linear trend to
@@ -182,7 +182,10 @@ Older inventory-only snapshots are rejected with a recapture instruction rather
 than being mixed into a capacity forecast. SANCHAY also withholds a rate until
 the first and latest snapshots are at least 24 hours apart, so seconds of
 ordinary background filesystem activity do not become a fictional exhaustion
-forecast.
+forecast. Each aggregate snapshot also carries a SHA-256 checksum. SANCHAY
+rejects an unsealed or checksum-mismatched history artifact before a CLI
+comparison, trend, or risk estimate; the checksum detects a mismatch against
+stored content but is not a digital signature or device attestation.
 On explicit `--risk-horizon DAYS`, SANCHAY can also frame the question as local
 capacity-hit probability within a named horizon. It uses a
 Brownian-motion-with-drift hitting-time estimate over aggregate mounted-use
