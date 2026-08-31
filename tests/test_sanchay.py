@@ -942,6 +942,29 @@ class TestSanchay(unittest.TestCase):
             self.assertEqual(status, 2)
             self.assertIn('unavailable for review', output.getvalue())
 
+    def test_cli_verification_surfaces_partial_plan_coverage(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp) / 'scan-root'
+            candidate = root / '.cache' / 'build.bin'
+            candidate.parent.mkdir(parents=True)
+            candidate.write_bytes(b'x' * 4096)
+            files = scan.scan(root)
+            document = plan.build(
+                files, [], root, now=self.now,
+                scan_coverage=scan.ScanCoverage(unreadable_directories=2,
+                                                unreadable_files=1))
+            plan_path = root / 'cleanup-plan.json'
+            plan.write(document, plan_path)
+            output = io.StringIO()
+            with contextlib.redirect_stdout(output):
+                status = cli.main(['--verify-plan', str(plan_path)])
+
+        rendered = output.getvalue()
+        self.assertEqual(status, 0)
+        self.assertIn('scan coverage: incomplete; 2 directory(ies) and 1 file(s)',
+                      rendered)
+        self.assertIn('evidence only for readable files', rendered)
+
     def test_demo_fixture_exercises_safe_and_protected_paths(self):
         with tempfile.TemporaryDirectory() as tmp:
             root = demo.create(Path(tmp) / 'fixture')

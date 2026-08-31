@@ -79,13 +79,23 @@ def main(argv=None):
 
     if args.verify_plan:
         try:
-            result = plan.verify(plan.read(args.verify_plan))
+            document = plan.read(args.verify_plan)
+            result = plan.verify(document)
         except (OSError, ValueError) as exc:
             print(f"plan: unavailable for review ({exc})")
             return 2
         state = "valid for human review" if result["valid"] else "not valid for review"
         print(f"plan: {state}")
         print(f"integrity checksum: {'matches' if result['fingerprint_valid'] else 'does not match'}")
+        coverage = document["safety"]["scan_coverage"]
+        if coverage["complete"]:
+            print("scan coverage: complete; all in-scope, non-sensitive paths were inspected")
+        else:
+            print("scan coverage: incomplete; "
+                  f"{coverage['unreadable_directories']:,} directory(ies) and "
+                  f"{coverage['unreadable_files']:,} file(s) were not inspected")
+            print("  this plan contains evidence only for readable files; it is not a "
+                  "whole-tree capacity result")
         if result.get("reason"):
             print(f"reason: {result['reason']}")
         for item in result["recommendations"]:
