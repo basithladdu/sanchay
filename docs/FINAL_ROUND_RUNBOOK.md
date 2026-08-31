@@ -128,6 +128,13 @@ thin-pool headroom. SANCHAY reads Linux mount metadata and marks Btrfs,
 container-overlay, and device-mapper boundaries as read-only advisory evidence.
 It does not run `lvs`, resize a volume, balance Btrfs, or delete a snapshot.
 
+**Why not remove a duplicate under `/usr` or `/etc`?** A content match only
+proves matching bytes; it does not establish that a boot component,
+configuration file, package-managed file, log, or service state is disposable.
+SANCHAY fences those system-reserved paths before duplicate-content reads and
+reports their allocated storage separately. More specific APT, journal,
+container, and Flatpak policies retain their owning-tool review guidance.
+
 **How do you prove a duplicate is eligible for review?** It uses size bucketing,
 prefix hashing, then a full BLAKE2b-256 digest and a byte-for-byte comparison;
 the plan names the survivor and verification rechecks both identities and
@@ -149,8 +156,9 @@ are excluded before metadata collection or hashing, and no file content leaves
 the machine through the core workflow. On Debian-derived BOSS, SANCHAY reports
 APT archives and persistent journals as tool-owned operational storage. When
 they exist, Docker, containerd, and Flatpak stores receive the same treatment;
-SANCHAY does not convert any of them into raw file-deletion candidates or
-target-reclaim bytes.
+SANCHAY also fences boot, configuration, package/cache, log, backup, and
+service/spool paths before duplicate content reads. It does not convert any of
+them into raw file-deletion candidates or target-reclaim bytes.
 
 ## What not to claim
 

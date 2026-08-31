@@ -87,6 +87,13 @@ snapshot-aware, host-wide, or logical-volume-pool headroom. It never runs LVM
 or Btrfs commands, resizes a volume, balances a filesystem, or deletes a
 snapshot.
 
+**1d. Fences system-reserved OS paths before content reads.** A duplicated byte
+sequence under `/usr` or `/etc` is not evidence that it is safe to remove.
+SANCHAY separately measures, but never hashes, ranks, or recommends individual
+files in boot, configuration, package/cache, log, backup, and service/spool
+paths. The narrow APT, journal, Docker, containerd, and Flatpak policies still
+win first so the operator receives the relevant owning-tool review route.
+
 **2. Works out how recoverable each file is.** This is the core of the tool.
 Every file lands in one of four classes:
 

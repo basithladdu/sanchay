@@ -106,6 +106,9 @@ Put the command in small monospace text only:
 - On Debian-derived BOSS, APT archives and persistent journals are measured as
   tool-owned operational storage. When present, Docker, containerd, and Flatpak
   stores receive the same protection—never raw file-deletion candidates.
+- Boot, configuration, package/cache, log, backup, and service/spool paths are
+  fenced before duplicate-content reads. A content match under `/usr` or `/etc`
+  is never treated as permission to remove an OS file.
 - C-DAC describes Secure BOSS as LVM-encrypted. SANCHAY records a visible
   device-mapper boundary but does not infer pool headroom, encryption state, or
   permission to run LVM commands.

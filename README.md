@@ -108,6 +108,12 @@ BOSS is Debian-derived. SANCHAY therefore measures APT archives under
 `/var/log/journal/` separately. If present, it also fences Docker Engine,
 containerd, and Flatpak system storage under `/var/lib/`. These paths are
 **never** included in a file-level reclaim target or suggested for raw deletion.
+It also fences generic system-reserved paths such as `/boot`, `/etc`, `/usr`,
+package databases and caches, standard logs, backups, and spool state before
+any duplicate-content read. A byte-for-byte match does not establish that an OS
+file is disposable. Specific APT, journal, and runtime policies take precedence
+over the generic boundary so the report retains the most useful approved review
+route.
 Instead, the plan shows allocated storage and the owning-tool review route:
 `apt-get autoclean` or an approved `apt-get clean` policy; `journalctl
 --disk-usage` plus an approved journal-retention decision; `docker system df
@@ -227,8 +233,9 @@ sanchay-ui .
   reject symlink components; all platforms reject non-regular files and
   descriptor identity drift before using content as evidence.
 * **System-tool boundary**: APT archive, persistent journal, Docker,
-  containerd, and Flatpak system paths are reported as managed operational
-  storage, not raw file cleanup candidates or target-reclaim bytes.
+  containerd, Flatpak, and generic system-reserved OS paths are reported as
+  managed operational storage, not raw file cleanup candidates, duplicate-read
+  inputs, or target-reclaim bytes.
 * **Inspectable evidence policy**: Every plan item records its classification,
   logical and reclaimable allocated sizes, observed identity, typed recovery
   evidence with its strength, and frozen decision-model inputs; files

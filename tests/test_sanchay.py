@@ -150,6 +150,52 @@ class TestSanchay(unittest.TestCase):
         self.assertEqual(regret.classify(files[-1], False), 'unique')
         self.assertEqual(managed.content_candidates(files), [files[0], files[-1]])
 
+    def test_system_reserved_paths_never_enter_content_evidence(self):
+        files = [
+            scan.FileInfo('/home/user/.cache/build.bin', 4000, self.now,
+                          self.now - 86400 * 90, 731),
+            scan.FileInfo('/usr/share/doc/boss/changelog.gz', 5000, self.now,
+                          self.now - 86400 * 90, 732),
+            scan.FileInfo('/etc/boss/boss.conf', 6000, self.now,
+                          self.now - 86400 * 90, 733),
+            scan.FileInfo('/boot/initrd.img', 7000, self.now,
+                          self.now - 86400 * 90, 734),
+            scan.FileInfo('/var/log/auth.log', 8000, self.now,
+                          self.now - 86400 * 90, 735),
+            scan.FileInfo('/var/lib/dpkg/status', 9000, self.now,
+                          self.now - 86400 * 90, 736),
+            scan.FileInfo('/var/cache/boss/index', 10000, self.now,
+                          self.now - 86400 * 90, 737),
+            scan.FileInfo('/var/spool/cron/crontabs/root', 11000, self.now,
+                          self.now - 86400 * 90, 738),
+            scan.FileInfo('/var/log/journal/machine/system.journal', 12000,
+                          self.now, self.now - 86400 * 90, 739),
+            scan.FileInfo('/var/cache/apt/archives/boss-tools.deb', 13000,
+                          self.now, self.now - 86400 * 90, 740),
+        ]
+
+        cleanup_plan = plan.build(files, [], '/', now=self.now,
+                                  target_reclaim_bytes=6000)
+        advisory = {item['key']: item
+                    for item in cleanup_plan['safety']['managed_operational_storage']}
+
+        self.assertEqual(managed.content_candidates(files), [files[0]])
+        self.assertEqual([item['path'] for item in cleanup_plan['recommendations']],
+                         [files[0].path])
+        self.assertEqual(cleanup_plan['safety']['candidate_count'], 1)
+        self.assertEqual(cleanup_plan['safety']['deferred_managed_entries'], 9)
+        self.assertEqual(advisory['system_reserved_paths']['entries'], 7)
+        self.assertIn('package ownership',
+                      advisory['system_reserved_paths']['review_action'])
+        self.assertEqual(managed.classify(files[8].path).key,
+                         'persistent_system_journal')
+        self.assertEqual(managed.classify(files[9].path).key,
+                         'apt_archive_cache')
+
+        with mock.patch.object(dedup, '_digest') as digest:
+            self.assertEqual(dedup.duplicates(files[1:]), [])
+        digest.assert_not_called()
+
     @unittest.skipUnless(importlib.util.find_spec('pandas'),
                          'requires the optional report dependencies')
     def test_report_separates_system_managed_storage_from_file_cleanup(self):
@@ -166,6 +212,8 @@ class TestSanchay(unittest.TestCase):
                           self.now, self.now - 86400 * 90, 715),
             scan.FileInfo('/var/lib/flatpak/repo/objects/object', 28000,
                           self.now, self.now - 86400 * 90, 716),
+            scan.FileInfo('/usr/share/doc/boss/changelog.gz', 32000,
+                          self.now, self.now - 86400 * 90, 717),
         ]
         held = processes.DeletedOpenFile(
             device=901, inode=902, logical_size=32000, allocated_size=32768,
@@ -192,6 +240,7 @@ class TestSanchay(unittest.TestCase):
         self.assertIn('Docker Engine storage', page)
         self.assertIn('Container runtime storage', page)
         self.assertIn('Flatpak system installation', page)
+        self.assertIn('System-reserved paths', page)
         self.assertIn('excluded from file-level reclamation', page)
         self.assertIn('not calculated across multiple filesystems', page)
         self.assertIn('Cross-filesystem inventory; no aggregate free-space or reclaim target', page)
@@ -212,6 +261,8 @@ class TestSanchay(unittest.TestCase):
                           self.now, self.now - 86400 * 90, 722),
             scan.FileInfo('/var/lib/docker/overlay2/layer/diff.bin', 22000,
                           self.now, self.now - 86400 * 90, 723),
+            scan.FileInfo('/etc/boss/boss.conf', 8000, self.now,
+                          self.now - 86400 * 90, 724),
         ]
         output = io.StringIO()
         with mock.patch.object(scan, 'scan', return_value=files), \
@@ -225,6 +276,7 @@ class TestSanchay(unittest.TestCase):
         self.assertIn('managed:', rendered)
         self.assertIn('APT archive cache', rendered)
         self.assertIn('Docker Engine storage', rendered)
+        self.assertIn('System-reserved paths', rendered)
         self.assertIn('never selected as file cleanup candidates', rendered)
 
     def test_cli_reports_process_held_deleted_storage_as_an_advisory(self):

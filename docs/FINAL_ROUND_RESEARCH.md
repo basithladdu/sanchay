@@ -30,6 +30,11 @@ endorses SANCHAY or defines the hackathon scoring rubric.
 - Debian documents that `apt-get clean` clears retrieved package files from the
   local archive cache, while `autoclean` only removes packages that can no
   longer be downloaded. Source: [Debian `apt-get(8)`](https://manpages.debian.org/bookworm/apt/apt-get.8.en.html).
+- Debian documents `dpkg-query --search` as a package-ownership lookup and
+  notes that it does not list files created by maintainer scripts or
+  alternatives. Package ownership is therefore useful review evidence, not a
+  sufficient automatic-delete rule for every system path. Source: [Debian
+  `dpkg-query(1)`](https://manpages.debian.org/bookworm/dpkg/dpkg-query.1.en.html).
 - systemd documents that `journalctl --vacuum-size=` removes **archived**
   journals only, so active journals and retention policy still matter. Source:
   [systemd `journalctl`](https://www.freedesktop.org/software/systemd/man/255/journalctl.html).
@@ -125,6 +130,7 @@ endorses SANCHAY or defines the hackathon scoring rubric.
 | Avoid collecting tool credentials | Exclude documented Docker, npm, and Terraform credential paths alongside existing cloud, key, vault, and environment-file safeguards before metadata collection or hashing. | Implemented |
 | Make BOSS storage operations safer | Measure APT archive and persistent systemd-journal storage separately; defer action to the owning tool and approved package/log-retention policy instead of raw file deletion or reclaim-target selection. | Implemented |
 | Protect managed application stores | When present, report Docker, containerd, and Flatpak system stores as tool-owned advisories; do not hash, rank, or raw-delete their files. | Implemented |
+| Protect generic OS state | Fence boot, configuration, package/cache, log, backup, and service/spool paths before duplicate-content reads. Keep them as measured advisories, not raw deletion candidates; preserve narrower tool-specific guidance where available. | Implemented |
 | Explain process-held deleted storage | On Linux, report visible deleted regular files held through `/proc` only as an operational advisory; never signal, restart, truncate, delete, or include them in a reclaim target. | Implemented |
 | Keep capacity claims mount-aware | Record the selected Linux mount context. Label Btrfs, overlay, and device-mapper boundaries instead of inferring host-wide, snapshot-aware, or volume-pool capacity; run no filesystem or LVM command. | Implemented |
 | Contain the optional LLM | Keep narration local by default. Require a separate cloud opt-in and send only opaque candidate IDs with fixed class/size/age metadata; deterministic code retains all decision and action boundaries. | Implemented |

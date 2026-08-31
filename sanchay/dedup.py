@@ -9,7 +9,7 @@ import os
 import stat
 from collections import defaultdict
 
-from . import storage
+from . import managed, storage
 
 HEAD = 64 * 1024
 CHUNK = 1 << 20
@@ -213,8 +213,13 @@ def _bucket(files, key):
 
 def duplicates(files, min_size=4096, root=None):
     # Select one path per inode before opening any candidate. A hardlink alias
-    # has the same bytes, so hashing it again would only repeat I/O.
-    candidates = [f for f in storage.physical_records(files) if f.size >= min_size]
+    # has the same bytes, so hashing it again would only repeat I/O. System-
+    # managed and system-reserved paths are filtered here as a second boundary
+    # for library callers as well as the CLI/TUI/report pre-filter.
+    candidates = [
+        f for f in storage.physical_records(files)
+        if f.size >= min_size and managed.classify(f.path) is None
+    ]
     groups = _bucket(candidates, lambda f: f.size)
 
     refined = []
@@ -280,7 +285,8 @@ def _physical_copies(group):
 
 def _reviewable_duplicate_pairs(group):
     """Yield removable standalone copies paired with a retained survivor."""
-    copies = _physical_copies(group)
+    copies = _physical_copies(
+        info for info in group if managed.classify(info.path) is None)
     if len(copies) < 2:
         return []
     # Prefer an inode with multiple names as survivor. That leaves a standalone

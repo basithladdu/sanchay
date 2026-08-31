@@ -21,6 +21,12 @@ report includes a separate **Process-held deleted files** panel. It identifies
 the visible holders and allocated bytes as operational evidence only; those
 records never become file cleanup candidates.
 
+The report also separates **System-managed storage** from file-level cleanup.
+This includes specific APT, journal, and runtime stores as well as generic
+system-reserved boot, configuration, package/cache, log, backup, and
+service/spool paths. Those files are excluded before duplicate-content reads;
+matching bytes are not treated as permission to remove OS state.
+
 When the selected mount is Btrfs, overlay, or device-mapper-backed, the report
 also includes a **filesystem capacity boundary** panel. It records why a
 directory-level total is not proof of host-wide, snapshot-aware, or volume-pool

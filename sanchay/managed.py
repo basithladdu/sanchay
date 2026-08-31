@@ -3,9 +3,12 @@
 BOSS is Debian-derived, so APT's archive cache and persistent systemd journals
 are useful operational signals. Container and Flatpak stores are not assumed to
 exist on every BOSS endpoint, but when present they are also runtime-owned state.
-None is a safe raw-path deletion target: the owning tool controls locks,
-metadata, retention, and recoverability. SANCHAY reports those areas as
-tool-owned advisories and keeps them outside its file-level reclaim target.
+Boot, configuration, package, log, and service-state paths need the same
+conservative treatment even when no single owning tool can be inferred from a
+path. None is a safe raw-path deletion target: the owning tool or approved
+system policy controls locks, metadata, retention, and recoverability. SANCHAY
+reports those areas as advisories and keeps them outside content evidence and
+its file-level reclaim target.
 """
 from dataclasses import dataclass
 
@@ -21,7 +24,7 @@ class ManagedPolicy:
     boundary: str
 
 
-POLICIES = (
+SPECIFIC_POLICIES = (
     ManagedPolicy(
         key="apt_archive_cache",
         label="APT archive cache",
@@ -89,13 +92,41 @@ POLICIES = (
     ),
 )
 
+# These paths can contain package-managed files, boot components, configuration,
+# service queues, or system logs. A path name alone cannot establish that a file
+# is disposable, even when its bytes happen to duplicate another file. Keep the
+# policy separate from the narrower owning-tool policies above so an APT cache,
+# persistent journal, or container store retains its more precise guidance.
+SYSTEM_RESERVED_PATHS = (
+    "/boot/", "/etc/", "/usr/", "/bin/", "/sbin/", "/lib/", "/lib64/",
+    "/opt/", "/run/", "/lost+found/", "/var/cache/", "/var/log/",
+    "/var/backups/", "/var/lib/apt/", "/var/lib/dpkg/", "/var/lib/pacman/",
+    "/var/lib/rpm/", "/var/lib/snapd/", "/var/lib/systemd/", "/var/spool/",
+)
+SYSTEM_RESERVED_POLICY = ManagedPolicy(
+    key="system_reserved_paths",
+    label="System-reserved paths",
+    prefix="",
+    review_action=(
+        "review package ownership or the owning service policy before using an "
+        "approved system management tool"
+    ),
+    boundary=(
+        "boot, configuration, package, log, and service state can be "
+        "security-critical; do not delete individual files by path"
+    ),
+)
+POLICIES = SPECIFIC_POLICIES + (SYSTEM_RESERVED_POLICY,)
+
 
 def classify(path):
     """Return a policy for an absolute Linux system path, if one applies."""
     normalized = "/" + str(path).replace("\\", "/").lstrip("/")
-    for policy in POLICIES:
+    for policy in SPECIFIC_POLICIES:
         if normalized.startswith(policy.prefix):
             return policy
+    if any(normalized.startswith(prefix) for prefix in SYSTEM_RESERVED_PATHS):
+        return SYSTEM_RESERVED_POLICY
     return None
 
 
