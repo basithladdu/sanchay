@@ -1,204 +1,201 @@
-# Final-round slide content — replace the pre-selection draft
+# Final-round deck handoff - SANCHAY
 
-docs/SANCHAY.pptx is a pre-selection draft and must not be used unchanged.
+`docs/SANCHAY.pptx` is a pre-selection draft and must not be used unchanged.
 It contains incorrect Track 1, guarantee, exact-forecast, legal-compliance, and
-test-coverage claims. Preserve it as history; transfer the content below into
-the organizer's PPT template when it arrives.
+test-coverage claims. Preserve it as history; move the core content below into
+the organizer's template when it arrives.
 
-## Slide 1 — SANCHAY
+## Communication target
 
-**Evidence-led storage recommendations for Linux**
+By the end, a C-DAC jury should see SANCHAY as a practical Linux storage
+optimizer because it optimizes only within explicit recovery evidence and leaves
+every irreversible action to a human operator.
+
+## Visual direction for the official template
+
+- Use the SANCHAY evidence-console language: off-white field, ink text,
+  restrained green/blue/red evidence accents, and small monospace labels.
+- One claim and one visual composition per slide. Do not use a card grid,
+  gradient hero, decorative icon set, fake telemetry, or generic AI imagery.
+- Put source URLs and technical qualifications in speaker notes, not in the
+  visible body copy. Keep the eight core slides to about 9-10 minutes.
+
+## Core deck - 8 slides
+
+### Slide 1 - SANCHAY
+
+**Safer storage decisions for Linux**
 
 - Team Zeros and Ones
-- Track 2 — AI at Application Level
+- Track 2 - AI at Application Level
 - AI-Powered Intelligent Storage Optimizer for Linux OS
 
-Footer: “Recommendations only. No automatic deletion or file movement.”
+Footer: **Recommendations only. No automatic deletion or file movement.**
 
-## Slide 2 — The real problem is recoverability, not size
+Visual: title, team, and one compact evidence-chain mark only.
 
-Two files can be the same size and have radically different consequences:
+### Slide 2 - Size does not tell us what is safe to remove
 
-- a regenerable build cache;
-- the only copy of a thesis, database export, or document.
+Use a two-column contrast, not a list:
 
-Most disk views can show what is large. SANCHAY asks what evidence exists that
-the file can be reconstructed, and preserves the human decision for anything
-irreversible.
+| Same size | Different consequence |
+| --- | --- |
+| Regenerable build cache | Only copy of a thesis, database export, or document |
 
-## Slide 3 — Protected-file gate before ranking
+Visible conclusion: **Disk tools rank bytes. SANCHAY ranks recovery evidence
+before anything is recommended.**
 
-Use one simple left-to-right flow:
+Speaker point: a size-only cleaner cannot distinguish a 2 GB cache from a 2 GB
+irreplaceable file. SANCHAY treats unknown recoverability as a reason to
+withhold a recommendation.
 
-local scan → duplicate content match / clean-Git state / cache-path heuristic → protected-file gate
-→ optional reclaim target → review-only plan → human review
+### Slide 3 - Recovery evidence is a hard gate
 
-Headline: “Unique, untracked, uncached files are excluded from the plan before
-priority ranking.”
+Visual flow:
 
-Each recommendation records the exact size, unchanged-age, regret weight, and
-computed priority behind its decision; the model is inspectable rather than a
-black box.
+`Local scan -> recovery evidence -> protected-file gate -> review-only plan -> human decision`
 
-For an explicit reclaim target, SANCHAY exhausts lower-risk classes first. In a
-same-risk class of at most 28 candidates, its bounded exact subset optimizer
-minimizes excess; a larger class records its deterministic fallback in the plan.
+Show only these three evidence routes:
 
-Call out that the default narrative is local. A separately opt-in cloud
-narrative receives opaque candidate IDs plus class, allocated bytes, and age—no
-raw paths or file contents—and cannot add a file, alter an order, or execute an
-action.
+- byte-confirmed duplicate;
+- clean Git HEAD;
+- narrow regenerable cache/build-output path.
 
-## Slide 4 — Duplicate recommendations need a surviving source
+Visible conclusion: **Unique, untracked, uncached, credential/control, managed
+OS, and hardlinked entries stay out before ranking.**
 
-Show the actual proof chain:
+Speaker point: the optional cloud narration is separately opt-in, receives only
+opaque IDs plus fixed class/size/age metadata, and cannot add candidates,
+reorder safety gates, or execute an action.
 
-same size → same 64 KB prefix → same full BLAKE2b-256 digest → byte-for-byte
-confirmation → named evidence peer → identity recheck
+### Slide 4 - A reclaim target is optimized inside the safety boundary
 
-Three claims only:
+Visual: the deterministic fixture target.
 
-- hardlinks share a (device, inode) identity, count once in allocated-byte
-  metrics, and are not reclaimable copies; sparse logical length is not
-  presented as reclaimable allocation where Linux exposes block counts;
-- every duplicate recommendation names a deterministic evidence peer, but an
-  operator chooses which copy to retain;
-- `--verify-archive SOURCE RETAINED_COPY` rejects hardlink aliases, verifies
-  matching bytes and a separate inode, then creates only recovery evidence—not
-  a copy, move, or deletion; a same-filesystem result is never called a backup;
-- revalidation rechecks both files and their matching contents; on Linux the
-  reader is anchored to the selected root and rejects symlink-component swaps
-  or identity drift instead of treating changed paths as evidence.
+`Need 600K -> 204,800 B regenerable cache -> 524,288 B byte-confirmed duplicate -> review plan`
 
-## Slide 5 — Honest capacity intelligence
+Visible conclusion: **Use the lower-risk class first; minimize excess only
+within eligible evidence.**
 
-Show two stages, not a fake exact date:
+Speaker point: for a same-risk class of up to 28 candidates, SANCHAY uses a
+bounded exact subset search; a larger class records a deterministic greedy
+fallback in the plan. It never expands into protected files to satisfy a target.
 
-1. An initial readable-inventory mtime estimate gives immediate orientation.
-2. Schema-6 local snapshots record mounted filesystem total, used, and free
-   bytes separately from the readable inventory. The explainable trend uses the
-   mounted-filesystem used-byte series, requires the same root/device, and
-   waits for a 24-hour first-to-latest span before reporting bytes/day or
-   R-squared from the third snapshot onward. Each aggregate snapshot carries a
-   SHA-256 checksum that detects a mismatch against its stored aggregate
-   content; it is not a signature or device attestation. Snapshot writes refuse
-   to replace an existing evidence artifact.
-   `--snapshot-history DIR` can keep this operator-chosen, local evidence
-   series without a scheduler, network call, or cleanup action.
-3. If `/proc` shows a deleted regular file still held open, identify its PID and
-   allocated bytes as a separate advisory, never as a cleanup recommendation.
-4. Record the root mount context. Btrfs, overlay, and device-mapper sources
-   change what a free-space figure proves; SANCHAY labels that boundary rather
-   than invoking a filesystem or volume-management action.
-5. On an explicit `--capacity-audit`, compare filesystem-used blocks with a
-   complete mount-root readable inventory plus visible deleted-open bytes. Call
-   the result an accounting gap, not reclaimable or unexplained storage.
-6. In the same explicit audit, distinguish free blocks from blocks available to
-   the unprivileged operator, rather than guessing that every free byte is
-   usable.
-7. Show the mount's POSIX inode/file-entry counters (total, free, and
-   unprivileged availability where reported), so `ENOSPC` with free byte space
-   is surfaced without recommending a deletion.
-8. If any in-scope path is unreadable, record only count-level coverage,
-   label the output readable-file inventory, and withhold forecast/snapshot
-   claims rather than treating a partial scan as complete.
-9. Explicitly supplied SANCHAY snapshots, plans, reports, and briefs are
-   excluded from the readable inventory if stored beneath the root; their bytes
-   remain in the mount metric, but they cannot become self-referential cleanup
-   candidates.
-10. Count nested mount points below the selected root. In default
-    one-filesystem mode, prune each visible child mount before traversal,
-    including a same-device bind mount; older entries covered by a child mount
-    may be absent from the readable inventory. Cross-filesystem inventory uses
-    directory identity guards against recursive bind walks. SANCHAY calls this
-    a topology boundary and never unmounts or remounts a path to inspect it.
-11. Show a measured mounted-filesystem rate after 24 hours, but withhold a
-    runway date until three snapshots expose an R² fit of at least 0.80. This
-    is a conservative product gate, not a promise that the date is certain.
-12. On an explicit `--risk-horizon DAYS`, report a local probability of
-    reaching current mounted capacity within that horizon rather than a false
-    exact date. The Brownian-motion-with-drift estimate is withheld unless
-    there are seven complete same-root snapshots spanning seven days, each at
-    least twelve hours apart, with unchanged mount capacity. It changes no
-    file, volume, alert, or network state.
+### Slide 5 - Capacity intelligence refuses false precision
 
-Footer: “A first scan is an inventory estimate; same-mount observed history is stronger evidence.”
+Use a four-stage evidence ladder:
 
-## Slide 6 — Live proof, not an uncontrolled machine demo
+1. First scan: readable-inventory orientation, explicitly not an exact date.
+2. Local schema-6 snapshots: observed mount used bytes, write-once artifacts.
+3. Runway: same root/device, 24-hour history, at least three snapshots, and
+   R-squared >= 0.80.
+4. Risk: seven complete same-capacity snapshots across seven days before a local
+   horizon probability is shown.
 
-Use the deterministic SANCHAY fixture and terminal output:
+Visible conclusion: **When evidence is weak, SANCHAY withholds the forecast.**
 
-- a unique capstone-thesis.txt is absent from the plan;
-- a duplicate has a named evidence peer, not an inferred source of truth;
-- a hardlink is excluded from reclaimable duplicates and does not inflate the
-  disk total;
-- a process-held deleted file, when observed, is evidence for an operator to
-  review a service lifecycle—not permission for SANCHAY to stop or alter it;
-- `--explain` produces a local narrative and explicitly says that no candidate
-  data left the machine;
-- `sanchay-demo --risk-prove` labels its aggregate input as synthetic and
-  demonstrates capacity-change withholding, not a live endpoint forecast;
-- a 600 KB target exhausts regenerable evidence before its exact minimum-excess
-  duplicate choice; the plan records the optimizer strategy;
-- a build cache is reviewable, not deleted;
-- --verify-plan passes before change and fails closed after a synthetic fixture
-  change.
+Footer: no file, volume, alert, or network action follows from a forecast.
 
-Put the command in small monospace text only:
+### Slide 6 - The live proof is controlled and repeatable
 
-    sanchay-demo /tmp/sanchay-demo && sanchay /tmp/sanchay-demo --target-reclaim 600K --plan cleanup-plan.json && sanchay --verify-plan cleanup-plan.json
+Show one terminal capture from the deterministic fixture, in this order:
 
-## Slide 7 — Fit for a secure, sovereign Linux workflow
+- `capstone-thesis.txt` is absent from the plan;
+- a duplicate has a named byte-confirmed evidence peer;
+- hardlink aliases are excluded from reclaimable storage;
+- the target optimizer reports lower-risk-first selection;
+- `--verify-plan` passes, then fails closed after one synthetic cache mutation.
 
-- Local core workflow; no file contents transmitted. Known credential/control
-  paths are excluded before metadata or content reads, and the same gate repeats
-  in direct content and plan APIs.
-- One filesystem by default. Explicit cross-filesystem traversal is inventory
-  only: SANCHAY refuses a shared reclaim target or capacity forecast across mounts.
-- On Debian-derived BOSS, APT archives and persistent journals are measured as
-  tool-owned operational storage. When present, Docker, containerd, and Flatpak
-  stores receive the same protection—never raw file-deletion candidates.
-- Boot, configuration, package/cache, log, backup, and service/spool paths are
-  fenced before duplicate-content reads. A content match under `/usr` or `/etc`
-  is never treated as permission to remove an OS file.
-- Access-denied paths are not hidden: SANCHAY reports count-only incomplete
-  coverage and refuses to turn a partial scan into a capacity forecast or
-  snapshot history.
-- C-DAC describes Secure BOSS as LVM-encrypted. SANCHAY records a visible
-  device-mapper boundary but does not infer pool headroom, encryption state, or
-  permission to run LVM commands.
-- C-DAC also positions Secure BOSS for critical end nodes, ISOC-monitored
-  clients, and intranet/standalone systems. SANCHAY fits that context through a
-  local core and a path-free aggregate operator brief; it makes no ISOC API,
-  deployment, or C-DAC-endorsement claim.
-- Dependency-free Python core; TUI, plots, and the separately opt-in cloud
-  narration are optional. The seeded browser explainer renders embedded offline
-  summaries first, then uses Plotly only as an optional enhancement. The JSON
-  manifest records observed identity and a SHA-256 integrity checksum (not a
-  signature).
-- For an ISOC or support handoff, `--operator-brief` emits aggregate counts and
-  byte totals only. If a capacity-risk horizon was requested, it can also carry
-  only the aggregate probability, horizon, sample evidence, and model metrics.
-  It excludes roots, paths, file names, process IDs/names, mount/device
-  sources, and file content; it does not transmit anything.
+Use `sanchay-demo --prove` for the rehearsal check. It creates a disposable
+fixture only; it never deletes, moves, or transmits a file.
 
-Phrase this as a product fit inferred from C-DAC's Secure OS context, not a
-claim of C-DAC endorsement or scoring criteria.
+### Slide 7 - Designed for a secure Linux operating model
 
-## Slide 8 — Closing
+Use four concise proof points:
+
+- local core; no file contents transmitted by the core workflow;
+- one filesystem by default; no shared capacity claim across mounts;
+- APT, journal, Docker, containerd, Flatpak, boot, config, and service state
+  remain tool-owned advisories, never raw file-deletion candidates;
+- a path-free aggregate operator brief supports review without exporting roots,
+  paths, names, PIDs, mount sources, or content.
+
+Visible conclusion: **Secure BOSS fit, not an unsubstantiated integration claim.**
+
+Speaker point: C-DAC describes Secure BOSS for critical endpoints and
+intranet/standalone or ISOC-monitored operation. SANCHAY's local, constrained
+workflow is designed to fit that setting; it does not claim C-DAC endorsement,
+deployment, or an ISOC API.
+
+### Slide 8 - Close on the decision boundary
 
 **SANCHAY does not ask users to trust a cleanup model. It gives them evidence
-to review before any irreversible action.**
+to review before an irreversible cleanup step.**
 
-Keep the final slide sparse: team name, repository, and one QR code only if it
-has been independently tested from the presentation device.
+Keep this slide sparse: team name, repository, and one QR code only after it
+has been tested from the presentation device.
+
+## Appendix - use only for jury questions
+
+### A. What a duplicate recommendation actually proves
+
+`same size -> 64 KB prefix -> BLAKE2b-256 digest -> byte-for-byte confirmation
+-> named evidence peer -> identity recheck`
+
+- A match does not identify the authoritative copy or prove an independent
+  backup; the operator selects retention.
+- Hardlinks share a `(device, inode)` identity, count once in allocated-byte
+  metrics, and are excluded because one unlink releases no physical bytes.
+- Linux duplicate reads stay anchored to the selected root and reject symlink
+  component swaps or identity drift.
+- `--verify-archive SOURCE RETAINED_COPY` verifies separately chosen matching
+  files without copying, moving, or deleting either. A same-filesystem match is
+  never called a backup.
+
+### B. Capacity and topology assurance points
+
+- Snapshots record mount total/used/free separately from the readable inventory;
+  their SHA-256 checksum detects a mismatch against stored content, not a
+  signature or device attestation. Writes never replace an artifact.
+- `--snapshot-history DIR` keeps a local, operator-chosen history without a
+  scheduler, network call, or cleanup action.
+- A capacity resize, incomplete scan, mixed root/device, weak fit, or inadequate
+  history withholds runway or risk claims as appropriate.
+- Btrfs, overlay, device-mapper, nested mounts, reserved blocks, inode
+  exhaustion, and visible deleted-open files are labelled operational/accounting
+  boundaries, never automatic cleanup instructions.
+- `--capacity-audit` reports a mount-level accounting gap, not reclaimable or
+  fully explained storage.
+
+### C. Concise jury answers
+
+**Where is the AI?** The decision layer is explainable and evidence-bounded:
+recoverability scoring, constrained target selection, and local observed-growth
+models. A separately opt-in cloud narration can summarize opaque metadata but
+cannot change selection or execute actions.
+
+**Why not delete the obvious files automatically?** Matching bytes or a cache
+path is not proof of business ownership, retention policy, or operator intent.
+SANCHAY creates a reviewable plan and verifies it again before a human acts.
+
+**Why probability instead of an exact full-disk date?** Workloads are not
+perfectly linear. The risk model is deliberately withheld until strong local
+same-mount history exists, and it controls no action.
+
+**Why does this fit a sovereign secure OS?** The core is local and
+dependency-light; it contains collection and action boundaries rather than
+silently exporting paths or operating on the OS.
 
 ## Source-note handoff for the final deck
 
-- C-DAC BOSS/FOSS context: docs/FINAL_ROUND_RESEARCH.md.
-- Secure BOSS capability-to-SANCHAY mapping: docs/CDAC_SECURE_BOSS_FIT.md.
-- C-DAC Secure OS tender context: docs/FINAL_ROUND_RESEARCH.md; label as
-  context, not hackathon rules.
-- Storage redundancy and forecasting research: docs/FINAL_ROUND_RESEARCH.md.
-- Implementation claims: sanchay/plan.py, sanchay/dedup.py,
-  sanchay/managed.py, sanchay/snapshot.py, and the verified test suite.
+Add a `[Sources]` block to the speaker notes of every slide that makes an
+external claim. Use these sources:
+
+- C-DAC BOSS/FOSS and Secure BOSS facts:
+  `docs/FINAL_ROUND_RESEARCH.md` and `docs/CDAC_SECURE_BOSS_FIT.md`.
+- Secure OS tender material: use only as context, never as hackathon rules.
+- Storage redundancy, forecasting, and practitioner evidence:
+  `docs/FINAL_ROUND_RESEARCH.md`.
+- Implementation claims: `sanchay/plan.py`, `sanchay/dedup.py`,
+  `sanchay/managed.py`, `sanchay/snapshot.py`, `sanchay/demo.py`, and the
+  verified test suite.
