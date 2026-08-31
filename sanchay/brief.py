@@ -319,11 +319,15 @@ def build(files, cleanup_plan, *, process_held=None, capacity_accounting=None,
     return document
 
 
-def write(document, out):
-    """Write an operator brief locally without transmitting it."""
+def write(document, out, overwrite=False):
+    """Write an operator brief without silently replacing prior evidence."""
     path = Path(out)
-    path.write_text(json.dumps(document, indent=2, ensure_ascii=False) + "\n",
-                    encoding="utf-8")
+    payload = json.dumps(document, indent=2, ensure_ascii=False) + "\n"
+    if overwrite:
+        path.write_text(payload, encoding="utf-8")
+    else:
+        with path.open("x", encoding="utf-8") as handle:
+            handle.write(payload)
     return str(path)
 
 

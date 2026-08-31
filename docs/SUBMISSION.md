@@ -130,6 +130,8 @@ capacity boundary, and (when requested and assessed) capacity-risk probability,
 horizon, sample evidence, and model metrics. It excludes roots, paths, file
 names, process IDs/names, mount/device sources, free-form model rationale, and
 file content; it does not transmit data, sign an event, or authorize cleanup.
+The handoff is write-once by default; an operator must explicitly request
+`--replace-operator-brief` to replace it.
 
 **2. Works out how recoverable each file is.** This is the core of the tool.
 Every file lands in one of four classes:

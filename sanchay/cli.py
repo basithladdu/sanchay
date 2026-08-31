@@ -97,6 +97,8 @@ def main(argv=None):
                     help="write a detailed local HTML review report; contains relative paths")
     ap.add_argument("--operator-brief", metavar="OUT.json",
                     help="write a path-free aggregate local handoff; no network transfer")
+    ap.add_argument("--replace-operator-brief", action="store_true",
+                    help="with --operator-brief, explicitly replace an existing handoff")
     ap.add_argument("--plan", metavar="OUT.json",
                     help="write a review-only cleanup plan; SANCHAY never deletes files")
     ap.add_argument("--replace-plan", action="store_true",
@@ -140,6 +142,8 @@ def main(argv=None):
         ap.error("use either --snapshot OUT.json or --snapshot-history DIR, not both")
     if args.replace_plan and not args.plan:
         ap.error("--replace-plan requires --plan")
+    if args.replace_operator_brief and not args.operator_brief:
+        ap.error("--replace-operator-brief requires --operator-brief")
     if args.snapshot_history and (args.compare or args.history):
         ap.error("--snapshot-history cannot combine with --compare or --history")
     if args.risk_horizon is not None and not (args.history or args.snapshot_history):
@@ -424,6 +428,7 @@ def main(argv=None):
     current_snapshot = None
     snapshot_error = None
     plan_write_error = None
+    operator_brief_write_error = None
     snapshot_write_error = None
     snapshot_history_write_error = None
     if needs_snapshot and usage is not None and scan_coverage["complete"]:
@@ -588,7 +593,15 @@ def main(argv=None):
             capacity_accounting=capacity_accounting,
             capacity_risk=capacity_risk,
             capacity_risk_requested=args.risk_horizon is not None)
-        print("operator brief -> " + brief.write(operator_brief, args.operator_brief))
+        try:
+            written_operator_brief = brief.write(
+                operator_brief, args.operator_brief,
+                overwrite=args.replace_operator_brief)
+        except OSError as exc:
+            operator_brief_write_error = str(exc)
+            print("operator brief: not written; " + operator_brief_write_error)
+        else:
+            print("operator brief -> " + written_operator_brief)
 
     if args.plan:
         try:
@@ -655,7 +668,8 @@ def main(argv=None):
     if (not scan_coverage["complete"]
             and (args.snapshot or args.snapshot_history or args.compare or args.history)):
         return 2
-    if (snapshot_error or plan_write_error or snapshot_write_error or snapshot_history_write_error
+    if (snapshot_error or plan_write_error or operator_brief_write_error or snapshot_write_error
+            or snapshot_history_write_error
             or growth_error):
         return 2
 

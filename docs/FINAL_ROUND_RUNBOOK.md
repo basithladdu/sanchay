@@ -220,6 +220,8 @@ boundary, and, when requested and assessed, the capacity-risk probability,
 horizon, sample evidence, and model metrics. It excludes roots, paths, names,
 PIDs, process names, mount/device sources, free-form model rationale, and
 content; it does not transmit anything, sign an event, or authorize a cleanup.
+It is write-once by default, so a new handoff must use a new path unless an
+operator explicitly supplies `--replace-operator-brief`.
 Use `"$PYTHON" -m sanchay.cli --verify-operator-brief operator-brief.json`
 to check its checksum only; it does not reread endpoint files or contact a
 service.

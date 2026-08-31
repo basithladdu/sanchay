@@ -719,6 +719,60 @@ class TestSanchay(unittest.TestCase):
         self.assertNotIn(root, json.dumps(document))
         self.assertNotIn('build.bin', json.dumps(document))
 
+    def test_operator_brief_is_write_once_until_cli_replacement_is_explicit(self):
+        root = '/private/field-node'
+        files = [
+            scan.FileInfo(root + '/.cache/build.bin', 4096, self.now,
+                          self.now - 86400 * 90, 808),
+        ]
+        replacement_files = [
+            scan.FileInfo(root + '/.cache/build.bin', 8192, self.now,
+                          self.now - 86400 * 91, 809),
+        ]
+        output = io.StringIO()
+        with tempfile.TemporaryDirectory() as tmp:
+            brief_path = Path(tmp) / 'operator-brief.json'
+            original = brief.build(files, plan.build(files, [], root))
+            brief.write(original, brief_path)
+            original_bytes = brief_path.read_bytes()
+            with mock.patch.object(scan, 'scan_with_coverage',
+                                   side_effect=[
+                                       (files, scan.ScanCoverage()),
+                                       (replacement_files, scan.ScanCoverage()),
+                                   ]), \
+                    mock.patch.object(processes, 'deleted_open_files',
+                                      return_value=[]), \
+                    mock.patch.object(shutil, 'disk_usage',
+                                      return_value=SimpleNamespace(free=1000000)), \
+                    contextlib.redirect_stdout(output):
+                blocked_status = cli.main([root, '--operator-brief', str(brief_path)])
+                blocked_bytes = brief_path.read_bytes()
+                replaced_status = cli.main([
+                    root, '--operator-brief', str(brief_path),
+                    '--replace-operator-brief',
+                ])
+
+            replaced_bytes = brief_path.read_bytes()
+            replaced = json.loads(brief_path.read_text(encoding='utf-8'))
+
+        self.assertEqual(blocked_status, 2)
+        self.assertEqual(replaced_status, None)
+        self.assertIn('operator brief: not written;', output.getvalue())
+        self.assertIn('operator brief -> ', output.getvalue())
+        self.assertEqual(blocked_bytes, original_bytes)
+        self.assertNotEqual(replaced_bytes, original_bytes)
+        self.assertEqual(replaced['storage']['allocated_physical_bytes'], 8192)
+        self.assertTrue(brief.fingerprint_valid(replaced))
+
+    def test_cli_rejects_operator_brief_replacement_without_a_brief(self):
+        stderr = io.StringIO()
+        with contextlib.redirect_stderr(stderr), self.assertRaises(SystemExit) as raised:
+            cli.main(['/private/field-node', '--replace-operator-brief'])
+
+        self.assertEqual(raised.exception.code, 2)
+        self.assertIn('--replace-operator-brief requires --operator-brief',
+                      stderr.getvalue())
+
     def test_cli_rejects_operator_brief_with_plan_verification(self):
         stderr = io.StringIO()
         with contextlib.redirect_stderr(stderr), self.assertRaises(SystemExit) as raised:

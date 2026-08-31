@@ -291,8 +291,10 @@ sanchay /home/user --snapshot-history ~/.local/state/sanchay/home --risk-horizon
 # 8. Generate an interactive Plotly HTML report (requires .[viz])
 sanchay /home/user --report report.html
 
-# 9. Write a path-free aggregate operator handoff; no network transfer
+# 9. Write a path-free aggregate operator handoff; no network transfer.
+# The artifact is write-once by default; replacement needs explicit intent.
 sanchay /home/user --operator-brief operator-brief.json
+sanchay /home/user --operator-brief operator-brief.json --replace-operator-brief
 
 # 10. Recheck that the brief has not changed; it never touches endpoint files
 sanchay --verify-operator-brief operator-brief.json
@@ -389,7 +391,8 @@ sanchay-ui .
   capacity-risk estimate contributes numeric model evidence only. The brief
   excludes roots, paths, file names, process IDs/names, mount/device sources,
   free-form model rationale, and file content; it does not transmit data or
-  authorize a cleanup action.
+  authorize a cleanup action. It is write-once by default; replacing an
+  existing handoff requires `--replace-operator-brief`.
 * **Inspectable evidence policy**: Every plan item records its classification,
   logical and reclaimable allocated sizes, observed identity, typed recovery
   evidence with its strength, and frozen decision-model inputs; files
