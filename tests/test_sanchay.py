@@ -1594,6 +1594,30 @@ class TestSanchay(unittest.TestCase):
             with self.assertRaises(ValueError):
                 scan.scan(nested_ssh)
 
+    def test_single_filesystem_scan_prunes_visible_nested_mounts(self):
+        """A same-device bind view must not evade the default mount boundary."""
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            visible = root / 'visible.txt'
+            visible.write_text('ordinary candidate', encoding='utf-8')
+            mounted = root / 'mounted-view'
+            mounted.mkdir()
+            covered = mounted / 'foreign.txt'
+            covered.write_text('must stay outside the default inventory',
+                               encoding='utf-8')
+            nested = SimpleNamespace(mount_point=str(mounted))
+
+            with mock.patch.object(mounts, 'nested_mounts', return_value=(nested,)):
+                local_files, local_coverage = scan.scan_with_coverage(root)
+                cross_files, cross_coverage = scan.scan_with_coverage(
+                    root, cross_filesystems=True)
+
+        self.assertEqual({item.path for item in local_files}, {str(visible)})
+        self.assertTrue(local_coverage.complete)
+        self.assertEqual({item.path for item in cross_files},
+                         {str(visible), str(covered)})
+        self.assertTrue(cross_coverage.complete)
+
     def test_scan_with_coverage_records_unreadable_entries_without_paths(self):
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)

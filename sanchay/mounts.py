@@ -155,7 +155,8 @@ def capacity_context(path, mountinfo_path=MOUNTINFO):
                 f"{count} nested {noun} lie below the selected root. A path walk "
                 "sees the mounted view, so older directory entries beneath a child "
                 "mount may be absent from the readable inventory and contribute to "
-                "an accounting gap."
+                "an accounting gap. SANCHAY's default one-filesystem scan prunes "
+                "these child mounts before traversal."
             ),
             "nested_mount_review_action": (
                 "Ask the platform owner to review the active mount topology. "

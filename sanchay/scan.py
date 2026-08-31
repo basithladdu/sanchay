@@ -8,7 +8,7 @@ import os
 import stat
 from dataclasses import dataclass
 
-from . import storage
+from . import mounts, storage
 
 
 # These contain repository internals or credential material rather than user
@@ -130,11 +130,13 @@ def scan_with_coverage(root, skip=DEFAULT_SKIP_DIRS,
                        cross_filesystems=False):
     """Return regular files plus honest coverage evidence for one tree.
 
-    A default scan stays on the root filesystem. This prevents a workstation
+    A default scan stays on the root filesystem and prunes every visible child
+    mount point, including a same-device bind mount. This prevents a workstation
     cleanup pass from silently traversing mounted network shares, removable
-    media, or a separately governed system volume. Credential/control paths are
-    intentionally pruned under a separate safety policy; coverage reports only
-    unexpected traversal or metadata failures for otherwise in-scope paths.
+    media, separately governed system volumes, or a recursive bind-mounted
+    view of an already visited tree. Credential/control paths are intentionally
+    pruned under a separate safety policy; coverage reports only unexpected
+    traversal or metadata failures for otherwise in-scope paths.
     """
     # Canonicalise the user-supplied root once.  All emitted paths then share
     # one stable root for later descriptor-relative content reads.
@@ -147,9 +149,24 @@ def scan_with_coverage(root, skip=DEFAULT_SKIP_DIRS,
     except OSError as exc:
         raise ValueError(f"Cannot scan {root}: {exc}") from exc
 
+    def path_key(path):
+        return os.path.normcase(os.path.realpath(os.path.abspath(path)))
+
+    # On Linux, a child mount can have the same st_dev as the selected root
+    # (for example, a bind mount). Device filtering alone would then walk a
+    # foreign or recursive namespace view. The default single-filesystem mode
+    # keeps these child mounts outside its inventory; their count is surfaced
+    # separately through mounts.capacity_context().
+    nested_mount_points = (
+        frozenset(path_key(record.mount_point)
+                  for record in mounts.nested_mounts(root))
+        if not cross_filesystems else frozenset()
+    )
+
     files = []
     unreadable_directories = 0
     unreadable_files = 0
+    visited_directories = set()
 
     def record_directory_error(_error):
         nonlocal unreadable_directories
@@ -163,21 +180,33 @@ def scan_with_coverage(root, skip=DEFAULT_SKIP_DIRS,
             name for name in dirnames
             if not _path_is_protected(os.path.join(dirpath, name), protected_dirs)
         ]
+        try:
+            directory_stat = os.stat(dirpath)
+        except OSError:
+            unreadable_directories += 1
+            dirnames[:] = []
+            continue
+        directory_identity = (directory_stat.st_dev, directory_stat.st_ino)
+        if directory_identity in visited_directories:
+            # A bind mount can expose an ancestor again. In explicit
+            # cross-filesystem mode, inventory it once rather than allowing an
+            # infinite recursive walk or duplicate physical records.
+            dirnames[:] = []
+            continue
+        visited_directories.add(directory_identity)
         if not cross_filesystems:
-            try:
-                if os.stat(dirpath).st_dev != root_device:
-                    dirnames[:] = []
-                    continue
-            except OSError:
-                unreadable_directories += 1
+            if directory_stat.st_dev != root_device:
                 dirnames[:] = []
                 continue
             # Avoid entering a mounted child at all, rather than only
             # detecting its different device after os.walk has entered it.
             same_filesystem = []
             for name in dirnames:
+                child_path = os.path.join(dirpath, name)
+                if path_key(child_path) in nested_mount_points:
+                    continue
                 try:
-                    if os.stat(os.path.join(dirpath, name)).st_dev == root_device:
+                    if os.stat(child_path).st_dev == root_device:
                         same_filesystem.append(name)
                 except OSError:
                     unreadable_directories += 1
@@ -187,12 +216,16 @@ def scan_with_coverage(root, skip=DEFAULT_SKIP_DIRS,
             path = os.path.join(dirpath, name)
             if _path_is_protected(path, protected_dirs):
                 continue
+            if not cross_filesystems and path_key(path) in nested_mount_points:
+                continue
             try:
                 st = os.lstat(path)
             except OSError:
                 unreadable_files += 1
                 continue
             if not stat.S_ISREG(st.st_mode):
+                continue
+            if not cross_filesystems and st.st_dev != root_device:
                 continue
             files.append(FileInfo(path, st.st_size, st.st_atime, st.st_mtime,
                                   st.st_ino, st.st_dev, st.st_nlink,

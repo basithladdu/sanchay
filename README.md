@@ -208,6 +208,13 @@ read-only caveat explaining why a directory scan is not proof of host-wide,
 thin-pool, or snapshot-aware free space. It never runs LVM/Btrfs commands,
 resizes a volume, balances a filesystem, or deletes a snapshot.
 
+When a selected root contains visible child mounts, the default one-filesystem
+scan prunes them **before** traversal, including same-device bind mounts that
+would evade a simple device-number filter. Explicit cross-filesystem inventory
+still follows them, but tracks directory device/inode identities so a recursive
+bind view is not walked twice. SANCHAY never mounts, unmounts, or remounts a
+path to inspect it.
+
 ---
 
 ## 🖥️ Terminal & Web Visualizations

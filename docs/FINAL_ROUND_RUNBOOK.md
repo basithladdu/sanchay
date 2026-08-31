@@ -156,7 +156,9 @@ identify a file to remove or claim a cause when the counters are unavailable.
 It also distinguishes free blocks from blocks actually available to the
 unprivileged operator, so a filesystem policy/reservation boundary is visible
 without recommending a change to that policy. SANCHAY also counts nested mount
-points under the selected root: the active namespace can obscure older entries
+points under the selected root: its default one-filesystem scan prunes those
+visible child mounts before traversal, including same-device bind views that a
+device-number check would miss. The active namespace can obscure older entries
 beneath a child mount, so that topology is called out as a possible contributor
 to an accounting gap. It never unmounts or remounts a path to inspect it.
 
