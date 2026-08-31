@@ -278,6 +278,7 @@ sanchay --verify-archive /home/user/downloads/ubuntu.iso /mnt/archive/ubuntu.iso
 # 6. Save a mount-scoped local snapshot for a later measured-growth comparison.
 # It records mounted total/used/free bytes plus a separate readable-inventory
 # aggregate. Complete readable-path coverage and a 24-hour comparison span are required.
+# Snapshot files are write-once evidence artifacts: use a distinct name for each capture.
 sanchay /home/user --snapshot before.json
 sanchay --verify-snapshot before.json
 sanchay /home/user --compare before.json

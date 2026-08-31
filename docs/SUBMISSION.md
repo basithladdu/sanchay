@@ -185,7 +185,8 @@ ordinary background filesystem activity do not become a fictional exhaustion
 forecast. Each aggregate snapshot also carries a SHA-256 checksum. SANCHAY
 rejects an unsealed or checksum-mismatched history artifact before a CLI
 comparison, trend, or risk estimate; the checksum detects a mismatch against
-stored content but is not a digital signature or device attestation.
+stored content but is not a digital signature or device attestation. Snapshot
+writing refuses to replace an existing evidence artifact.
 On explicit `--risk-horizon DAYS`, SANCHAY can also frame the question as local
 capacity-hit probability within a named horizon. It uses a
 Brownian-motion-with-drift hitting-time estimate over aggregate mounted-use

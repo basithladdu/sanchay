@@ -390,6 +390,7 @@ def main(argv=None):
                           or args.risk_horizon is not None)
     current_snapshot = None
     snapshot_error = None
+    snapshot_write_error = None
     if needs_snapshot and usage is not None and scan_coverage["complete"]:
         try:
             current_snapshot = snapshot.capture(
@@ -559,7 +560,13 @@ def main(argv=None):
                       else snapshot_error or "mounted filesystem usage is unavailable")
             print("snapshot: not written; " + reason)
         else:
-            print("snapshot -> " + snapshot.write(current_snapshot, args.snapshot))
+            try:
+                written_snapshot = snapshot.write(current_snapshot, args.snapshot)
+            except (OSError, ValueError) as exc:
+                snapshot_write_error = str(exc)
+                print("snapshot: not written; " + snapshot_write_error)
+            else:
+                print("snapshot -> " + written_snapshot)
 
     if args.viz:
         try:
@@ -579,7 +586,7 @@ def main(argv=None):
     if (not scan_coverage["complete"]
             and (args.snapshot or args.compare or args.history)):
         return 2
-    if snapshot_error or growth_error:
+    if snapshot_error or snapshot_write_error or growth_error:
         return 2
 
 

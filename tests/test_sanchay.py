@@ -1451,6 +1451,26 @@ class TestSanchay(unittest.TestCase):
         self.assertIn('no endpoint directory was scanned, transmitted, or changed',
                       changed_output.getvalue())
 
+    def test_snapshot_write_is_write_once_and_cli_refuses_an_overwrite(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = demo.create(Path(tmp) / 'fixture')
+            snapshot_path = root / 'baseline.json'
+            captured = self._capture_snapshot(self.files, used=1000000,
+                                              free=1000000, now=100)
+            snapshot.write(captured, snapshot_path)
+            with self.assertRaises(FileExistsError):
+                snapshot.write(captured, snapshot_path)
+            self.assertTrue(snapshot.fingerprint_valid(snapshot.read(snapshot_path)))
+
+            output = io.StringIO()
+            with contextlib.redirect_stdout(output):
+                status = cli.main([str(root), '--snapshot', str(snapshot_path),
+                                   '--limit', '1'])
+
+        self.assertEqual(status, 2)
+        self.assertIn('snapshot: not written;', output.getvalue())
+        self.assertIn('File exists', output.getvalue())
+
     def test_cleanup_plan_verification_rechecks_manifest_and_duplicate(self):
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)

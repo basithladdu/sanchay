@@ -236,6 +236,8 @@ full-disk date. Each aggregate snapshot has a SHA-256 checksum, so a
 checksum-mismatched history artifact is rejected before it can influence the
 comparison. That checksum is not a signature or device attestation. Legacy
 inventory-only or unsealed snapshots are rejected and must be recaptured.
+Snapshot writing also refuses to replace an existing evidence file; choose a
+new timestamped output name for each capture.
 
 **What happens if the filesystem was resized?** SANCHAY still shows its
 observed mounted-use rate, but withholds a `full in` runway date and withholds

@@ -77,7 +77,8 @@ Show two stages, not a fake exact date:
    waits for a 24-hour first-to-latest span before reporting bytes/day or
    R-squared from the third snapshot onward. Each aggregate snapshot carries a
    SHA-256 checksum that detects a mismatch against its stored aggregate
-   content; it is not a signature or device attestation.
+   content; it is not a signature or device attestation. Snapshot writes refuse
+   to replace an existing evidence artifact.
 3. If `/proc` shows a deleted regular file still held open, identify its PID and
    allocated bytes as a separate advisory, never as a cleanup recommendation.
 4. Record the root mount context. Btrfs, overlay, and device-mapper sources

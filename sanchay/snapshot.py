@@ -181,8 +181,15 @@ def capture(files, root, *, filesystem_total_bytes, filesystem_used_bytes,
 
 
 def write(snapshot, out):
+    """Write a new snapshot without replacing an existing evidence artifact."""
     path = Path(out)
-    path.write_text(json.dumps(snapshot, indent=2) + "\n", encoding="utf-8")
+    if (isinstance(snapshot, dict)
+            and snapshot.get("schema_version") == SNAPSHOT_SCHEMA_VERSION
+            and not fingerprint_valid(snapshot)):
+        raise SnapshotIntegrityError(
+            "refusing to write a snapshot whose integrity checksum does not match")
+    with path.open("x", encoding="utf-8") as artifact:
+        artifact.write(json.dumps(snapshot, indent=2) + "\n")
     return str(path)
 
 
