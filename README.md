@@ -1,26 +1,18 @@
-<div align="center">
+# SANCHAY
 
-# SANCHAY: Regret-Aware Intelligent Storage Optimizer for Linux
+**Evidence-first storage decisions for Linux**
 
-**AI-Assisted Storage Reclamation with Review-Only Cleanup Plans & Mount-Scoped Runway Measurement**
+Team Zeros and Ones · C-DAC / MeitY SSM Hackathon 2026 · Track 2: AI at
+Application Level · AI-Powered Intelligent Storage Optimizer for Linux OS
 
-[![CI Status](https://github.com/basithladdu/sanchay/actions/workflows/ci.yml/badge.svg)](https://github.com/basithladdu/sanchay/actions)
-[![Python Version](https://img.shields.io/badge/python-3.9%20%7C%203.10%20%7C%203.11%20%7C%203.12-blue)](https://www.python.org/)
-[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
-[![Vercel Deployment](https://img.shields.io/badge/Vercel-Live%20Demo-black?logo=vercel)](https://sanchay-swart.vercel.app)
+[Continuous integration](https://github.com/basithladdu/sanchay/actions)
 
----
+SANCHAY is a local, review-only storage decision layer. It does not delete or
+move files. Instead, it identifies candidates with explicit recovery evidence,
+writes an integrity-checked review plan, and rechecks the plan before a human
+performs any separate cleanup.
 
-### Built for C-DAC / MeitY SSM Hackathon 2026
-**Track 2: AI at Application Level • AI-Powered Intelligent Storage Optimizer for Linux OS**
-
-*Developed by Team: Shaik Abdul Basith, Shaik Awaiz, Shaik Abdul Muqeeth*
-
----
-
-</div>
-
-## 📌 Executive Summary & Problem Context
+## Problem
 
 Disk-usage explorers and duplicate finders can identify space consumers, but a
 space ranking alone does not establish that a specific file is eligible for
@@ -35,27 +27,22 @@ For irreplaceable unique files, regret is 1.00, so priority is 0.0 and they are 
 
 ---
 
-## 🏛️ 4-Tier Recoverability Classification Hierarchy
+## Recovery-evidence model
 
-```
-┌─────────────────────────────────────────────────────────────────────────────┐
-│                       RECOVERABILITY SPECTRUM                               │
-├─────────────────┬───────────────────┬───────────────────┬───────────────────┤
-│   DISPOSABLE    │    DUPLICATE      │    GIT TRACKED    │     UNIQUE        │
-│   Regret: 0.02  │    Regret: 0.10   │    Regret: 0.20   │   Regret: 1.00    │
-│  e.g. .cache,   │   Identical hash, │  Committed in git │ Capstone thesis,  │
-│  __pycache__,   │   surviving copies│  history, restore │ production DB,    │
-│  target/debug,  │   on filesystem   │  via git checkout │ personal docs     │
-│  .next/cache    │                   │                   │                   │
-├─────────────────┼───────────────────┼───────────────────┼───────────────────┤
-│  REVIEW FIRST   │  REVIEW FIRST     │  REVIEW FIRST     │ EXCLUDED FROM PLAN│
-│  Owning tool    │  Named survivor   │  Clean Git HEAD   │ No recommendation │
-└─────────────────┴───────────────────┴───────────────────┴───────────────────┘
-```
+| Evidence class | Regret | Review boundary |
+| --- | ---: | --- |
+| Regenerable cache or build output | 0.02 | Review through its owning tool. |
+| Byte-confirmed duplicate | 0.10 | A named evidence peer remains; a human selects retention. |
+| Clean Git HEAD file | 0.20 | Confirm the project owner accepts removal. |
+| Unique or otherwise unproven file | 1.00 | Excluded from the plan. |
+
+SANCHAY uses allocated bytes where the platform exposes them. A hardlink is
+not a reclaimable duplicate because removing one directory entry releases no
+physical storage.
 
 ---
 
-## 🔬 Core Innovations
+## Evidence model and safeguards
 
 ### 1. Protected-File Gate and Review-Only Plans
 Traditional systems ask the user to untick critical files from a massive list.
@@ -238,7 +225,7 @@ path to inspect it.
 
 ---
 
-## 🖥️ Terminal & Web Visualizations
+## Terminal and browser views
 
 ### Rich Terminal Dashboard (`sanchay-ui`)
 
@@ -340,7 +327,7 @@ review.
 
 ---
 
-## 🚀 Quickstart & Installation
+## Quickstart
 
 ```bash
 # Clone the repository
@@ -422,7 +409,7 @@ sanchay-ui .
 
 ---
 
-## 👥 Authors & Team Credits
+## Team
 
 * **Shaik Abdul Basith**
 * **Shaik Awaiz**
