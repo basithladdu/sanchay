@@ -120,9 +120,9 @@ def _evidence_label(row, root):
     if row["kind"] == "duplicate":
         survivor = row.get("survivor_path")
         if isinstance(survivor, str):
-            return (f"{strength}: byte-for-byte match with the named retained "
-                    f"survivor at {_display_path(survivor, root)}")
-        return f"{strength}: byte-for-byte match with a named retained survivor"
+            return (f"{strength}: byte-for-byte match with named evidence peer "
+                    f"at {_display_path(survivor, root)}; human selects retention")
+        return f"{strength}: byte-for-byte match with a named evidence peer; human selects retention"
     return f"{strength}: {evidence['detail']}"
 
 

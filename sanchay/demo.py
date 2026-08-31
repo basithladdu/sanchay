@@ -102,7 +102,11 @@ def rehearse(root=None):
         if hardlink_paths & recommendation_paths:
             raise RuntimeError("A hardlink entry entered the review plan")
         if not duplicate_items or duplicate_items[0].get("survivor_path") != str(survivor):
-            raise RuntimeError("The duplicate recommendation did not name its retained survivor")
+            raise RuntimeError("The duplicate recommendation did not name its evidence peer")
+        retention = duplicate_items[0].get("retention_boundary", {})
+        if (retention.get("source_of_truth_inferred") is not False
+                or retention.get("operator_retention_confirmation_required") is not True):
+            raise RuntimeError("The duplicate recommendation inferred a retention decision")
         if not document.get("selection", {}).get("target_met"):
             raise RuntimeError("The disposable evidence set did not meet its reclaim target")
 
@@ -136,8 +140,9 @@ def main(argv=None):
         print(f"rehearsal fixture -> {result['fixture']}")
         print(f"protected unique -> {result['protected_relative_path']} stayed out of the review plan")
         print("duplicate proof   -> "
-              f"{result['duplicate_relative_path']} retained "
-              f"{result['survivor_relative_path']} as its named survivor")
+              f"{result['duplicate_relative_path']} matched "
+              f"{result['survivor_relative_path']} as a named evidence peer")
+        print("retention boundary -> matching bytes do not identify the authoritative copy")
         print(f"hardlink boundary -> {result['excluded_hardlink_entries']} entries excluded")
         print(f"reclaim evidence  -> {result['selected_reclaim_bytes']:,} bytes selected for review")
         print("fail-closed check -> a synthetic cache mutation invalidated the plan")

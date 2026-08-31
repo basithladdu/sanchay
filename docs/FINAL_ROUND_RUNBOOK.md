@@ -60,8 +60,10 @@ Point out these concrete facts, not a generic dashboard:
 
 - `documents/capstone-thesis.txt` is a deliberately unique fixture and is not
   in the plan.
-- `downloads/boss-image-copy.iso` is a duplicate candidate only because
-  `archive/boss-image.iso` is explicitly named as its retained survivor.
+- `downloads/boss-image-copy.iso` is a duplicate candidate only because it
+  byte-matches `archive/boss-image.iso`, which is named as a deterministic
+  evidence peer. The separate archive verification uses an operator-chosen
+  retained copy; the duplicate plan itself does not infer source of truth.
 - `--verify-archive` first proves those files are byte-for-byte equal and
   separate inodes. The fixture puts them on the same filesystem, so SANCHAY
   deliberately calls this recovery evidence for a manual space review, **not**
@@ -191,8 +193,10 @@ container, and Flatpak policies retain their owning-tool review guidance.
 
 **How do you prove a duplicate is eligible for review?** It uses size bucketing,
 prefix hashing, then a full BLAKE2b-256 digest and a byte-for-byte comparison;
-the plan names the survivor and verification rechecks both identities and
-matching content. On Linux, each read is anchored to the selected root with
+the plan names a deterministic evidence peer and verification rechecks both
+identities and matching content. Matching bytes do not establish source of
+truth, so an operator must choose which copy to retain before a manual removal.
+On Linux, each read is anchored to the selected root with
 no-follow descriptor traversal; a symlink component or identity drift produces
 no evidence rather than reading a substituted path. Hardlinks are not counted
 as reclaimable copies.

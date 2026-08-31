@@ -807,14 +807,14 @@ document.querySelectorAll('#fileTable tr').forEach(row => {
 });
 
 const demoPlan = {
-  schema_version: 8,
+  schema_version: 9,
   execution: {automatic_deletion: false, requires_human_review: true},
   safety: {protected_unique_files: 2, excluded_credential_control_entries: 0, candidate_count: 4, excluded_hardlink_entries: 0, managed_operational_storage: [], deferred_managed_entries: 0, deferred_managed_bytes: 0, scan_coverage: {complete: true, unreadable_directories: 0, unreadable_files: 0}, content_read_boundary: 'Linux root-anchored no-follow reads reject path substitution.'},
   integrity: {algorithm: 'SHA-256', purpose: 'detects accidental plan changes; not a signature'},
   decision_model: {name: 'regret_aware_priority', version: 2, formula: 'priority = reclaimable_allocated_bytes × unchanged_age × (1 - regret_weight)'},
   recommendations: [
     {kind: 'disposable', path: '/app/node_modules/.cache/webpack.pack', recovery_evidence: {type: 'known_regenerable_path', strength: 'heuristic'}},
-    {kind: 'duplicate', path: '/home/user/downloads/ubuntu-24.04-live.iso', survivor: '/home/user/archive/ubuntu-24.04-live.iso', recovery_evidence: {type: 'byte_for_byte_match', strength: 'direct'}},
+    {kind: 'duplicate', path: '/home/user/downloads/ubuntu-24.04-live.iso', survivor: '/home/user/archive/ubuntu-24.04-live.iso', retention_boundary: {source_of_truth_inferred: false, operator_retention_confirmation_required: true, detail: 'Named evidence peer only; the operator confirms retention.'}, recovery_evidence: {type: 'byte_for_byte_match', strength: 'direct'}},
     {kind: 'tracked', path: '/home/user/code/linux-kernel/arch/x86/boot.o', recovery_evidence: {type: 'clean_git_head', strength: 'repository_state'}}
   ]
 };

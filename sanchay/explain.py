@@ -15,7 +15,7 @@ KIND_LABELS = {
 }
 KIND_EVIDENCE = {
     "disposable": "a narrow cache or build-output path heuristic",
-    "duplicate": "a named byte-for-byte surviving copy",
+    "duplicate": "a named byte-for-byte evidence peer; operator confirms retention",
     "tracked": "clean repository state relative to Git HEAD",
 }
 

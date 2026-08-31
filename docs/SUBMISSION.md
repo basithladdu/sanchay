@@ -49,7 +49,8 @@ directly.
 **1. Finds duplicates cheaply.** Files are grouped by size first. Only groups
 that collide get their first 64 KB hashed. Only what still collides after that
 gets a full BLAKE2b-256 digest. Before a duplicate becomes reviewable, SANCHAY
-also compares that file with its named survivor byte for byte. Files whose
+also compares that file with its named evidence peer byte for byte. Matching
+bytes do not establish source of truth, so an operator chooses retention. Files whose
 sizes do not collide are never opened.
 On Linux, each candidate is opened descriptor-by-descriptor from the canonical
 scan root with no-follow flags. A symlink component, non-regular file, or
@@ -192,10 +193,11 @@ snapshot, comparison, or history claim.
 classification, observed device/inode/logical-size/allocated-size/mtime-nanoseconds/link-count identity, and typed recovery
 evidence with a visible strength: direct full-content match for duplicates,
 repository-state evidence for clean Git files, or a clearly labelled heuristic
-for conventional cache paths. Duplicate candidates name the copy that will
-survive. The JSON plan carries a SHA-256 integrity checksum, which detects
+for conventional cache paths. Duplicate candidates name a deterministic
+evidence peer but do not infer the authoritative copy or retention decision.
+The JSON plan carries a SHA-256 integrity checksum, which detects
 accidental plan changes but is not a digital signature. `sanchay --verify-plan
-cleanup-plan.json` rechecks the checksum, file identity, retained duplicate,
+cleanup-plan.json` rechecks the checksum, file identity, duplicate evidence peer,
 and clean Git HEAD state where applicable. A changed link count invalidates the
 plan, because it changes whether a path can release physical storage. SANCHAY
 never deletes or moves files.

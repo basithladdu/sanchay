@@ -65,6 +65,11 @@ remaining candidate. Its SHA-256 integrity checksum detects accidental plan
 changes; it is not a digital signature. SANCHAY never deletes or moves files
 itself.
 
+For a duplicate, SANCHAY names a deterministic byte-matched **evidence peer**
+so the relation can be independently rechecked. Matching bytes do not identify
+the authoritative copy or prove a backup, so the plan explicitly requires an
+operator to choose which copy to retain before any manual removal.
+
 ### 2. Two-Stage Runway Measurement
 SANCHAY derives an initial storage-growth estimate from the **readable-inventory inode modification-time distribution (`mtime`) on run #1**. It is directional, not a guaranteed exhaustion date. A later local snapshot records the selected mounted filesystem's total, used, and free bytes separately from the readable inventory. Comparisons and local linear trends use only the mounted-filesystem used-byte series; they require complete readable coverage, the same resolved root and filesystem device, and at least a 24-hour first-to-latest observation span. The gate prevents seconds of ordinary background activity from becoming a fictional runway. With three or more snapshots, SANCHAY also reports fit quality. The readable inventory, review plan, and treemap count each physical `(device, inode)` once and use allocated blocks (`st_blocks × 512`) where the filesystem exposes them, so hardlink aliases and sparse logical length do not inflate those diagnostic totals. Snapshot schema 5 deliberately rejects earlier inventory-only snapshot files: recapture a fresh baseline rather than mixing metrics.
 

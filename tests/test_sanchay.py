@@ -1059,9 +1059,16 @@ class TestSanchay(unittest.TestCase):
             self.assertEqual(item['recovery_evidence']['type'], 'byte_for_byte_match')
             self.assertEqual(item['recovery_evidence']['strength'], 'direct')
             self.assertIn(str(duplicate_a), item['recovery_evidence']['detail'])
+            self.assertEqual(item['retention_boundary'], {
+                'source_of_truth_inferred': False,
+                'operator_retention_confirmation_required': True,
+                'detail': plan.DUPLICATE_RETENTION_BOUNDARY,
+            })
+            self.assertIn('does not infer which copy is authoritative',
+                          item['retention_boundary']['detail'])
             self.assertEqual(item['observed_identity']['size'], 4096)
             self.assertEqual(item['observed_identity']['allocated_size'], 4096)
-            self.assertEqual(cleanup_plan['schema_version'], 8)
+            self.assertEqual(cleanup_plan['schema_version'], plan.PLAN_SCHEMA_VERSION)
             self.assertTrue(cleanup_plan['safety']['scan_coverage']['complete'])
             self.assertIn('mtime_ns', item['observed_identity'])
             self.assertEqual(item['decision_trace']['name'], 'regret_aware_priority')
@@ -1334,7 +1341,7 @@ class TestSanchay(unittest.TestCase):
             self.assertTrue(verified['valid'])
 
             old_schema = copy.deepcopy(cleanup_plan)
-            old_schema['schema_version'] = 4
+            old_schema['schema_version'] = plan.PLAN_SCHEMA_VERSION - 1
             unsigned = {key: value for key, value in old_schema.items()
                         if key != 'fingerprint_sha256'}
             old_schema['fingerprint_sha256'] = plan._fingerprint(unsigned)
@@ -1358,6 +1365,17 @@ class TestSanchay(unittest.TestCase):
             tampered_result = plan.verify(tampered)
             self.assertFalse(tampered_result['fingerprint_valid'])
             self.assertIn('integrity checksum', tampered_result['reason'])
+
+            missing_retention = copy.deepcopy(cleanup_plan)
+            missing_retention['recommendations'][0].pop('retention_boundary')
+            unsigned = {key: value for key, value in missing_retention.items()
+                        if key != 'fingerprint_sha256'}
+            missing_retention['fingerprint_sha256'] = plan._fingerprint(unsigned)
+            missing_retention_result = plan.verify(missing_retention)
+            self.assertFalse(missing_retention_result['valid'])
+            self.assertTrue(any(
+                'duplicate retention boundary' in reason
+                for reason in missing_retention_result['recommendations'][0]['reasons']))
 
             duplicate.write_bytes(b'y' * 4096)
             stale = plan.verify(cleanup_plan)
@@ -1546,7 +1564,9 @@ class TestSanchay(unittest.TestCase):
         rendered = output.getvalue()
         self.assertEqual(status, 0)
         self.assertIn('protected unique -> documents/capstone-thesis.txt stayed out', rendered)
-        self.assertIn('duplicate proof   -> downloads/boss-image-copy.iso retained', rendered)
+        self.assertIn('duplicate proof   -> downloads/boss-image-copy.iso matched', rendered)
+        self.assertIn('retention boundary -> matching bytes do not identify the authoritative copy',
+                      rendered)
         self.assertIn('hardlink boundary -> 2 entries excluded', rendered)
         self.assertIn('fail-closed check -> a synthetic cache mutation invalidated the plan', rendered)
         self.assertIn('proof -> PASS; no file was deleted, moved, or transmitted', rendered)
@@ -1658,6 +1678,8 @@ class TestSanchay(unittest.TestCase):
         }
         label = report._evidence_label(row, root)
         self.assertIn('archive/source.iso', label)
+        self.assertIn('evidence peer', label)
+        self.assertIn('human selects retention', label)
         self.assertNotIn(str(root), label)
 
     def test_seeded_browser_demo_tracks_the_plan_safety_schema(self):
@@ -1678,6 +1700,7 @@ class TestSanchay(unittest.TestCase):
         self.assertIn('aria-pressed="true"', source_page)
         self.assertIn("setAttribute('aria-pressed', 'true')", source_page)
         self.assertIn('/home/user/archive/ubuntu-24.04-live.iso', source_page)
+        self.assertIn('operator_retention_confirmation_required: true', source_page)
         self.assertNotIn('/var/lib/iso/ubuntu-24.04-live.iso', source_page)
         self.assertIn('path-free operator brief', source_page)
         self.assertIn('Storage pressure triage', source_page)

@@ -16,7 +16,7 @@ import stat
 from . import dedup, managed, regret, scan, storage
 
 
-PLAN_SCHEMA_VERSION = 8
+PLAN_SCHEMA_VERSION = 9
 IDENTITY_FIELDS = (
     "device", "inode", "size", "allocated_size", "mtime", "mtime_ns", "nlink",
 )
@@ -24,9 +24,15 @@ IDENTITY_FIELDS = (
 
 ACTION = {
     "disposable": "review through the owning cache or build tool before any manual clear",
-    "duplicate": "retain the named survivor and review this byte-confirmed alternate copy",
+    "duplicate": "review this byte-confirmed peer after an operator confirms which copy to retain",
     "tracked": "confirm the project owner accepts removal; Git HEAD is a restoration route",
 }
+
+DUPLICATE_RETENTION_BOUNDARY = (
+    "The named evidence peer is a deterministic byte-matched reference used "
+    "to recheck this plan. SANCHAY does not infer which copy is authoritative, "
+    "whether it is a backup, or which copy an operator should retain."
+)
 
 DECISION_MODEL = {
     "name": "regret_aware_priority",
@@ -42,7 +48,7 @@ def _evidence(row, duplicate_of):
         return {
             "type": "byte_for_byte_match",
             "strength": "direct",
-            "detail": "byte-for-byte match with the named retained survivor at "
+            "detail": "byte-for-byte match with the named evidence peer at "
                       f"{duplicate_of[row['path']]}",
         }
     if row["kind"] == "tracked":
@@ -124,6 +130,15 @@ def _identity(info):
     }
 
 
+def _retention_boundary_valid(boundary):
+    """Require the duplicate-authority boundary in every current plan."""
+    return boundary == {
+        "source_of_truth_inferred": False,
+        "operator_retention_confirmation_required": True,
+        "detail": DUPLICATE_RETENTION_BOUNDARY,
+    }
+
+
 def _fingerprint_valid(document):
     claimed = document.get("fingerprint_sha256")
     unsigned = {key: value for key, value in document.items()
@@ -187,6 +202,11 @@ def build(files, duplicate_groups, root, now=None, limit=25,
             survivor_path = duplicate_of[row["path"]]
             item["survivor_path"] = survivor_path
             item["survivor_identity"] = _identity(by_path[survivor_path])
+            item["retention_boundary"] = {
+                "source_of_truth_inferred": False,
+                "operator_retention_confirmation_required": True,
+                "detail": DUPLICATE_RETENTION_BOUNDARY,
+            }
         recommendations.append(item)
 
     document = {
@@ -261,10 +281,10 @@ def write(document, out):
 
 
 def duplicate_evidence_paths(document):
-    """Return both sides of each byte-confirmed duplicate relationship.
+    """Return both sides of each byte-confirmed duplicate evidence relation.
 
-    A treemap should show the retained survivor as duplicate evidence too; only
-    the alternate copy is a review recommendation.
+    A treemap should show the named evidence peer too; only the other peer is a
+    review recommendation. The mapping does not infer source-of-truth status.
     """
     paths = set()
     for item in document.get("recommendations", []):
@@ -350,9 +370,9 @@ def _inside_root(path, root, role):
 def verify(document):
     """Recheck a review plan against the filesystem without changing it.
 
-    A valid result means the plan checksum and each retained recovery-evidence
-    check still match. It is a review gate, not an authorization to delete
-    anything.
+    A valid result means the plan checksum and each duplicate-peer
+    recovery-evidence check still match. It is a review gate, not an
+    authorization to delete anything.
     """
     result = {
         "valid": False,
@@ -390,6 +410,8 @@ def verify(document):
             if changed:
                 reasons.append(changed)
             if kind == "duplicate":
+                if not _retention_boundary_valid(item.get("retention_boundary")):
+                    reasons.append("duplicate retention boundary is missing or invalid")
                 survivor = item.get("survivor_path")
                 if not isinstance(survivor, str):
                     reasons.append("duplicate survivor is missing")

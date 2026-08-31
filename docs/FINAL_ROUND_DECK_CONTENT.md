@@ -50,14 +50,15 @@ action.
 Show the actual proof chain:
 
 same size → same 64 KB prefix → same full BLAKE2b-256 digest → byte-for-byte
-confirmation → named survivor → identity recheck
+confirmation → named evidence peer → identity recheck
 
 Three claims only:
 
 - hardlinks share a (device, inode) identity, count once in allocated-byte
   metrics, and are not reclaimable copies; sparse logical length is not
   presented as reclaimable allocation where Linux exposes block counts;
-- every duplicate recommendation names its retained survivor;
+- every duplicate recommendation names a deterministic evidence peer, but an
+  operator chooses which copy to retain;
 - `--verify-archive SOURCE RETAINED_COPY` rejects hardlink aliases, verifies
   matching bytes and a separate inode, then creates only recovery evidence—not
   a copy, move, or deletion; a same-filesystem result is never called a backup;
@@ -111,7 +112,7 @@ Footer: “A first scan is an inventory estimate; same-mount observed history is
 Use the deterministic SANCHAY fixture and terminal output:
 
 - a unique capstone-thesis.txt is absent from the plan;
-- a duplicate has a named survivor;
+- a duplicate has a named evidence peer, not an inferred source of truth;
 - a hardlink is excluded from reclaimable duplicates and does not inflate the
   disk total;
 - a process-held deleted file, when observed, is evidence for an operator to
