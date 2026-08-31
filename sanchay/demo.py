@@ -222,8 +222,8 @@ def main(argv=None):
         return 0
     fixture = create(args.root)
     print(f"fixture -> {fixture}")
-    print(f"scan    -> sanchay {fixture} --plan cleanup-plan.json --snapshot baseline.json")
-    print("verify  -> sanchay --verify-plan cleanup-plan.json")
+    print(f"scan    -> python -m sanchay.cli {fixture} --plan cleanup-plan.json --snapshot baseline.json")
+    print("verify  -> python -m sanchay.cli --verify-plan cleanup-plan.json")
     return 0
 
 

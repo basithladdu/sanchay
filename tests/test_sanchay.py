@@ -1812,6 +1812,17 @@ class TestSanchay(unittest.TestCase):
             with self.assertRaises(ValueError):
                 demo.create(root)
 
+    def test_demo_fixture_prints_source_module_commands(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp) / 'fixture'
+            output = io.StringIO()
+            with contextlib.redirect_stdout(output):
+                status = demo.main([str(root)])
+
+        self.assertEqual(status, 0)
+        self.assertIn('scan    -> python -m sanchay.cli ', output.getvalue())
+        self.assertIn('verify  -> python -m sanchay.cli --verify-plan', output.getvalue())
+
     def test_demo_rehearsal_proves_boundaries_and_fails_closed(self):
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp) / 'fixture'
