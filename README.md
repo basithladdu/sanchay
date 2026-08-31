@@ -68,6 +68,15 @@ itself.
 ### 2. Two-Stage Runway Measurement
 SANCHAY derives an initial storage-growth estimate from the **inode modification time distribution (`mtime`) on run #1**. It is directional, not a guaranteed exhaustion date. A later aggregate local snapshot measures actual net growth; with multiple snapshots, an explainable local linear trend reports bytes/day, and with three or more snapshots it also reports fit quality. Usage, snapshots, forecasts, and treemaps count each physical `(device, inode)` once, and use allocated blocks (`st_blocks × 512`) where the filesystem exposes them, so neither hardlink aliases nor sparse logical length inflate the result.
 
+### Capacity Boundary Across Mounts
+
+SANCHAY scans one filesystem by default. `--cross-filesystems` is an explicit
+multi-mount **inventory** mode: it may show candidates across mounted filesystems,
+but it deliberately refuses `--target-reclaim`, snapshots, comparisons, and
+history-based forecasts. A byte released on another mount does not create free
+space on the filesystem under pressure, so SANCHAY makes no combined capacity or
+runway claim.
+
 ### 3. Tiered Fast Content Hashing
 Deduplicating large files can saturate I/O. SANCHAY uses a 3-tier cascade:
 1. File size grouping (avoids hashing files whose sizes do not collide)
@@ -122,6 +131,9 @@ sanchay /home/user --plan cleanup-plan.json
 
 # 3. Ask for enough evidence-backed candidates to reclaim a stated amount
 sanchay /home/user --target-reclaim 5G --plan cleanup-plan.json
+
+# Cross mounted filesystems only for inventory; capacity plans stay per filesystem
+sanchay /srv --cross-filesystems --plan multi-mount-review.json
 
 # 4. Recheck that a plan is still valid before any human acts on it
 sanchay --verify-plan cleanup-plan.json

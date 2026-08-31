@@ -63,6 +63,12 @@ def main(argv=None):
     ap.add_argument("--tui", action="store_true", help="open the terminal UI")
     args = ap.parse_args(argv)
 
+    if args.cross_filesystems and any((
+            args.target_reclaim is not None, args.snapshot, args.compare,
+            args.history)):
+        ap.error("--cross-filesystems cannot share a reclaim target or capacity "
+                 "history across mounts; scan one filesystem per capacity plan")
+
     if args.verify_plan:
         try:
             result = plan.verify(plan.read(args.verify_plan))
@@ -83,6 +89,9 @@ def main(argv=None):
         ap.error("ROOT is required unless --verify-plan is used")
 
     if args.tui:
+        if args.cross_filesystems:
+            ap.error("--tui supports one filesystem; use the CLI for a "
+                     "cross-filesystem inventory")
         from . import tui
         return tui.run(args.root)
 
@@ -93,7 +102,16 @@ def main(argv=None):
     total = storage.physical_bytes(files)
     logical_total = storage.logical_bytes(files)
     aliases = storage.hardlink_alias_count(files)
-    print(f"{len(files):,} file entries, {human(total)} allocated storage")
+    devices = {getattr(info, "device", None)
+               for info in storage.physical_records(files)}
+    if args.cross_filesystems and devices:
+        count = len(devices)
+        storage_scope = f" across {count:,} filesystem{'s' if count != 1 else ''}"
+    elif args.cross_filesystems:
+        storage_scope = " from a cross-filesystem inventory"
+    else:
+        storage_scope = ""
+    print(f"{len(files):,} file entries, {human(total)} allocated storage{storage_scope}")
     if logical_total != total:
         print(f"{human(logical_total)} logical length; sparse allocation is not overstated")
     if aliases:
@@ -103,8 +121,9 @@ def main(argv=None):
     groups = dedup.duplicates(managed.content_candidates(files), root=args.root)
     print(f"duplicates: {len(groups)} groups, {human(dedup.reclaimable(groups))} potential allocated reclaim")
 
-    free = shutil.disk_usage(args.root).free
-    current_snapshot = snapshot.capture(files, args.root, free)
+    free = None if args.cross_filesystems else shutil.disk_usage(args.root).free
+    current_snapshot = (snapshot.capture(files, args.root, free)
+                        if free is not None else None)
     observed = None
     trend = None
     if args.compare:
@@ -113,7 +132,10 @@ def main(argv=None):
         history = [snapshot.read(path) for path in args.history]
         trend = snapshot.linear_trend(history + [current_snapshot])
 
-    if trend and trend["bytes_per_day"] > 0:
+    if args.cross_filesystems:
+        print("growth:     not calculated across multiple filesystems; scan one "
+              "filesystem for a capacity forecast")
+    elif trend and trend["bytes_per_day"] > 0:
         days = free / trend["bytes_per_day"]
         fit = (f", R² {trend['r_squared']:.2f}"
                if trend["r_squared"] is not None else "")
@@ -169,7 +191,8 @@ def main(argv=None):
     if args.report:
         from . import report
         print("report -> " + report.build(files, args.root, free, args.report,
-                                           target_reclaim_bytes=args.target_reclaim))
+                                           target_reclaim_bytes=args.target_reclaim,
+                                           cross_filesystems=args.cross_filesystems))
 
     if args.plan:
         print("plan -> " + plan.write(cleanup_plan, args.plan))

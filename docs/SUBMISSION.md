@@ -95,7 +95,10 @@ An operator can also state a reclaim target such as `--target-reclaim 5G`.
 SANCHAY first selects from the lowest recovery-risk class, then uses the
 smallest safe excess within that class to meet the request. If the
 recovery-evidence gate cannot meet the target, it reports the shortfall rather
-than expanding into protected files.
+than expanding into protected files. This target is intentionally scoped to one
+filesystem: explicit cross-filesystem traversal is inventory-only and rejects a
+combined target because releasing space on another mount does not relieve the
+filesystem under pressure.
 
 **4. Estimates storage runway.** Normally this needs weeks of snapshots. On a
 first run, SANCHAY derives an initial bytes-per-day estimate from the
@@ -107,6 +110,8 @@ After two or more time-separated aggregate snapshots, SANCHAY can also fit an
 explainable local linear trend. It reports the learned bytes-per-day slope; with
 three or more snapshots it also reports R-squared fit quality, giving the user
 a measurable forecast without uploading file names or contents.
+Cross-filesystem inventories do not produce a shared runway or aggregate
+snapshot, comparison, or history claim.
 
 **5. Writes a review-only plan.** Each eligible recommendation records its
 classification, observed device/inode/logical-size/allocated-size/mtime-nanoseconds/link-count identity, and typed recovery

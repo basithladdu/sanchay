@@ -147,13 +147,14 @@ class TestSanchay(unittest.TestCase):
         ]
         with tempfile.TemporaryDirectory() as tmp:
             output = Path(tmp) / 'report.html'
-            report.build(files, '/', 1000000, output)
+            report.build(files, '/', 1000000, output, cross_filesystems=True)
             page = output.read_text(encoding='utf-8')
 
         self.assertIn('System-managed storage', page)
         self.assertIn('APT archive cache', page)
         self.assertIn('Persistent systemd journal', page)
         self.assertIn('excluded from file-level reclamation', page)
+        self.assertIn('not calculated across multiple filesystems', page)
 
     def test_cli_labels_managed_storage_as_deferred_not_reclaimable(self):
         files = [
@@ -174,6 +175,43 @@ class TestSanchay(unittest.TestCase):
         self.assertIn('managed:', rendered)
         self.assertIn('APT archive cache', rendered)
         self.assertIn('never selected as file cleanup candidates', rendered)
+
+    def test_cross_filesystem_scan_avoids_a_single_mount_capacity_claim(self):
+        files = [
+            scan.FileInfo('/home/user/.cache/build.bin', 4000, self.now,
+                          self.now - 86400 * 90, 731, device=101),
+            scan.FileInfo('/mnt/data/only-copy.bin', 12000, self.now,
+                          self.now - 86400 * 90, 732, device=202),
+        ]
+        output = io.StringIO()
+        with mock.patch.object(scan, 'scan', return_value=files), \
+                mock.patch.object(shutil, 'disk_usage',
+                                  side_effect=AssertionError('must not use root free space')), \
+                contextlib.redirect_stdout(output):
+            status = cli.main(['/', '--cross-filesystems'])
+
+        self.assertIsNone(status)
+        self.assertIn('across 2 filesystems', output.getvalue())
+        self.assertIn('not calculated across multiple filesystems', output.getvalue())
+
+    def test_cross_filesystem_rejects_a_shared_reclaim_target(self):
+        with self.assertRaises(SystemExit), contextlib.redirect_stderr(io.StringIO()):
+            cli.main(['/', '--cross-filesystems', '--target-reclaim', '1G'])
+
+    def test_cross_filesystem_rejects_capacity_history_inputs(self):
+        inputs = (
+            ['--snapshot', 'baseline.json'],
+            ['--compare', 'baseline.json'],
+            ['--history', 'day-1.json', 'day-7.json'],
+        )
+        for extra in inputs:
+            with self.subTest(extra=extra), self.assertRaises(SystemExit), \
+                    contextlib.redirect_stderr(io.StringIO()):
+                cli.main(['/', '--cross-filesystems', *extra])
+
+    def test_cross_filesystem_tui_is_not_silently_downgraded(self):
+        with self.assertRaises(SystemExit), contextlib.redirect_stderr(io.StringIO()):
+            cli.main(['/', '--cross-filesystems', '--tui'])
 
     def test_reclaim_target_prefers_lowest_risk_with_minimal_safe_excess(self):
         with tempfile.TemporaryDirectory() as tmp:

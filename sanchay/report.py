@@ -127,7 +127,7 @@ def _evidence_label(row, root):
 
 
 def build(files, root, free_bytes, out="sanchay-report.html", limit=50,
-          target_reclaim_bytes=None):
+          target_reclaim_bytes=None, cross_filesystems=False):
     from . import viz
 
     groups = dedup.duplicates(managed.content_candidates(files), root=root)
@@ -141,7 +141,11 @@ def build(files, root, free_bytes, out="sanchay-report.html", limit=50,
     total = storage.physical_bytes(files)
     aliases = storage.hardlink_alias_count(files)
     reviewable = sum(r["size"] for r in rows)
-    days = forecast.days_until_full(files, free_bytes)
+    days = (None if cross_filesystems
+            else forecast.days_until_full(files, free_bytes))
+    runway_note = ("not calculated across multiple filesystems; scan one filesystem "
+                   "for a capacity forecast" if cross_filesystems
+                   else f"{human(forecast.rate(files))}/day from mtime; capture snapshots for observed growth")
     selection = cleanup_plan.get("selection")
     review_note = f"top {len(rows)} recommendations; human review required"
     if selection:
@@ -207,7 +211,7 @@ def build(files, root, free_bytes, out="sanchay-report.html", limit=50,
     {_card("Allocated on disk", human(total), f"{len(files):,} entries; {aliases:,} hardlink aliases not double-counted")}
     {_card("Duplicate candidates", human(dedup.reclaimable(groups)), f"{len(groups):,} content groups; allocated reclaim only", "#84cc16")}
     {_card("Reviewable candidates", human(reviewable), review_note, "#10b981")}
-    {_card("First-run runway estimate", forecast.runway_label(days), f"{human(forecast.rate(files))}/day from mtime; capture snapshots for observed growth", "#3b82f6")}
+    {_card("First-run runway estimate", forecast.runway_label(days), runway_note, "#3b82f6")}
   </div>
 
   <div class="panel">

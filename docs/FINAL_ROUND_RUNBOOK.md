@@ -97,6 +97,10 @@ auditable plan and revalidation gate so an operator retains authority.
 selects from the lowest recovery-risk class first, using the smallest safe
 excess within that class, and reports whether the target is met. If it cannot
 be met safely, it reports a shortfall rather than recommending protected files.
+That capacity claim is deliberately limited to one filesystem. Explicit
+cross-filesystem scans are inventory-only; they reject a shared reclaim target,
+snapshot comparison, and runway forecast because freeing another mount does not
+relieve the filesystem under pressure.
 
 **How do you prove a duplicate is eligible for review?** It uses size bucketing,
 prefix hashing, then a full BLAKE2b-256 digest and a byte-for-byte comparison;
@@ -113,7 +117,8 @@ invented exact full-disk date.
 
 **Why does this fit a sovereign secure OS?** The core is inspectable,
 dependency-light, local by default, and stays on one filesystem unless the
-operator explicitly opts into crossing that boundary. Common credential paths
+operator explicitly opts into a multi-mount inventory. That inventory does not
+make a shared capacity forecast or reclaim-target claim. Common credential paths
 are excluded before metadata collection or hashing, and no file content leaves
 the machine through the core workflow. On Debian-derived BOSS, SANCHAY reports
 APT archives and persistent journals as tool-owned operational storage; it

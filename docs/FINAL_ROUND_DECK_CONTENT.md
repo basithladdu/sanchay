@@ -90,7 +90,8 @@ Put the command in small monospace text only:
 ## Slide 7 — Fit for a secure, sovereign Linux workflow
 
 - Local core workflow; no file contents transmitted.
-- One filesystem by default; cross-filesystem traversal is explicit.
+- One filesystem by default. Explicit cross-filesystem traversal is inventory
+  only: SANCHAY refuses a shared reclaim target or capacity forecast across mounts.
 - On Debian-derived BOSS, APT archives and persistent journals are measured as
   tool-owned operational storage, never raw file-deletion candidates.
 - Dependency-free Python core; TUI, plots, and narrative are optional.
