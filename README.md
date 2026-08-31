@@ -286,9 +286,15 @@ sanchay /home/user --compare before.json
 # 7. Fit a mounted-filesystem trend once you have multiple earlier snapshots
 sanchay /home/user --history day-1.json day-7.json day-14.json
 
+# Or keep the complete local evidence series in one explicit directory. Each
+# invocation loads only checksum-matching SANCHAY records and appends a new write-once
+# timestamped aggregate snapshot; it never installs a scheduler or sends data.
+sanchay /home/user --snapshot-history ~/.local/state/sanchay/home
+
 # Optional: estimate local capacity-hit risk only from strong same-mount history.
 # The result is a probability under the local model, not a cleanup instruction.
 sanchay /home/user --history day-1.json day-2.json day-3.json day-4.json day-5.json day-6.json day-7.json --risk-horizon 30
+sanchay /home/user --snapshot-history ~/.local/state/sanchay/home --risk-horizon 30
 
 # 8. Generate an interactive Plotly HTML report (requires .[viz])
 sanchay /home/user --report report.html

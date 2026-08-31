@@ -187,6 +187,10 @@ rejects an unsealed or checksum-mismatched history artifact before a CLI
 comparison, trend, or risk estimate; the checksum detects a mismatch against
 stored content but is not a digital signature or device attestation. Snapshot
 writing refuses to replace an existing evidence artifact.
+For an operator-managed recurring evidence series, `--snapshot-history DIR`
+reads only SANCHAY's timestamped checksum-matching records and appends one new
+write-once aggregate record after a valid scan. It installs no scheduler and
+performs no network or cleanup action.
 On explicit `--risk-horizon DAYS`, SANCHAY can also frame the question as local
 capacity-hit probability within a named horizon. It uses a
 Brownian-motion-with-drift hitting-time estimate over aggregate mounted-use

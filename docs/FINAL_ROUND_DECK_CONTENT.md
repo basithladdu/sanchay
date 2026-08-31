@@ -79,6 +79,8 @@ Show two stages, not a fake exact date:
    SHA-256 checksum that detects a mismatch against its stored aggregate
    content; it is not a signature or device attestation. Snapshot writes refuse
    to replace an existing evidence artifact.
+   `--snapshot-history DIR` can keep this operator-chosen, local evidence
+   series without a scheduler, network call, or cleanup action.
 3. If `/proc` shows a deleted regular file still held open, identify its PID and
    allocated bytes as a separate advisory, never as a cleanup recommendation.
 4. Record the root mount context. Btrfs, overlay, and device-mapper sources

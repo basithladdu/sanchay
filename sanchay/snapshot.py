@@ -11,6 +11,7 @@ import hmac
 import json
 import math
 from pathlib import Path
+import re
 import time
 
 from . import scan, storage
@@ -33,6 +34,7 @@ MIN_RISK_SPAN_SECONDS = 7 * 24 * 60 * 60
 MIN_RISK_INTERVAL_SECONDS = 12 * 60 * 60
 CAPACITY_RISK_MODEL = "brownian_motion_with_drift_hitting_risk"
 _LOG_SQRT_2PI = 0.5 * math.log(2 * math.pi)
+_HISTORY_FILENAME = re.compile(r"sanchay-snapshot-\d{8}T\d{12}Z\.json")
 
 
 class SnapshotIntegrityError(ValueError):
@@ -191,6 +193,57 @@ def write(snapshot, out):
     with path.open("x", encoding="utf-8") as artifact:
         artifact.write(json.dumps(snapshot, indent=2) + "\n")
     return str(path)
+
+
+def history_paths(directory):
+    """Return immutable snapshot artifacts in one explicit local directory.
+
+    Only SANCHAY's timestamped filename convention participates. A matching
+    symlink is rejected instead of silently following an indirect history
+    source; unrelated operator files are not treated as history records.
+    """
+    root = Path(directory)
+    if not root.exists():
+        return ()
+    if not root.is_dir():
+        raise ValueError("Snapshot history path is not a directory")
+    paths = tuple(sorted(
+        path for path in root.iterdir()
+        if _HISTORY_FILENAME.fullmatch(path.name)
+    ))
+    if any(path.is_symlink() for path in paths):
+        raise ValueError("Snapshot history does not accept symbolic-link artifacts")
+    if any(not path.is_file() for path in paths):
+        raise ValueError("Snapshot history does not accept non-file artifacts")
+    return paths
+
+
+def read_history(directory):
+    """Read every eligible, checksum-matching snapshot from a local history dir."""
+    return [read(path) for path in history_paths(directory)]
+
+
+def write_history(snapshot, directory):
+    """Append a write-once timestamped aggregate snapshot to an explicit dir."""
+    if (not isinstance(snapshot, dict)
+            or snapshot.get("schema_version") != SNAPSHOT_SCHEMA_VERSION
+            or not fingerprint_valid(snapshot)):
+        raise SnapshotIntegrityError(
+            "refusing to append a snapshot whose integrity checksum does not match")
+    captured_at = snapshot.get("captured_at")
+    if (isinstance(captured_at, bool) or not isinstance(captured_at, (int, float))
+            or not math.isfinite(captured_at)):
+        raise ValueError("Snapshot capture time is invalid")
+    try:
+        captured = datetime.fromtimestamp(captured_at, tz=timezone.utc)
+    except (OverflowError, OSError, ValueError) as exc:
+        raise ValueError("Snapshot capture time is invalid") from exc
+    root = Path(directory)
+    root.mkdir(parents=True, exist_ok=True)
+    if not root.is_dir():
+        raise ValueError("Snapshot history path is not a directory")
+    filename = "sanchay-snapshot-" + captured.strftime("%Y%m%dT%H%M%S%fZ.json")
+    return write(snapshot, root / filename)
 
 
 def read(path):

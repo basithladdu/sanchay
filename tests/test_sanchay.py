@@ -1471,6 +1471,66 @@ class TestSanchay(unittest.TestCase):
         self.assertIn('snapshot: not written;', output.getvalue())
         self.assertIn('File exists', output.getvalue())
 
+    def test_snapshot_history_reads_verified_records_and_appends_current_capture(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = demo.create(Path(tmp) / 'fixture')
+            history_dir = Path(tmp) / 'history'
+            files = scan.scan(root)
+            usage = shutil.disk_usage(root)
+            stable_usage = SimpleNamespace(
+                total=usage.total,
+                used=10_000_000,
+                free=usage.total - 10_000_000,
+            )
+            previous = snapshot.capture(
+                files, root,
+                filesystem_total_bytes=stable_usage.total,
+                filesystem_used_bytes=stable_usage.used - 1024,
+                filesystem_free_bytes=stable_usage.free + 1024,
+                filesystem_device=os.stat(root).st_dev,
+                now=time.time() - 86400)
+            first_path = snapshot.write_history(previous, history_dir)
+
+            output = io.StringIO()
+            with mock.patch.object(shutil, 'disk_usage', return_value=stable_usage), \
+                    contextlib.redirect_stdout(output):
+                status = cli.main([str(root), '--snapshot-history', str(history_dir),
+                                   '--limit', '1'])
+            stored = snapshot.history_paths(history_dir)
+            records = snapshot.read_history(history_dir)
+
+        self.assertIsNone(status)
+        self.assertIn('mounted-filesystem trend from 2 snapshots', output.getvalue())
+        self.assertIn('snapshot history -> ', output.getvalue())
+        self.assertEqual(len(stored), 2)
+        self.assertIn(Path(first_path), stored)
+        self.assertTrue(all(snapshot.fingerprint_valid(record) for record in records))
+
+    def test_snapshot_history_withholds_append_when_existing_record_is_tampered(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = demo.create(Path(tmp) / 'fixture')
+            history_dir = Path(tmp) / 'history'
+            initial = self._capture_snapshot(self.files, root, used=1000000,
+                                             free=1000000, now=100)
+            history_path = Path(snapshot.write_history(initial, history_dir))
+            changed = json.loads(history_path.read_text(encoding='utf-8'))
+            changed['filesystem_used_bytes'] += 1
+            history_path.write_text(json.dumps(changed), encoding='utf-8')
+
+            output = io.StringIO()
+            with contextlib.redirect_stdout(output):
+                status = cli.main([str(root), '--snapshot-history', str(history_dir),
+                                   '--limit', '1'])
+            stored = snapshot.history_paths(history_dir)
+
+        self.assertEqual(status, 2)
+        rendered = output.getvalue()
+        self.assertIn('growth:     not calculated; snapshot integrity checksum does not match',
+                      rendered)
+        self.assertIn('snapshot history: not written; existing history is unavailable',
+                      rendered)
+        self.assertEqual(len(stored), 1)
+
     def test_cleanup_plan_verification_rechecks_manifest_and_duplicate(self):
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
@@ -2014,6 +2074,45 @@ class TestSanchay(unittest.TestCase):
             'model'], snapshot.CAPACITY_RISK_MODEL)
         self.assertTrue(operator_brief['operational_advisories']['capacity_risk'][
             'assessed'])
+
+    def test_cli_snapshot_history_reports_local_risk_and_appends_current_capture(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = demo.create(Path(tmp) / 'fixture')
+            history_dir = Path(tmp) / 'history'
+            files = scan.scan(root)
+            total = 35_000_000
+            used_values = (20_000_000, 21_100_000, 22_000_000,
+                           23_300_000, 24_100_000, 25_400_000,
+                           26_500_000)
+            base = time.time()
+            for days_ago, used in zip((7, 6, 5, 4, 3, 2), used_values[:-1]):
+                record = snapshot.capture(
+                    files, root,
+                    filesystem_total_bytes=total,
+                    filesystem_used_bytes=used,
+                    filesystem_free_bytes=total - used,
+                    filesystem_device=os.stat(root).st_dev,
+                    now=base - days_ago * 86400)
+                snapshot.write_history(record, history_dir)
+            current_usage = SimpleNamespace(
+                total=total,
+                used=used_values[-1],
+                free=total - used_values[-1],
+            )
+            output = io.StringIO()
+            with mock.patch.object(shutil, 'disk_usage', return_value=current_usage), \
+                    contextlib.redirect_stdout(output):
+                status = cli.main([
+                    str(root), '--snapshot-history', str(history_dir),
+                    '--risk-horizon', '7', '--limit', '1'])
+            records = snapshot.read_history(history_dir)
+
+        self.assertIsNone(status)
+        rendered = output.getvalue()
+        self.assertIn('capacity risk:', rendered)
+        self.assertIn('within 7 days from 7 local snapshots', rendered)
+        self.assertIn('snapshot history -> ', rendered)
+        self.assertEqual(len(records), 7)
 
     def test_cli_history_projects_only_after_a_fit_checked_third_capture(self):
         with tempfile.TemporaryDirectory() as tmp:

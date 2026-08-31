@@ -238,6 +238,10 @@ comparison. That checksum is not a signature or device attestation. Legacy
 inventory-only or unsealed snapshots are rejected and must be recaptured.
 Snapshot writing also refuses to replace an existing evidence file; choose a
 new timestamped output name for each capture.
+For an operator-managed recurring record, `--snapshot-history DIR` reads only
+SANCHAY's timestamped checksum-matching history artifacts and appends one new
+write-once aggregate record. It installs no scheduler and makes no network or
+cleanup action.
 
 **What happens if the filesystem was resized?** SANCHAY still shows its
 observed mounted-use rate, but withholds a `full in` runway date and withholds

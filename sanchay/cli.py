@@ -71,6 +71,8 @@ def _invocation_artifact_paths(args):
              args.operator_brief]
     if args.history:
         paths.extend(args.history)
+    if args.snapshot_history:
+        paths.extend(snapshot.history_paths(args.snapshot_history))
     return frozenset(
         os.path.normcase(os.path.realpath(os.path.abspath(path)))
         for path in paths if path)
@@ -99,6 +101,8 @@ def main(argv=None):
                     help="compare a complete mount-root readable inventory with filesystem used space; never remediates a gap")
     ap.add_argument("--snapshot", metavar="OUT.json",
                     help="save local mount usage plus inventory aggregates for a later observed-growth comparison")
+    ap.add_argument("--snapshot-history", metavar="DIR",
+                    help="append a timestamped local aggregate snapshot and use prior checksum-matching records in DIR")
     ap.add_argument("--verify-snapshot", metavar="SNAPSHOT.json",
                     help="verify a stored aggregate snapshot checksum; never scans or changes the endpoint")
     forecast_group = ap.add_mutually_exclusive_group()
@@ -107,7 +111,7 @@ def main(argv=None):
     forecast_group.add_argument("--history", metavar="SNAPSHOT.json", nargs="+",
                                 help="fit a mounted-filesystem linear trend to prior snapshots and this scan")
     ap.add_argument("--risk-horizon", metavar="DAYS", type=parse_risk_horizon_days,
-                    help="with --history, estimate local capacity-hit risk within DAYS; never changes storage")
+                    help="with --history or --snapshot-history, estimate local capacity-hit risk within DAYS; never changes storage")
     ap.add_argument("--verify-plan", metavar="PLAN.json",
                     help="recheck a review-only plan; never deletes or moves files")
     ap.add_argument("--verify-archive", metavar=("SOURCE", "RETAINED_COPY"),
@@ -120,8 +124,17 @@ def main(argv=None):
 
     if args.cloud_narrative and not args.explain:
         ap.error("--cloud-narrative requires --explain")
-    if args.risk_horizon is not None and not args.history:
-        ap.error("--risk-horizon requires --history")
+    if args.snapshot and args.snapshot_history:
+        ap.error("use either --snapshot OUT.json or --snapshot-history DIR, not both")
+    if args.snapshot_history and (args.compare or args.history):
+        ap.error("--snapshot-history cannot combine with --compare or --history")
+    if args.risk_horizon is not None and not (args.history or args.snapshot_history):
+        ap.error("--risk-horizon requires --history or --snapshot-history")
+    if args.snapshot_history:
+        try:
+            snapshot.history_paths(args.snapshot_history)
+        except (OSError, ValueError) as exc:
+            ap.error("--snapshot-history is unavailable: " + str(exc))
 
     if args.verify_plan and args.verify_archive:
         ap.error("use either --verify-plan or --verify-archive, not both")
@@ -134,9 +147,12 @@ def main(argv=None):
         ap.error("--capacity-audit requires a scan root, not --verify-plan")
     if args.verify_plan and args.operator_brief:
         ap.error("--operator-brief requires a scan root, not --verify-plan")
+    if args.verify_plan and args.snapshot_history:
+        ap.error("--snapshot-history requires a scan root, not --verify-plan")
 
     if args.cross_filesystems and any((
-            args.target_reclaim is not None, args.snapshot, args.compare,
+            args.target_reclaim is not None, args.snapshot, args.snapshot_history,
+            args.compare,
             args.history, args.risk_horizon is not None, args.capacity_audit)):
         ap.error("--cross-filesystems cannot use a capacity audit, shared reclaim "
                  "target, or capacity history across mounts; scan one filesystem per capacity plan")
@@ -170,7 +186,8 @@ def main(argv=None):
     if args.verify_operator_brief:
         if any((args.root, args.cross_filesystems, args.explain, args.viz,
                 args.report, args.operator_brief, args.plan,
-                args.target_reclaim is not None, args.snapshot, args.compare,
+                args.target_reclaim is not None, args.snapshot, args.snapshot_history,
+                args.compare,
                 args.history, args.risk_horizon is not None, args.capacity_audit,
                 args.tui)):
             ap.error("--verify-operator-brief is a standalone read-only check")
@@ -188,7 +205,8 @@ def main(argv=None):
     if args.verify_snapshot:
         if any((args.root, args.cross_filesystems, args.explain, args.viz,
                 args.report, args.operator_brief, args.plan,
-                args.target_reclaim is not None, args.snapshot, args.compare,
+                args.target_reclaim is not None, args.snapshot, args.snapshot_history,
+                args.compare,
                 args.history, args.risk_horizon is not None, args.capacity_audit,
                 args.tui)):
             ap.error("--verify-snapshot is a standalone read-only check")
@@ -214,6 +232,7 @@ def main(argv=None):
         if any((args.root, args.cross_filesystems, args.explain, args.viz,
                 args.report, args.plan, args.target_reclaim is not None,
                 args.snapshot, args.compare, args.history, args.capacity_audit,
+                args.snapshot_history,
                 args.operator_brief,
                 args.verify_operator_brief,
                 args.risk_horizon is not None,
@@ -386,11 +405,12 @@ def main(argv=None):
             print("  boundary: " + block_availability["boundary"])
         else:
             print("block availability: not assessed; " + block_availability["reason"])
-    needs_snapshot = bool(args.snapshot or args.compare or args.history
+    needs_snapshot = bool(args.snapshot or args.snapshot_history or args.compare or args.history
                           or args.risk_horizon is not None)
     current_snapshot = None
     snapshot_error = None
     snapshot_write_error = None
+    snapshot_history_write_error = None
     if needs_snapshot and usage is not None and scan_coverage["complete"]:
         try:
             current_snapshot = snapshot.capture(
@@ -413,9 +433,11 @@ def main(argv=None):
                 snapshot.read(args.compare), current_snapshot)
         except (OSError, ValueError) as exc:
             growth_error = str(exc)
-    elif args.history and current_snapshot is not None:
+    elif (args.history or args.snapshot_history) and current_snapshot is not None:
         try:
-            history = [snapshot.read(path) for path in args.history]
+            history = (snapshot.read_history(args.snapshot_history)
+                       if args.snapshot_history
+                       else [snapshot.read(path) for path in args.history])
             historical_snapshots = history + [current_snapshot]
             trend = snapshot.linear_trend(historical_snapshots)
             if args.risk_horizon is not None:
@@ -568,6 +590,24 @@ def main(argv=None):
             else:
                 print("snapshot -> " + written_snapshot)
 
+    if args.snapshot_history:
+        if current_snapshot is None:
+            reason = ("complete scan coverage is required" if not scan_coverage["complete"]
+                      else snapshot_error or "mounted filesystem usage is unavailable")
+            print("snapshot history: not written; " + reason)
+        elif growth_error:
+            print("snapshot history: not written; existing history is unavailable ("
+                  + growth_error + ")")
+        else:
+            try:
+                written_history = snapshot.write_history(
+                    current_snapshot, args.snapshot_history)
+            except (OSError, ValueError) as exc:
+                snapshot_history_write_error = str(exc)
+                print("snapshot history: not written; " + snapshot_history_write_error)
+            else:
+                print("snapshot history -> " + written_history)
+
     if args.viz:
         try:
             from . import viz
@@ -584,9 +624,10 @@ def main(argv=None):
         print("\n" + explain.explain(rows, allow_cloud=args.cloud_narrative))
 
     if (not scan_coverage["complete"]
-            and (args.snapshot or args.compare or args.history)):
+            and (args.snapshot or args.snapshot_history or args.compare or args.history)):
         return 2
-    if snapshot_error or snapshot_write_error or growth_error:
+    if (snapshot_error or snapshot_write_error or snapshot_history_write_error
+            or growth_error):
         return 2
 
 
