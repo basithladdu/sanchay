@@ -122,6 +122,12 @@ cleanup recommendation: SANCHAY never kills, restarts, truncates, or deletes a
 process-held file. Snapshots, reserved blocks, and other filesystem-specific
 causes remain separate diagnostic questions.
 
+**Why does SANCHAY show mount context?** C-DAC describes Secure BOSS as
+LVM-encrypted, so filesystem-free bytes alone do not establish volume-group or
+thin-pool headroom. SANCHAY reads Linux mount metadata and marks Btrfs,
+container-overlay, and device-mapper boundaries as read-only advisory evidence.
+It does not run `lvs`, resize a volume, balance Btrfs, or delete a snapshot.
+
 **How do you prove a duplicate is eligible for review?** It uses size bucketing,
 prefix hashing, then a full BLAKE2b-256 digest and a byte-for-byte comparison;
 the plan names the survivor and verification rechecks both identities and

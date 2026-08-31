@@ -13,8 +13,8 @@ import shutil
 from types import SimpleNamespace
 from pathlib import Path
 
-from sanchay import (cli, dedup, demo, explain, forecast, managed, plan,
-                     processes, regret, report, scan, snapshot, storage)
+from sanchay import (cli, dedup, demo, explain, forecast, managed, mounts,
+                     plan, processes, regret, report, scan, snapshot, storage)
 
 
 class TestSanchay(unittest.TestCase):
@@ -175,7 +175,15 @@ class TestSanchay(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmp:
             output = Path(tmp) / 'report.html'
             report.build(files, '/', 1000000, output, cross_filesystems=True,
-                         process_held=[held])
+                         process_held=[held], filesystem_context={
+                             'filesystem': 'btrfs',
+                             'mount_point': '/',
+                             'source_class': 'block_device',
+                             'capacity_scope': 'free-space and reclaim claims are scoped to this mounted filesystem',
+                             'label': 'Btrfs capacity boundary',
+                             'advisory': 'Btrfs snapshots can retain shared extents.',
+                             'review_action': 'Review Btrfs usage without changing state.',
+                         })
             page = output.read_text(encoding='utf-8')
 
         self.assertIn('System-managed storage', page)
@@ -193,6 +201,8 @@ class TestSanchay(unittest.TestCase):
         self.assertIn('PID 1234 (logger), fd 8', page)
         self.assertIn('/var/log/service.log (deleted)', page)
         self.assertIn('never signals, restarts, truncates, or deletes', page)
+        self.assertIn('Btrfs capacity boundary', page)
+        self.assertIn('Btrfs snapshots can retain shared extents.', page)
 
     def test_cli_labels_managed_storage_as_deferred_not_reclaimable(self):
         files = [
@@ -241,6 +251,72 @@ class TestSanchay(unittest.TestCase):
         self.assertIn('not in file cleanup plan', rendered)
         self.assertIn('pid 4321 (service) fd 9', rendered)
         self.assertIn('never signals, restarts, truncates, or deletes', rendered)
+
+    def test_mount_context_selects_the_most_specific_procfs_mount(self):
+        mountinfo = (
+            '36 35 8:1 / / rw,relatime - ext4 /dev/sda1 rw\n'
+            '37 36 8:2 / /srv\\040archive rw,relatime - btrfs /dev/sdb1 rw\n'
+        )
+        with tempfile.TemporaryDirectory() as tmp:
+            source = Path(tmp) / 'mountinfo'
+            source.write_text(mountinfo, encoding='utf-8')
+            context = mounts.capacity_context('/srv archive/project', source)
+
+        self.assertEqual('btrfs', context['filesystem'])
+        self.assertEqual('/srv archive', context['mount_point'])
+        self.assertEqual('block_device', context['source_class'])
+        self.assertEqual('Btrfs capacity boundary', context['label'])
+        self.assertIn('SANCHAY does not run a balance', context['review_action'])
+
+    def test_mount_context_marks_overlay_and_device_mapper_boundaries(self):
+        mountinfo = (
+            '36 35 0:99 / / rw,relatime - overlay overlay rw\n'
+            '37 36 253:0 / /secure rw,relatime - ext4 /dev/mapper/boss-root rw\n'
+        )
+        with tempfile.TemporaryDirectory() as tmp:
+            source = Path(tmp) / 'mountinfo'
+            source.write_text(mountinfo, encoding='utf-8')
+            overlay = mounts.capacity_context('/workspace', source)
+            mapper = mounts.capacity_context('/secure/data', source)
+
+        self.assertEqual('Overlay filesystem boundary', overlay['label'])
+        self.assertEqual('overlay_layer', overlay['source_class'])
+        self.assertIn('host-wide capacity measurement', overlay['advisory'])
+        self.assertEqual('Device-mapper capacity boundary', mapper['label'])
+        self.assertEqual('device_mapper', mapper['source_class'])
+        self.assertIn('does not run LVM commands', mapper['review_action'])
+
+    def test_cli_reports_a_mount_capacity_boundary_without_an_action(self):
+        files = [
+            scan.FileInfo('/home/user/.cache/build.bin', 4000, self.now,
+                          self.now - 86400 * 90, 724, device=44),
+        ]
+        context = {
+            'filesystem': 'overlay',
+            'mount_point': '/',
+            'source_class': 'overlay_layer',
+            'capacity_scope': 'free-space and reclaim claims are scoped to this mounted filesystem',
+            'label': 'Overlay filesystem boundary',
+            'advisory': 'An overlay layer is not a host-wide capacity measurement.',
+            'review_action': 'Confirm the backing filesystem; no host-wide claim.',
+        }
+        output = io.StringIO()
+        with tempfile.TemporaryDirectory() as tmp:
+            plan_path = Path(tmp) / 'cleanup-plan.json'
+            with mock.patch.object(scan, 'scan', return_value=files), \
+                    mock.patch.object(mounts, 'capacity_context', return_value=context), \
+                    mock.patch.object(shutil, 'disk_usage',
+                                      return_value=SimpleNamespace(free=1000000)), \
+                    contextlib.redirect_stdout(output):
+                status = cli.main(['/', '--plan', str(plan_path)])
+            document = plan.read(plan_path)
+
+        rendered = output.getvalue()
+        self.assertIsNone(status)
+        self.assertIn('filesystem: overlay at / (overlay_layer)', rendered)
+        self.assertIn('not a host-wide capacity measurement', rendered)
+        self.assertIn('Confirm the backing filesystem', rendered)
+        self.assertEqual(document['safety']['filesystem_context'], context)
 
     def test_local_narrative_never_uses_a_configured_cloud_model(self):
         rows = [{
@@ -459,7 +535,7 @@ class TestSanchay(unittest.TestCase):
             self.assertIn(str(duplicate_a), item['recovery_evidence']['detail'])
             self.assertEqual(item['observed_identity']['size'], 4096)
             self.assertEqual(item['observed_identity']['allocated_size'], 4096)
-            self.assertEqual(cleanup_plan['schema_version'], 5)
+            self.assertEqual(cleanup_plan['schema_version'], 6)
             self.assertIn('mtime_ns', item['observed_identity'])
             self.assertEqual(item['decision_trace']['name'], 'regret_aware_priority')
             self.assertEqual(item['decision_trace']['inputs']['reclaimable_allocated_bytes'], 4096)

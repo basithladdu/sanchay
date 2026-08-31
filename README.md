@@ -127,6 +127,18 @@ signal, restart, truncate, or delete anything held by a process.
 
 ---
 
+### 8. Mount-Aware Capacity Boundaries
+
+Secure BOSS is deployed on an LVM-encrypted disk, while Linux installations
+may also use Btrfs snapshots or container overlay layers. SANCHAY reads the
+selected root's visible `/proc/self/mountinfo` record and records the filesystem
+context in its plan. Btrfs, overlay, and device-mapper mounts receive a
+read-only caveat explaining why a directory scan is not proof of host-wide,
+thin-pool, or snapshot-aware free space. It never runs LVM/Btrfs commands,
+resizes a volume, balances a filesystem, or deletes a snapshot.
+
+---
+
 ## 🖥️ Terminal & Web Visualizations
 
 ### Rich Terminal Dashboard (`sanchay-ui`)

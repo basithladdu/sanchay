@@ -16,6 +16,11 @@ endorses SANCHAY or defines the hackathon scoring rubric.
   security logging, monitoring, and alerts. This supports a conservative local
   credential boundary, but is not a claim of C-DAC endorsement or integration.
   Source: [C-DAC Secure BOSS Linux](https://www.cdac.in/index.aspx?id=product_details&productId=SecureBOSSLinux).
+- C-DAC further states that Secure BOSS is installed on an LVM-encrypted hard
+  disk. This makes it important not to confuse filesystem-free bytes with
+  logical-volume or thin-pool headroom. SANCHAY records the visible mount
+  boundary but does not infer encryption or manage volumes. Source: [C-DAC
+  Secure BOSS Linux](https://www.cdac.in/index.aspx?id=product_details&productId=SecureBOSSLinux).
 - A 2026 C-DAC Secure OS tender calls out secure local and distributed storage,
   fault tolerance, redundancy, disaster recovery, observability, accessibility,
   and AI-based performance optimisation. It is useful product context, not a
@@ -65,6 +70,21 @@ endorses SANCHAY or defines the hackathon scoring rubric.
   process-held-deleted-storage advisory rather than pretending a directory scan
   explains every allocated block. Source: [The Open Group `unlink()`
   specification](https://pubs.opengroup.org/onlinepubs/000095399/functions/unlink.html).
+- Linux documents `/proc/<pid>/mountinfo` fields for a mount's device, root,
+  mount point, filesystem type, and source. SANCHAY reads those fields locally
+  to scope a capacity claim to the selected mount. Source: [Linux kernel procfs
+  documentation](https://docs.kernel.org/filesystems/proc.html#proc-pid-mountinfo-information-about-mounts).
+- Btrfs documents that ordinary `df` can disagree with its detailed free-space
+  accounting and that snapshots share extents. Its `filesystem usage` command
+  exposes data, metadata, reserve, and estimated-free context. SANCHAY reports
+  the boundary and never runs that command, balances a filesystem, or deletes a
+  snapshot. Sources: [Btrfs filesystem usage](https://btrfs.readthedocs.io/en/stable/btrfs-filesystem.html)
+  and [Btrfs filesystem concepts](https://btrfs.readthedocs.io/en/latest/btrfs-man5.html).
+- Red Hat documents that LVM thin provisioning allocates a thin-pool's storage
+  as applications write and can create logical volumes larger than currently
+  available extents. SANCHAY therefore does not infer thin-pool headroom from a
+  mounted filesystem's free-space value. Source: [Red Hat LVM thin
+  provisioning](https://docs.redhat.com/en/documentation/red_hat_enterprise_linux/6/html/logical_volume_manager_administration/thinly_provisioned_volume_creation).
 
 ### AI security boundary
 
@@ -106,6 +126,7 @@ endorses SANCHAY or defines the hackathon scoring rubric.
 | Make BOSS storage operations safer | Measure APT archive and persistent systemd-journal storage separately; defer action to the owning tool and approved package/log-retention policy instead of raw file deletion or reclaim-target selection. | Implemented |
 | Protect managed application stores | When present, report Docker, containerd, and Flatpak system stores as tool-owned advisories; do not hash, rank, or raw-delete their files. | Implemented |
 | Explain process-held deleted storage | On Linux, report visible deleted regular files held through `/proc` only as an operational advisory; never signal, restart, truncate, delete, or include them in a reclaim target. | Implemented |
+| Keep capacity claims mount-aware | Record the selected Linux mount context. Label Btrfs, overlay, and device-mapper boundaries instead of inferring host-wide, snapshot-aware, or volume-pool capacity; run no filesystem or LVM command. | Implemented |
 | Contain the optional LLM | Keep narration local by default. Require a separate cloud opt-in and send only opaque candidate IDs with fixed class/size/age metadata; deterministic code retains all decision and action boundaries. | Implemented |
 | Avoid crossing a governance boundary silently | Scan one filesystem by default; cross-filesystem traversal requires an explicit flag and is inventory-only across mounts. | Implemented |
 | Keep forecasting honest | Label the first pass an mtime-derived estimate; capture aggregate local snapshots for observed growth and an explainable local linear trend. Cross-mount scans refuse shared targets and capacity forecasts. | Implemented |

@@ -13,7 +13,7 @@ from textual.app import App, ComposeResult
 from textual.containers import Horizontal
 from textual.widgets import DataTable, Footer, Header, Static
 
-from . import dedup, forecast, managed, plan, processes, scan, storage
+from . import dedup, forecast, managed, mounts, plan, processes, scan, storage
 
 KIND_STYLE = {
     "disposable": "bold green",
@@ -109,7 +109,9 @@ class Sanchay(App):
     def scan_disk(self):
         files = scan.scan(self.root)
         groups = dedup.duplicates(managed.content_candidates(files), root=self.root)
-        cleanup_plan = plan.build(files, groups, self.root, limit=500)
+        filesystem_context = mounts.capacity_context(self.root)
+        cleanup_plan = plan.build(files, groups, self.root, limit=500,
+                                  filesystem_context=filesystem_context)
         rows = cleanup_plan["recommendations"]
         protected = cleanup_plan["safety"]["protected_unique_files"]
         hardlinks = cleanup_plan["safety"]["excluded_hardlink_entries"]
@@ -119,10 +121,10 @@ class Sanchay(App):
         held_deleted = processes.deleted_open_files(
             {device for device in devices if device is not None})
         self.call_from_thread(self.show, files, groups, rows, protected, hardlinks,
-                              managed_storage, held_deleted)
+                              managed_storage, held_deleted, filesystem_context)
 
     def show(self, files, groups, rows, protected, hardlinks, managed_storage,
-             held_deleted):
+             held_deleted, filesystem_context):
         self.all_rows = rows
         self.rows = list(rows)
         stats = self.query(Stat)
@@ -154,6 +156,10 @@ class Sanchay(App):
         if held_deleted:
             guard.append(
                 f" {len(held_deleted):,} deleted inode(s) ({human(processes.allocated_total(held_deleted))}) are held open by process descriptors and excluded from the plan.",
+                style="dim")
+        if filesystem_context and filesystem_context.get("advisory"):
+            guard.append(
+                f" {filesystem_context['label']}: {filesystem_context['advisory']}",
                 style="dim")
         self.query_one("#guard", Static).update(guard)
         self.fill()

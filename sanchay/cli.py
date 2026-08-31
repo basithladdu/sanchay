@@ -4,8 +4,8 @@ import os
 import re
 import shutil
 
-from . import (dedup, explain, forecast, managed, plan, processes, regret, scan,
-               snapshot, storage)
+from . import (dedup, explain, forecast, managed, mounts, plan, processes,
+               regret, scan, snapshot, storage)
 
 
 def human(n):
@@ -110,6 +110,7 @@ def main(argv=None):
     total = storage.physical_bytes(files)
     logical_total = storage.logical_bytes(files)
     aliases = storage.hardlink_alias_count(files)
+    filesystem_context = mounts.capacity_context(args.root)
     devices = {getattr(info, "device", None)
                for info in storage.physical_records(files)}
     if args.cross_filesystems and devices:
@@ -124,6 +125,13 @@ def main(argv=None):
         print(f"{human(logical_total)} logical length; sparse allocation is not overstated")
     if aliases:
         print(f"{aliases:,} hardlink aliases are not double-counted")
+    if filesystem_context:
+        print(f"filesystem: {filesystem_context['filesystem']} at "
+              f"{filesystem_context['mount_point']} "
+              f"({filesystem_context['source_class']})")
+        if filesystem_context.get("advisory"):
+            print(f"capacity: {filesystem_context['advisory']}")
+            print(f"  review: {filesystem_context['review_action']}")
     print()
 
     groups = dedup.duplicates(managed.content_candidates(files), root=args.root)
@@ -186,7 +194,8 @@ def main(argv=None):
 
     cleanup_plan = plan.build(files, groups, args.root, limit=args.limit,
                               target_reclaim_bytes=args.target_reclaim,
-                              cross_filesystems=args.cross_filesystems)
+                              cross_filesystems=args.cross_filesystems,
+                              filesystem_context=filesystem_context)
     rows = cleanup_plan["recommendations"]
     excluded = cleanup_plan["safety"]["protected_unique_files"]
     print(f"candidates: {len(rows)} shown, {cleanup_plan['safety']['candidate_count']:,} eligible, "
@@ -221,7 +230,8 @@ def main(argv=None):
         print("report -> " + report.build(files, args.root, free, args.report,
                                            target_reclaim_bytes=args.target_reclaim,
                                            cross_filesystems=args.cross_filesystems,
-                                           process_held=held_deleted))
+                                           process_held=held_deleted,
+                                           filesystem_context=filesystem_context))
 
     if args.plan:
         print("plan -> " + plan.write(cleanup_plan, args.plan))

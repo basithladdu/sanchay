@@ -138,13 +138,15 @@ def _holder_summary(record):
 
 
 def build(files, root, free_bytes, out="sanchay-report.html", limit=50,
-          target_reclaim_bytes=None, cross_filesystems=False, process_held=None):
+          target_reclaim_bytes=None, cross_filesystems=False, process_held=None,
+          filesystem_context=None):
     from . import viz
 
     groups = dedup.duplicates(managed.content_candidates(files), root=root)
     cleanup_plan = plan.build(files, groups, root, limit=limit,
                               target_reclaim_bytes=target_reclaim_bytes,
-                              cross_filesystems=cross_filesystems)
+                              cross_filesystems=cross_filesystems,
+                              filesystem_context=filesystem_context)
     rows = cleanup_plan["recommendations"]
     protected_count = cleanup_plan["safety"]["protected_unique_files"]
     managed_storage = cleanup_plan["safety"]["managed_operational_storage"]
@@ -240,6 +242,20 @@ def build(files, root, free_bytes, out="sanchay-report.html", limit=50,
   </div>
 """
 
+    mount_panel = ""
+    mount_context = cleanup_plan["safety"].get("filesystem_context")
+    if mount_context and mount_context.get("advisory"):
+        mount_panel = f"""
+  <div class="panel">
+    <h2>{html.escape(mount_context["label"])}</h2>
+    <p class="h">{html.escape(mount_context["capacity_scope"])}</p>
+    <table>
+      <thead><tr><th>Filesystem</th><th>Source class</th><th>Capacity boundary</th><th>Human review</th></tr></thead>
+      <tbody><tr><td>{html.escape(mount_context["filesystem"])}</td><td>{html.escape(mount_context["source_class"])}</td><td class="evidence">{html.escape(mount_context["advisory"])}</td><td class="evidence">{html.escape(mount_context["review_action"])}</td></tr></tbody>
+    </table>
+  </div>
+"""
+
     page = f"""<!doctype html>
 <html lang="en">
 <head>
@@ -310,6 +326,7 @@ def build(files, root, free_bytes, out="sanchay-report.html", limit=50,
   </div>
   {managed_panel}
   {process_panel}
+  {mount_panel}
 </div>
 
 <script>

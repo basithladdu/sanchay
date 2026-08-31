@@ -16,7 +16,7 @@ import stat
 from . import dedup, managed, regret, storage
 
 
-PLAN_SCHEMA_VERSION = 5
+PLAN_SCHEMA_VERSION = 6
 IDENTITY_FIELDS = (
     "device", "inode", "size", "allocated_size", "mtime", "mtime_ns", "nlink",
 )
@@ -133,7 +133,8 @@ def _fingerprint_valid(document):
 
 
 def build(files, duplicate_groups, root, now=None, limit=25,
-          target_reclaim_bytes=None, cross_filesystems=False):
+          target_reclaim_bytes=None, cross_filesystems=False,
+          filesystem_context=None):
     """Build a non-executing cleanup manifest from one scan result."""
     if target_reclaim_bytes is not None and target_reclaim_bytes <= 0:
         raise ValueError("Reclaim target must be greater than zero")
@@ -226,6 +227,8 @@ def build(files, duplicate_groups, root, now=None, limit=25,
             "Candidates may span mounts; this plan makes no shared free-space "
             "or reclaim-target claim"
         )
+    if filesystem_context:
+        document["safety"]["filesystem_context"] = filesystem_context
     if target_reclaim_bytes is not None:
         selected_bytes = sum(item["size"] for item in recommendations)
         document["selection"] = {

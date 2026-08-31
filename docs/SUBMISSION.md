@@ -78,6 +78,15 @@ deleted regular files as operational evidence. They are never added to the
 cleanup plan or reclaim target, and SANCHAY never signals, restarts, truncates,
 or deletes a process-held file.
 
+**1c. Records filesystem capacity context.** C-DAC states that Secure BOSS is
+installed on an LVM-encrypted hard disk. SANCHAY reads the selected root's
+visible Linux mount record and freezes the filesystem/source class in the plan.
+If it sees Btrfs, an overlay layer, or a device-mapper source, it explains the
+capacity boundary instead of pretending that a directory walk proves
+snapshot-aware, host-wide, or logical-volume-pool headroom. It never runs LVM
+or Btrfs commands, resizes a volume, balances a filesystem, or deletes a
+snapshot.
+
 **2. Works out how recoverable each file is.** This is the core of the tool.
 Every file lands in one of four classes:
 

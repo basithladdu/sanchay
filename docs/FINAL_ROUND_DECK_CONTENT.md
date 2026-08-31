@@ -71,6 +71,9 @@ Show two stages, not a fake exact date:
    bytes/day and, from the third snapshot onward, R-squared fit quality.
 3. If `/proc` shows a deleted regular file still held open, identify its PID and
    allocated bytes as a separate advisory, never as a cleanup recommendation.
+4. Record the root mount context. Btrfs, overlay, and device-mapper sources
+   change what a free-space figure proves; SANCHAY labels that boundary rather
+   than invoking a filesystem or volume-management action.
 
 Footer: “A first scan is an estimate; observed history is stronger evidence.”
 
@@ -103,6 +106,9 @@ Put the command in small monospace text only:
 - On Debian-derived BOSS, APT archives and persistent journals are measured as
   tool-owned operational storage. When present, Docker, containerd, and Flatpak
   stores receive the same protection—never raw file-deletion candidates.
+- C-DAC describes Secure BOSS as LVM-encrypted. SANCHAY records a visible
+  device-mapper boundary but does not infer pool headroom, encryption state, or
+  permission to run LVM commands.
 - Dependency-free Python core; TUI, plots, and narrative are optional.
 - Inspectable JSON manifest with SHA-256 integrity checksum (not a signature)
   and observed identity.
