@@ -29,5 +29,3 @@ team from this obligation in writing.
 | Shaik Abdul Basith | Team Creator |
 | Shaik Awaiz | Member |
 | Shaik Abdul Muqeeth | Member |
-
-This repository is private, as the Hackathon rules require.

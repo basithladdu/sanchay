@@ -24,6 +24,18 @@ def _digest(path, limit=None):
     return h.hexdigest()
 
 
+def same_content(left, right):
+    """Return whether two readable files have the same full-content digest.
+
+    This is deliberately used only after the fast scan has already identified
+    a duplicate candidate.  Plan verification rechecks the named survivor so a
+    reviewer never relies on a stale duplicate relationship.
+    """
+    left_digest = _digest(left)
+    right_digest = _digest(right)
+    return left_digest is not None and left_digest == right_digest
+
+
 def _bucket(files, key):
     groups = defaultdict(list)
     for f in files:
@@ -44,8 +56,9 @@ def duplicates(files, min_size=4096):
     final = []
     for group in refined:
         for same in _bucket(group, lambda f: _digest(f.path)):
-            # collapse hardlinks: one inode is one copy
-            if len({f.inode for f in same}) > 1:
+            # Collapse hardlinks: one (device, inode) identity is one copy.
+            # Inode numbers alone are only unique within a filesystem.
+            if len({(getattr(f, "device", 0), f.inode) for f in same}) > 1:
                 final.append(same)
     return final
 
@@ -53,3 +66,18 @@ def duplicates(files, min_size=4096):
 def reclaimable(groups):
     """Bytes freed by keeping one copy from each group."""
     return sum(g[0].size * (len(g) - 1) for g in groups)
+
+
+def duplicate_map(groups):
+    """Map each removable duplicate to the deterministic copy that survives.
+
+    A duplicate is only a safe candidate if the plan names a specific surviving
+    copy.  Sorting makes the result independent of filesystem walk order.
+    """
+    copies = {}
+    for group in groups:
+        ordered = sorted(group, key=lambda f: f.path.replace("\\", "/"))
+        keeper = ordered[0]
+        for duplicate in ordered[1:]:
+            copies[duplicate.path] = keeper.path
+    return copies

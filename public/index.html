@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>SANCHAY — Regret-Aware Storage Intelligence for Linux</title>
-<meta name="description" content="AI-Powered Intelligent Storage Optimizer with Structural Zero-Deletion Guarantee for Linux OS. Built for C-DAC / MeitY Hackathon 2026.">
+<meta name="description" content="Review-only, regret-aware storage recommendations for Linux. Built by Zeros and Ones for the C-DAC SSM Hackathon 2026.">
 <script src="https://cdn.plot.ly/plotly-2.35.2.min.js"></script>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -293,6 +293,51 @@ footer {
   color: var(--text-muted);
   font-size: 13px;
 }
+.demo-boundary {
+  background: rgba(251, 191, 36, 0.09);
+  border: 1px solid rgba(251, 191, 36, 0.3);
+  border-radius: 10px;
+  color: #fde68a;
+  font-size: 13px;
+  margin: 0 0 20px;
+  padding: 12px 14px;
+}
+.demo-boundary strong { color: var(--amber); }
+.manifest-controls {
+  align-items: center;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  margin: 0 0 22px;
+}
+.manifest-status {
+  color: var(--text-muted);
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 12px;
+}
+.table-scroll { overflow-x: auto; }
+button:focus-visible, a:focus-visible {
+  outline: 3px solid var(--amber);
+  outline-offset: 3px;
+}
+@media (max-width: 640px) {
+  .container { padding: 20px 16px 48px; }
+  header { align-items: flex-start; margin-bottom: 28px; padding: 16px 0; }
+  .header-links { width: 100%; }
+  .header-links .btn { flex: 1; justify-content: center; padding: 9px 10px; }
+  .hero { margin-bottom: 32px; text-align: left; }
+  .hero h2 { font-size: 31px; }
+  .hero p { font-size: 15px; }
+  .grid-4 { gap: 12px; margin-bottom: 32px; }
+  .card, .interactive-panel { padding: 18px; }
+  .interactive-panel { margin-bottom: 28px; }
+  .section-title { font-size: 20px; }
+  .formula-box { padding: 14px; }
+  .formula-code { font-size: 14px; overflow-wrap: anywhere; }
+  table { min-width: 720px; }
+  #treemapDiv { height: 310px !important; }
+  #forecastDiv { height: 290px !important; }
+}
 </style>
 </head>
 <body>
@@ -312,62 +357,67 @@ footer {
   </header>
 
   <section class="hero">
-    <span class="kicker">Track 1: AI at Application Level</span>
-    <h2>Disk Cleanup That Knows What It Cannot Undo</h2>
-    <p>Every cleanup tool sorts by size alone — treating a 2 GB regenerable build cache and a 2 GB capstone thesis as identical. SANCHAY ranks by <strong>recoverability regret</strong>, guaranteeing that irreplaceable files are permanently excluded by construction.</p>
+    <span class="kicker">Track 2: AI at Application Level</span>
+    <h2>Storage Recommendations That Preserve the Human Decision</h2>
+    <p>SANCHAY identifies recoverable storage candidates, records the proof for each recommendation, and produces a <strong>review-only plan</strong>. It never deletes or moves a user file.</p>
   </section>
 
   <div class="grid-4">
     <div class="card">
       <div class="card-icon">🛡️</div>
-      <h3>Zero-Loss Guarantee</h3>
-      <p>Unique single-copy files are mathematically excluded before candidate ranking occurs.</p>
+      <h3>Protected-File Gate</h3>
+      <p>Unique, untracked, uncached files are excluded from the plan before ranking.</p>
     </div>
     <div class="card">
       <div class="card-icon">⚡</div>
-      <h3>Single-Scan Runway</h3>
-      <p>Derives daily disk growth directly from inode mtime distribution on run #1 without daemons.</p>
+      <h3>Two-Stage Runway</h3>
+      <p>First-run mtime estimate, followed by measured net growth from later local snapshots.</p>
     </div>
     <div class="card">
       <div class="card-icon">🎯</div>
-      <h3>Tiered Content Hashing</h3>
-      <p>Size collisions -> 64 KB header check -> Full Blake2b only when strictly necessary.</p>
+      <h3>Tiered Duplicate Proof</h3>
+      <p>Size -> 64 KB prefix -> full Blake2b, with hardlinks excluded and a named survivor retained.</p>
     </div>
     <div class="card">
       <div class="card-icon">🇮🇳</div>
-      <h3>DPDP Act 2023 Ready</h3>
-      <p>100% local metadata processing. Zero file contents read or transmitted off-device.</p>
+      <h3>Local by Default</h3>
+      <p>Metadata stays local; file bytes are read locally only to confirm duplicate candidates.</p>
     </div>
   </div>
 
   <div class="formula-box">
     <div>
-      <div style="font-size: 11px; text-transform: uppercase; color: var(--text-muted); font-weight: 700;">Mathematical Objective Function</div>
-      <div class="formula-code mono">Priority = Size × Staleness × (1 − Regret)</div>
+      <div style="font-size: 11px; text-transform: uppercase; color: var(--text-muted); font-weight: 700;">Review Priority</div>
+      <div class="formula-code mono">Priority = Size × Unchanged Age × (1 − Regret)</div>
     </div>
-    <div class="formula-badge">Regret = 1.00 for Unique Files (Priority = 0.0)</div>
+    <div class="formula-badge">Unique files are excluded before ranking</div>
   </div>
 
   <section class="interactive-panel" id="interactive">
-    <h3 class="section-title">Interactive Recoverability Classifier & Priority Queue</h3>
-    <p class="section-desc">Experience how SANCHAY safely separates disposable caches from precious user work.</p>
-
-    <div class="filter-tabs">
-      <button class="tab active" onclick="filterCategory('all')">All Candidate Files (6)</button>
-      <button class="tab" onclick="filterCategory('disposable')">Disposable Caches (2)</button>
-      <button class="tab" onclick="filterCategory('duplicate')">Identical Duplicates (1)</button>
-      <button class="tab" onclick="filterCategory('tracked')">Git Tracked (1)</button>
-      <button class="tab" onclick="filterCategory('unique')">Irreplaceable Unique (2)</button>
+    <h3 class="section-title">Seeded Review-Plan Walkthrough</h3>
+    <p class="section-desc">A browser-only example of the same recommendation structure generated by the local CLI.</p>
+    <div class="demo-boundary" role="note"><strong>Seeded demo data.</strong> This page does not scan your device. Run <span class="mono">sanchay /path --plan cleanup-plan.json</span> for a local filesystem plan.</div>
+    <div class="manifest-controls">
+      <button type="button" class="btn btn-primary" onclick="generateDemoPlan()">Generate demo review plan</button>
+      <output id="manifestStatus" class="manifest-status" aria-live="polite">No browser plan generated.</output>
     </div>
 
-    <table>
+    <div class="filter-tabs">
+      <button class="tab active" onclick="filterCategory('all', this)">All reviewed files (6)</button>
+      <button class="tab" onclick="filterCategory('disposable', this)">Regenerable output (2)</button>
+      <button class="tab" onclick="filterCategory('duplicate', this)">Verified duplicates (1)</button>
+      <button class="tab" onclick="filterCategory('tracked', this)">Clean Git HEAD (1)</button>
+      <button class="tab" onclick="filterCategory('unique', this)">Blocked from plan (2)</button>
+    </div>
+
+    <div class="table-scroll"><table>
       <thead>
         <tr>
           <th>Category</th>
           <th>Regret Score</th>
           <th>File Path</th>
           <th>Size</th>
-          <th>Staleness</th>
+          <th>Unchanged</th>
           <th>Action / Safety Verdict</th>
         </tr>
       </thead>
@@ -378,7 +428,7 @@ footer {
           <td class="mono">/app/node_modules/.cache/webpack.pack</td>
           <td>1.45 GB</td>
           <td>90 days</td>
-          <td style="color: var(--emerald); font-weight: 600;">Safe to Reclaim (Priority: High)</td>
+          <td style="color: var(--emerald); font-weight: 600;">Review with owning build tool</td>
         </tr>
         <tr data-cat="disposable">
           <td><span class="pill pill-disposable">DISPOSABLE</span></td>
@@ -386,7 +436,7 @@ footer {
           <td class="mono">/app/target/debug/incremental/mod.rlib</td>
           <td>850 MB</td>
           <td>45 days</td>
-          <td style="color: var(--emerald); font-weight: 600;">Safe to Reclaim (Priority: High)</td>
+          <td style="color: var(--emerald); font-weight: 600;">Review with owning build tool</td>
         </tr>
         <tr data-cat="duplicate">
           <td><span class="pill pill-duplicate">DUPLICATE</span></td>
@@ -394,7 +444,7 @@ footer {
           <td class="mono">/home/user/downloads/ubuntu-24.04-live.iso</td>
           <td>4.80 GB</td>
           <td>120 days</td>
-          <td style="color: var(--cyan); font-weight: 600;">Copy survives in /var/lib/iso/</td>
+          <td style="color: var(--cyan); font-weight: 600;">Review after survivor recheck: /var/lib/iso/</td>
         </tr>
         <tr data-cat="tracked">
           <td><span class="pill pill-tracked">GIT TRACKED</span></td>
@@ -402,7 +452,7 @@ footer {
           <td class="mono">/home/user/code/linux-kernel/arch/x86/boot.o</td>
           <td>320 MB</td>
           <td>60 days</td>
-          <td style="color: var(--amber); font-weight: 600;">Committed in Git index</td>
+          <td style="color: var(--amber); font-weight: 600;">Review: clean file recoverable from Git HEAD</td>
         </tr>
         <tr data-cat="unique">
           <td><span class="pill pill-unique">UNIQUE</span></td>
@@ -410,7 +460,7 @@ footer {
           <td class="mono">/home/user/documents/capstone_thesis_final.docx</td>
           <td>125 MB</td>
           <td>300 days</td>
-          <td><span class="locked-badge">🔒 EXCLUDED BY CONSTRUCTION</span></td>
+          <td><span class="locked-badge">EXCLUDED FROM PLAN</span></td>
         </tr>
         <tr data-cat="unique">
           <td><span class="pill pill-unique">UNIQUE</span></td>
@@ -418,10 +468,10 @@ footer {
           <td class="mono">/home/user/projects/db_dump_production.sql</td>
           <td>3.20 GB</td>
           <td>200 days</td>
-          <td><span class="locked-badge">🔒 EXCLUDED BY CONSTRUCTION</span></td>
+          <td><span class="locked-badge">EXCLUDED FROM PLAN</span></td>
         </tr>
       </tbody>
-    </table>
+    </table></div>
   </section>
 
   <section class="interactive-panel">
@@ -431,22 +481,22 @@ footer {
   </section>
 
   <section class="interactive-panel">
-    <h3 class="section-title">Single-Scan Runway Growth Projection</h3>
-    <p class="section-desc">Daily disk consumption rate computed instantly from inode modification distribution.</p>
+    <h3 class="section-title">First-Scan Runway Estimate</h3>
+    <p class="section-desc">Example only: an mtime-based first estimate becomes a measured net-growth rate after a later local snapshot.</p>
     <div id="forecastDiv" style="height: 340px;"></div>
   </section>
 
   <footer>
-    <p>SANCHAY — Built for C-DAC / MeitY AI Enabled Operating System Hackathon 2026</p>
+    <p>SANCHAY — AI-Powered Intelligent Storage Optimizer for Linux OS</p>
     <p style="margin-top: 4px; font-size: 12px;">Authors: Shaik Abdul Basith, Shaik Awaiz, Shaik Abdul Muqeeth • MIT Open Source License</p>
   </footer>
 </div>
 
 <script>
-function filterCategory(cat) {
+function filterCategory(cat, button) {
   const tabs = document.querySelectorAll('.tab');
   tabs.forEach(t => t.classList.remove('active'));
-  event.target.classList.add('active');
+  button.classList.add('active');
 
   const rows = document.querySelectorAll('#fileTable tr');
   rows.forEach(r => {
@@ -456,6 +506,31 @@ function filterCategory(cat) {
       r.style.display = 'none';
     }
   });
+}
+
+const demoPlan = {
+  schema_version: 2,
+  execution: {automatic_deletion: false, requires_human_review: true},
+  safety: {protected_unique_files: 2, candidate_count: 4},
+  recommendations: [
+    {kind: 'disposable', path: '/app/node_modules/.cache/webpack.pack', proof: 'known regenerable cache'},
+    {kind: 'duplicate', path: '/home/user/downloads/ubuntu-24.04-live.iso', survivor: '/var/lib/iso/ubuntu-24.04-live.iso'},
+    {kind: 'tracked', path: '/home/user/code/linux-kernel/arch/x86/boot.o', proof: 'clean Git HEAD'}
+  ]
+};
+
+async function generateDemoPlan() {
+  const status = document.getElementById('manifestStatus');
+  if (!window.crypto || !window.crypto.subtle) {
+    status.textContent = 'This browser cannot fingerprint the seeded plan.';
+    return;
+  }
+  status.textContent = 'Fingerprinting seeded plan…';
+  const bytes = new TextEncoder().encode(JSON.stringify(demoPlan));
+  const digest = await window.crypto.subtle.digest('SHA-256', bytes);
+  const fingerprint = [...new Uint8Array(digest)]
+    .map(value => value.toString(16).padStart(2, '0')).join('');
+  status.textContent = `Seeded plan ready — SHA-256 ${fingerprint.slice(0, 16)}…; no file action exists in this demo.`;
 }
 
 // Treemap rendering
@@ -487,7 +562,7 @@ Plotly.newPlot('forecastDiv', [
   {
     x: dates, y: usedGB,
     type: 'scatter', mode: 'lines+markers',
-    name: 'Projected Usage (mtime growth rate 600 MB/day)',
+    name: 'Example mtime-based estimate (600 MB/day)',
     line: {color: '#38bdf8', width: 3},
     fill: 'tozeroy',
     fillcolor: 'rgba(56, 189, 248, 0.1)'

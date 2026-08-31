@@ -13,7 +13,7 @@ from textual.app import App, ComposeResult
 from textual.containers import Horizontal
 from textual.widgets import DataTable, Footer, Header, Static
 
-from . import dedup, forecast, regret, scan
+from . import dedup, forecast, plan, scan
 
 KIND_STYLE = {
     "disposable": "bold green",
@@ -70,7 +70,7 @@ class Sanchay(App):
         ("r", "rescan", "Rescan"),
         ("s", "sort_size", "Sort by size"),
         ("p", "sort_priority", "Sort by priority"),
-        ("a", "filter_all", "All safe"),
+        ("a", "filter_all", "All reviewable"),
         ("d", "filter_disposable", "Disposable"),
         ("u", "filter_duplicate", "Duplicates"),
         ("t", "filter_tracked", "Tracked"),
@@ -90,7 +90,7 @@ class Sanchay(App):
         with Horizontal(id="stats"):
             yield Stat("on disk")
             yield Stat("duplicated")
-            yield Stat("safe to reclaim")
+            yield Stat("reviewable")
             yield Stat("disk fills in")
         yield Static("Scanning filesystem...", id="status")
         yield DataTable(id="table", zebra_stripes=True, cursor_type="row")
@@ -101,7 +101,7 @@ class Sanchay(App):
         table = self.query_one(DataTable)
         table.add_column("Size", width=11)
         table.add_column("Kind", width=14)
-        table.add_column("Unused", width=9)
+        table.add_column("Unchanged", width=11)
         table.add_column("Path")
         self.scan_disk()
 
@@ -109,10 +109,9 @@ class Sanchay(App):
     def scan_disk(self):
         files = scan.scan(self.root)
         groups = dedup.duplicates(files)
-        dups = {f.path for g in groups for f in g[1:]}
-        rows = regret.rank(files, dups, limit=500)
-        protected = sum(1 for f in files
-                        if regret.classify(f, f.path in dups) == "unique")
+        cleanup_plan = plan.build(files, groups, self.root, limit=500)
+        rows = cleanup_plan["recommendations"]
+        protected = cleanup_plan["safety"]["protected_unique_files"]
         self.call_from_thread(self.show, files, groups, rows, protected)
 
     def show(self, files, groups, rows, protected):
@@ -121,7 +120,7 @@ class Sanchay(App):
         stats = self.query(Stat)
         stats[0].set(human(sum(f.size for f in files)), f"{len(files):,} files")
         stats[1].set(human(dedup.reclaimable(groups)), f"{len(groups):,} groups")
-        stats[2].set(human(sum(r['size'] for r in rows)), f"{len(rows):,} candidates")
+        stats[2].set(human(sum(r['size'] for r in rows)), f"{len(rows):,} reviewable")
         try:
             import shutil
             days = forecast.days_until_full(files, shutil.disk_usage(self.root).free)
@@ -133,8 +132,8 @@ class Sanchay(App):
         self.update_status_bar()
         self.query_one("#guard", Static).update(Text.assemble(
             (f"{protected:,} files held back. ", "bold red"),
-            ("Unique, untracked, uncached — nothing here could rebuild them, "
-             "so they are never recommended, whatever their size.", "dim")))
+            ("Unique, untracked, uncached files have no known reproducibility "
+             "proof, so they are excluded from the review plan.", "dim")))
         self.fill()
 
     def update_status_bar(self):

@@ -23,7 +23,7 @@ anything not listed."""
 def table(rows):
     return "\n".join(
         f"- {r['path']}  ({r['size'] / 1e6:.1f} MB, {r['kind']}, "
-        f"unused {r['staleness'] * 365:.0f}d)" for r in rows)
+        f"unchanged {r['staleness'] * 365:.0f}d)" for r in rows)
 
 
 def explain(rows, model=None):

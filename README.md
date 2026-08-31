@@ -1,19 +1,18 @@
 <div align="center">
 
-# 🗄️ SANCHAY: Regret-Aware Intelligent Storage Optimizer for Linux
+# SANCHAY: Regret-Aware Intelligent Storage Optimizer for Linux
 
-**AI-Powered Storage Reclamation with Structural Zero-Deletion Guarantees & Single-Scan Runway Forecasting**
+**AI-Assisted Storage Reclamation with Review-Only Cleanup Plans & Mtime-Based Runway Estimates**
 
 [![CI Status](https://github.com/basithladdu/sanchay/actions/workflows/ci.yml/badge.svg)](https://github.com/basithladdu/sanchay/actions)
 [![Python Version](https://img.shields.io/badge/python-3.9%20%7C%203.10%20%7C%203.11%20%7C%203.12-blue)](https://www.python.org/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
-[![Vercel Deployment](https://img.shields.io/badge/Vercel-Live%20Demo-black?logo=vercel)](https://sanchay.vercel.app)
-[![Privacy: DPDP Act 2023](https://img.shields.io/badge/Privacy-DPDP%20Act%202023%20Compliant-green.svg)](DECLARATION.md)
+[![Vercel Deployment](https://img.shields.io/badge/Vercel-Live%20Demo-black?logo=vercel)](https://sanchay-swart.vercel.app)
 
 ---
 
-### 🏆 Built for C-DAC / MeitY AI Enabled Operating System Hackathon 2026
-**Track 1: AI at Application Level • Problem Statement 2: AI-Powered Storage Optimization**
+### Built for C-DAC / MeitY SSM Hackathon 2026
+**Track 2: AI at Application Level • AI-Powered Intelligent Storage Optimizer for Linux OS**
 
 *Developed by Team: Shaik Abdul Basith, Shaik Awaiz, Shaik Abdul Muqeeth*
 
@@ -23,14 +22,14 @@
 
 ## 📌 Executive Summary & Problem Context
 
-Every existing disk cleanup utility (`ncdu`, `bleachbit`, `baobab`) shares the exact same fatal flaw: **they rank files strictly by size**.
+Disk-usage explorers and duplicate finders can identify space consumers, but a space ranking alone does not establish that a specific file can be safely removed.
 
 To a naive tool, a 2 GB regenerable build cache (`node_modules/.cache`) and a 2 GB irreplaceable capstone project database dump look identical. When a user runs out of disk space, automated cleaners or hurried users delete unique personal files, causing catastrophic, irrecoverable data loss.
 
 **SANCHAY** (संचय) introduces **Regret-Aware Storage Intelligence**. It models the *cost of recovery* for every candidate file before calculating cleanup priority:
-$$	ext{Priority} = 	ext{Size} 	imes 	ext{Staleness} 	imes (1 - 	ext{Regret})$$
+**Priority = size × unchanged-age × (1 − regret)**
 
-For irreplaceable unique files, $	ext{Regret} = 1.00$, making $	ext{Priority} = 0.0$ and ensuring they are **permanently excluded from deletion by construction**.
+For irreplaceable unique files, regret is 1.00, so priority is 0.0 and they are excluded from SANCHAY's **review-only recommendation plan**.
 
 ---
 
@@ -55,11 +54,11 @@ For irreplaceable unique files, $	ext{Regret} = 1.00$, making $	ext{Priority} = 
 
 ## 🔬 Core Innovations
 
-### 1. Zero-Deletion Guarantee by Construction
-Traditional systems ask the user to untick critical files from a massive list. SANCHAY mathematically removes unique single-copy files from the candidate queue before presenting any reclaim options.
+### 1. Protected-File Gate and Review-Only Plans
+Traditional systems ask the user to untick critical files from a massive list. SANCHAY excludes files classified as unique, untracked, and uncached before ranking, then writes a fingerprinted JSON plan with a safety proof for every remaining candidate. It never deletes or moves files itself.
 
-### 2. Single-Scan Runway Forecasting
-Unlike daemons that consume background CPU to log disk activity over weeks, SANCHAY derives the filesystem's daily consumption rate directly from the **inode modification time distribution (`mtime`) on run #1**. It projects the exact date of disk exhaustion with zero background overhead.
+### 2. Two-Stage Runway Measurement
+SANCHAY derives an initial storage-growth estimate from the **inode modification time distribution (`mtime`) on run #1**. It is directional, not a guaranteed exhaustion date. A later aggregate local snapshot measures actual net growth; with multiple snapshots, an explainable local linear trend reports bytes/day and fit quality.
 
 ### 3. Tiered Fast Content Hashing
 Deduplicating large files can saturate I/O. SANCHAY uses a 3-tier cascade:
@@ -82,13 +81,26 @@ Interactive visualization color-coded by recoverability class rather than raw di
 # 1. Scan directory and display prioritized reclamation candidates
 sanchay /home/user --limit 10
 
-# 2. Run single-scan runway forecasting
-sanchay /home/user --runway
+# 2. Write a fingerprinted, review-only cleanup plan
+sanchay /home/user --plan cleanup-plan.json
 
-# 3. Generate interactive Plotly HTML report
-sanchay /home/user --html report.html
+# 3. Recheck that a plan is still valid before any human acts on it
+sanchay --verify-plan cleanup-plan.json
 
-# 4. Launch interactive Textual Terminal Dashboard
+# 4. Save an aggregate local snapshot for a later measured-growth comparison
+sanchay /home/user --snapshot before.json
+sanchay /home/user --compare before.json
+
+# 5. Fit a local trend once you have multiple earlier snapshots
+sanchay /home/user --history day-1.json day-7.json day-14.json
+
+# 6. Generate an interactive Plotly HTML report
+sanchay /home/user --report report.html
+
+# 7. Create a harmless, reproducible final-round demo fixture
+sanchay-demo /tmp/sanchay-demo
+
+# 8. Launch interactive Textual Terminal Dashboard
 sanchay-ui /home/user
 ```
 
@@ -101,10 +113,13 @@ sanchay-ui /home/user
 git clone https://github.com/basithladdu/sanchay.git
 cd sanchay
 
-# Install in editable mode
+# Install the dependency-free core in editable mode
 pip install -e .
 
-# Run unit and integration tests (5/5 tests passing)
+# Optional: install the interactive terminal dashboard
+pip install -e ".[tui]"
+
+# Run the unit and integration tests
 python -m unittest discover tests
 
 # Launch interactive UI
@@ -113,10 +128,11 @@ sanchay-ui .
 
 ---
 
-## 🔒 Compliance & DPDP Act 2023 Declaration
+## Privacy and safety boundaries
 
-* **DPDP Act 2023 Compliant**: 100% on-device processing. No personal identifiers or file contents are transmitted.
-* **Deterministic Safety**: All regret classifications are transparent and verifiable.
+* **Local by default**: Analysis and duplicate hashing run on-device. No file content is transmitted; `--explain` is optional and may send ranked file paths to the configured model provider.
+* **Inspectable safety policy**: Every plan item records its classification, observed identity, and proof; files classified as unique are excluded before ranking.
+* **Review gate**: `--verify-plan` rechecks the manifest fingerprint, candidate identity, duplicate survivor, and clean Git HEAD state where applicable. It never deletes or moves files.
 
 ---
 

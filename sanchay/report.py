@@ -11,7 +11,7 @@ import html
 import time
 from pathlib import Path
 
-from . import dedup, forecast, regret
+from . import dedup, forecast, plan
 
 CSS = """
 :root{--bg:#090d16;--panel:#111827;--panel-sub:#1a2333;--ink:#f3f4f6;--mute:#9ca3af;--line:#1f293d;
@@ -67,20 +67,27 @@ def _card(k, v, note="", color=""):
             f'<div class="n">{note}</div></div>')
 
 
+def _display_path(path, root):
+    try:
+        return str(Path(path).resolve().relative_to(Path(root).resolve())).replace("\\", "/")
+    except (OSError, ValueError):
+        return Path(path).name
+
+
 def build(files, root, free_bytes, out="sanchay-report.html", limit=50):
     from . import viz
 
     groups = dedup.duplicates(files)
-    dup_paths = {f.path for g in groups for f in g[1:]}
-    rows = regret.rank(files, dup_paths, limit=limit)
-    protected = [f for f in files
-                 if regret.classify(f, f.path in dup_paths) == "unique"]
+    dup_paths = set(dedup.duplicate_map(groups))
+    cleanup_plan = plan.build(files, groups, root, limit=limit)
+    rows = cleanup_plan["recommendations"]
+    protected_count = cleanup_plan["safety"]["protected_unique_files"]
 
     total = sum(f.size for f in files)
-    safe = sum(r["size"] for r in rows)
+    reviewable = sum(r["size"] for r in rows)
     days = forecast.days_until_full(files, free_bytes)
 
-    fig = viz.figure(files, dup_paths)
+    fig = viz.figure(files, dup_paths, root=root)
     chart = fig.to_html(full_html=False, include_plotlyjs=True,
                         default_height="500px", config={"displayModeBar": False})
 
@@ -90,7 +97,7 @@ def build(files, root, free_bytes, out="sanchay-report.html", limit=50):
             f'<tr data-kind="{r["kind"]}"><td class="num font-bold">{human(r["size"])}</td>'
             f'<td><span class="tag {r["kind"]}">{r["kind"]}</span></td>'
             f'<td class="num">{r["staleness"] * 365:.0f} d</td>'
-            f'<td class="p">{html.escape(r["path"])}</td></tr>'
+            f'<td class="p">{html.escape(_display_path(r["path"], root))}</td></tr>'
         )
 
     page = f"""<!doctype html>
@@ -106,14 +113,14 @@ def build(files, root, free_bytes, out="sanchay-report.html", limit=50):
   <header>
     <div>
       <h1>💾 SANCHAY <span class="badge-regret">Regret-Aware Storage</span></h1>
-      <div class="sub">Directory: {html.escape(str(root))} &middot; Generated {time.strftime('%d %b %Y, %H:%M')}</div>
+      <div class="sub">Selected local root &middot; Generated {time.strftime('%d %b %Y, %H:%M')}</div>
     </div>
   </header>
 
   <div class="cards">
     {_card("Scanned on disk", human(total), f"{len(files):,} total files")}
     {_card("Duplicate groups", human(dedup.reclaimable(groups)), f"{len(groups):,} groups reclaimable", "#84cc16")}
-    {_card("Safe to reclaim", human(safe), f"top {len(rows)} verified candidates", "#10b981")}
+    {_card("Reviewable candidates", human(reviewable), f"top {len(rows)} recommendations; human review required", "#10b981")}
     {_card("Disk runway", f"{days:.0f} days" if days else "—", f"{human(forecast.rate(files))}/day growth rate", "#3b82f6")}
   </div>
 
@@ -124,12 +131,12 @@ def build(files, root, free_bytes, out="sanchay-report.html", limit=50):
   </div>
 
   <div class="panel">
-    <h2>Recommended Cleanup Candidates</h2>
-    <p class="h">Ranked by the Regret Objective Function. Unique irreplaceable files are mathematically omitted.</p>
+    <h2>Reviewable Storage Candidates</h2>
+    <p class="h">Ranked by the regret objective. This report makes recommendations; it does not execute cleanup.</p>
     
     <div class="formula-box">
       <span class="formula-tag">Objective:</span>
-      <span>Priority = Size &times; Staleness &times; (1 &minus; Regret) &nbsp;|&nbsp; Regret Weights: 0.02 (Disposable), 0.10 (Duplicate), 0.20 (Tracked Git)</span>
+      <span>Priority = Size &times; Unchanged Age &times; (1 &minus; Regret) &nbsp;|&nbsp; Regret Weights: 0.02 (Disposable), 0.10 (Duplicate), 0.20 (Tracked Git)</span>
     </div>
 
     <div class="controls">
@@ -145,7 +152,7 @@ def build(files, root, free_bytes, out="sanchay-report.html", limit=50):
         <tr>
           <th style="width: 110px;">Size</th>
           <th style="width: 120px;">Category</th>
-          <th class="num" style="width: 90px;">Unused</th>
+          <th class="num" style="width: 90px;">Unchanged</th>
           <th>Relative Path</th>
         </tr>
       </thead>
@@ -155,8 +162,9 @@ def build(files, root, free_bytes, out="sanchay-report.html", limit=50):
     </table>
 
     <div class="guard">
-      <b>{len(protected):,} irreplaceable files permanently protected.</b><br>
-      These files are unique, untracked, and uncached. Nothing on this system could rebuild them, so SANCHAY provides a hard structural guarantee that they will never appear in deletion suggestions.
+      <b>{protected_count:,} unique files excluded from this plan.</b><br>
+      Plan fingerprint: <code>{cleanup_plan["fingerprint_sha256"]}</code><br>
+      The active policy excludes unique, untracked, uncached files before ranking. SANCHAY never deletes or moves files.
     </div>
   </div>
 </div>
@@ -189,4 +197,3 @@ function filterCandidates() {{
 
     Path(out).write_text(page, encoding="utf-8")
     return out
-

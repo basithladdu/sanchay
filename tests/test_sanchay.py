@@ -2,9 +2,14 @@ import subprocess
 import tempfile
 import time
 import unittest
+import os
+import copy
+import contextlib
+import io
+import shutil
 from pathlib import Path
 
-from sanchay import dedup, forecast, regret, scan
+from sanchay import cli, dedup, demo, forecast, plan, regret, report, scan, snapshot
 
 
 class TestSanchay(unittest.TestCase):
@@ -26,7 +31,7 @@ class TestSanchay(unittest.TestCase):
         self.assertEqual(regret.classify(self.files[3], duplicated=False), 'unique')
 
     def test_staleness_calculation(self):
-        f = scan.FileInfo('/tmp/test', 100, self.now - 86400 * 365, self.now - 86400 * 365, 1)
+        f = scan.FileInfo('/tmp/test', 100, self.now, self.now - 86400 * 365, 1)
         stale = regret.staleness(f, self.now)
         self.assertAlmostEqual(stale, 1.0, places=2)
 
@@ -81,6 +86,157 @@ class TestSanchay(unittest.TestCase):
             self.assertEqual(regret.classify(info(clean), False), 'tracked')
             self.assertEqual(regret.classify(info(modified), False), 'unique')
             self.assertEqual(regret.classify(info(staged), False), 'unique')
+
+    def test_cleanup_plan_never_contains_unique_files(self):
+        cleanup_plan = plan.build(self.files, [], '/app', now=self.now)
+        kinds = [item['kind'] for item in cleanup_plan['recommendations']]
+        paths = [item['path'] for item in cleanup_plan['recommendations']]
+
+        self.assertNotIn('unique', kinds)
+        self.assertNotIn('/home/user/thesis_final.pdf', paths)
+        self.assertEqual(cleanup_plan['execution']['automatic_deletion'], False)
+        self.assertTrue(cleanup_plan['fingerprint_sha256'])
+
+    def test_cleanup_plan_names_a_deterministic_duplicate_survivor(self):
+        duplicate_a = scan.FileInfo('/tmp/a.iso', 4096, self.now, self.now, 1)
+        duplicate_z = scan.FileInfo('/tmp/z.iso', 4096, self.now, self.now, 2)
+        cleanup_plan = plan.build(
+            [duplicate_z, duplicate_a], [[duplicate_z, duplicate_a]], '/tmp', now=self.now)
+
+        self.assertEqual(len(cleanup_plan['recommendations']), 1)
+        item = cleanup_plan['recommendations'][0]
+        self.assertEqual(item['kind'], 'duplicate')
+        self.assertEqual(item['path'], '/tmp/z.iso')
+        self.assertEqual(item['survivor_path'], '/tmp/a.iso')
+        self.assertIn('/tmp/a.iso', item['safety_proof'])
+        self.assertEqual(item['observed_identity']['size'], 4096)
+
+    def test_hardlinks_are_not_treated_as_reclaimable_duplicates(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            source = root / 'source.bin'
+            alias = root / 'alias.bin'
+            source.write_bytes(b'x' * 4096)
+            os.link(source, alias)
+
+            def info(path):
+                st = path.stat()
+                return scan.FileInfo(str(path), st.st_size, st.st_atime, st.st_mtime,
+                                     st.st_ino, st.st_dev)
+
+            self.assertEqual(dedup.duplicates([info(source), info(alias)]), [])
+
+    def test_snapshots_measure_observed_net_growth(self):
+        previous = snapshot.capture(self.files, '/app', 1000, now=100)
+        later_files = self.files + [
+            scan.FileInfo('/app/.cache/new-build', 86400, self.now, self.now, 99)]
+        current = snapshot.capture(later_files, '/app', 500, now=100 + 86400)
+
+        observed = snapshot.observed_growth(previous, current)
+        self.assertEqual(observed['net_bytes'], 86400)
+        self.assertEqual(observed['bytes_per_day'], 86400)
+
+    def test_snapshots_fit_a_local_linear_growth_trend(self):
+        first = snapshot.capture(self.files, '/app', 1000, now=100)
+        second = snapshot.capture(
+            self.files + [scan.FileInfo('/app/.cache/day-one', 86400,
+                                        self.now, self.now, 98)],
+            '/app', 900, now=100 + 86400)
+        third = snapshot.capture(
+            self.files + [scan.FileInfo('/app/.cache/day-two', 172800,
+                                        self.now, self.now, 97)],
+            '/app', 800, now=100 + 172800)
+
+        trend = snapshot.linear_trend([first, second, third])
+        self.assertEqual(trend['sample_count'], 3)
+        self.assertAlmostEqual(trend['bytes_per_day'], 86400)
+        self.assertAlmostEqual(trend['r_squared'], 1.0)
+
+    def test_cleanup_plan_verification_rechecks_manifest_and_duplicate(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            keeper = root / 'a.iso'
+            duplicate = root / 'z.iso'
+            keeper.write_bytes(b'x' * 4096)
+            duplicate.write_bytes(b'x' * 4096)
+            files = scan.scan(root)
+            cleanup_plan = plan.build(files, dedup.duplicates(files), root,
+                                      now=self.now)
+
+            verified = plan.verify(cleanup_plan)
+            self.assertTrue(verified['fingerprint_valid'])
+            self.assertTrue(verified['valid'])
+
+            tampered = copy.deepcopy(cleanup_plan)
+            tampered['safety']['rule'] = 'changed after review'
+            self.assertFalse(plan.verify(tampered)['fingerprint_valid'])
+
+            duplicate.write_bytes(b'y' * 4096)
+            stale = plan.verify(cleanup_plan)
+            self.assertFalse(stale['valid'])
+            self.assertIn('candidate', stale['recommendations'][0]['reasons'][0])
+
+    def test_demo_fixture_exercises_safe_and_protected_paths(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = demo.create(Path(tmp) / 'fixture')
+            files = scan.scan(root)
+            groups = dedup.duplicates(files)
+            cleanup_plan = plan.build(files, groups, root, now=self.now)
+            paths = {item['path'] for item in cleanup_plan['recommendations']}
+
+            self.assertIn(str(root / 'downloads' / 'boss-image-copy.iso'), paths)
+            self.assertIn(str(root / 'workspace' / 'node_modules' / '.cache' / 'bundle.bin'),
+                          paths)
+            self.assertNotIn(str(root / 'documents' / 'capstone-thesis.txt'), paths)
+            self.assertNotIn(str(root / 'hardlinks' / 'alias.bin'), paths)
+            self.assertTrue(plan.verify(cleanup_plan)['valid'])
+
+    def test_demo_fixture_refuses_a_non_empty_directory(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            (root / 'keep.txt').write_text('do not touch', encoding='utf-8')
+            with self.assertRaises(ValueError):
+                demo.create(root)
+
+    def test_scan_prunes_repository_and_credential_directories(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            visible = root / 'visible.txt'
+            visible.write_text('candidate', encoding='utf-8')
+            (root / '.git').mkdir()
+            (root / '.git' / 'config').write_text('sensitive repo metadata', encoding='utf-8')
+            (root / '.ssh').mkdir()
+            (root / '.ssh' / 'id_ed25519').write_text('sensitive key material', encoding='utf-8')
+
+            paths = {item.path for item in scan.scan(root)}
+            self.assertEqual(paths, {str(visible)})
+            with self.assertRaises(ValueError):
+                scan.scan(root / '.ssh')
+
+    def test_report_paths_are_relative_to_the_selected_root(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            nested = root / 'workspace' / 'node_modules' / 'bundle.bin'
+            nested.parent.mkdir(parents=True)
+            nested.write_bytes(b'x')
+            self.assertEqual(report._display_path(nested, root),
+                             'workspace/node_modules/bundle.bin')
+
+    def test_cli_history_uses_the_local_linear_trend(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = demo.create(Path(tmp) / 'fixture')
+            files = scan.scan(root)
+            previous = snapshot.capture(
+                files, root, shutil.disk_usage(root).free, now=time.time() - 86400)
+            previous['used_bytes'] -= 1024
+            previous_path = Path(tmp) / 'previous.json'
+            snapshot.write(previous, previous_path)
+
+            output = io.StringIO()
+            with contextlib.redirect_stdout(output):
+                cli.main([str(root), '--history', str(previous_path), '--limit', '1'])
+
+            self.assertIn('local linear trend from 2 snapshots', output.getvalue())
 
 
 if __name__ == '__main__':

@@ -1,8 +1,8 @@
-"""Project storage growth from a single scan.
+"""Estimate storage growth from a single scan.
 
-You do not need a history of snapshots. Every file already carries the day it
-was written, so the mtime distribution *is* the history -- bytes created per
-day, recoverable from one walk of the tree.
+Modification times can offer a first-run hint about recent write activity, but
+they do not measure future net growth. A later SANCHAY snapshot is required for
+an observed growth rate.
 """
 import time
 from collections import defaultdict

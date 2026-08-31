@@ -6,7 +6,7 @@ score identically, and only one of them is recoverable.
 
 So rank by regret instead:
 
-    priority = bytes * staleness * (1 - regret)
+    priority = bytes * unchanged_age * (1 - regret)
 
 Regret is estimated from reproducibility, not from content. A file is cheap to
 lose if the system can produce it again -- it lives in a build or package cache,
@@ -90,10 +90,14 @@ def classify(info, duplicated):
 
 
 def staleness(info, now=None):
-    """0 for touched today, approaching 1 after a year untouched.
-    Uses max(atime, mtime) to remain accurate under relatime/noatime mount options."""
-    last_touched = max(info.atime, info.mtime)
-    days = max(0.0, ((now or time.time()) - last_touched) / 86400)
+    """0 for a file modified today, approaching 1 after a year unchanged.
+
+    Access time is mount-policy dependent and can be changed by a duplicate
+    hash read. Modification time is therefore the stable, inspectable signal
+    available to a local scan; this is an unchanged-age factor, not a claim
+    that a file has not been read.
+    """
+    days = max(0.0, ((now or time.time()) - info.mtime) / 86400)
     return min(1.0, days / 365)
 
 
