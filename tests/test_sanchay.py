@@ -152,6 +152,9 @@ class TestSanchay(unittest.TestCase):
         self.assertAlmostEqual(trend['bytes_per_day'], 86400)
         self.assertAlmostEqual(trend['r_squared'], 1.0)
 
+        two_point_trend = snapshot.linear_trend([first, second])
+        self.assertIsNone(two_point_trend['r_squared'])
+
     def test_cleanup_plan_verification_rechecks_manifest_and_duplicate(self):
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)

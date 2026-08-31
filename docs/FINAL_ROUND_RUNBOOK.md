@@ -92,7 +92,8 @@ counted as reclaimable copies.
 
 **How reliable is the forecast?** A single scan is labelled as an mtime-based
 estimate. Later aggregate snapshots produce a local linear trend with an
-explicit slope and R-squared, rather than an invented exact full-disk date.
+explicit slope and, from three observations onward, R-squared, rather than an
+invented exact full-disk date.
 
 **Why does this fit a sovereign secure OS?** The core is inspectable,
 dependency-light, local by default, and stays on one filesystem unless the

@@ -72,9 +72,9 @@ free space. It reports this as an estimate, not a guaranteed exhaustion date:
 later writes, deletes, and workload changes can alter it.
 
 After two or more time-separated aggregate snapshots, SANCHAY can also fit an
-explainable local linear trend. It reports the learned bytes-per-day slope and
-R-squared fit quality, giving the user a measurable forecast without uploading
-file names or contents.
+explainable local linear trend. It reports the learned bytes-per-day slope; with
+three or more snapshots it also reports R-squared fit quality, giving the user
+a measurable forecast without uploading file names or contents.
 
 **5. Writes a review-only plan.** Each eligible recommendation records its
 classification, observed device/inode/size/mtime identity, and a safety proof.

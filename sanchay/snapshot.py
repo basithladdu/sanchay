@@ -85,7 +85,9 @@ def linear_trend(snapshots):
     residual = sum((y - (intercept + bytes_per_day * x)) ** 2
                    for x, y in zip(x_values, y_values))
     total = sum((y - mean_y) ** 2 for y in y_values)
-    r_squared = None if total == 0 else max(0.0, 1 - residual / total)
+    # A two-point line always fits perfectly; only expose fit quality once the
+    # trend has a third independent observation to challenge it.
+    r_squared = None if len(points) < 3 or total == 0 else max(0.0, 1 - residual / total)
     return {
         "sample_count": len(points),
         "elapsed_seconds": points[-1][0] - points[0][0],

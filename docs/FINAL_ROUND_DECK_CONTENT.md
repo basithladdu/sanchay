@@ -58,7 +58,7 @@ Show two stages, not a fake exact date:
 
 1. An initial mtime-based estimate gives immediate orientation.
 2. Aggregate local snapshots train an explainable linear trend that reports
-   bytes/day and R-squared fit quality.
+   bytes/day and, from the third snapshot onward, R-squared fit quality.
 
 Footer: “A first scan is an estimate; observed history is stronger evidence.”
 

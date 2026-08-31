@@ -58,7 +58,7 @@ For irreplaceable unique files, regret is 1.00, so priority is 0.0 and they are 
 Traditional systems ask the user to untick critical files from a massive list. SANCHAY excludes files classified as unique, untracked, and uncached before ranking, then writes a fingerprinted JSON plan with a safety proof for every remaining candidate. It never deletes or moves files itself.
 
 ### 2. Two-Stage Runway Measurement
-SANCHAY derives an initial storage-growth estimate from the **inode modification time distribution (`mtime`) on run #1**. It is directional, not a guaranteed exhaustion date. A later aggregate local snapshot measures actual net growth; with multiple snapshots, an explainable local linear trend reports bytes/day and fit quality.
+SANCHAY derives an initial storage-growth estimate from the **inode modification time distribution (`mtime`) on run #1**. It is directional, not a guaranteed exhaustion date. A later aggregate local snapshot measures actual net growth; with multiple snapshots, an explainable local linear trend reports bytes/day, and with three or more snapshots it also reports fit quality.
 
 ### 3. Tiered Fast Content Hashing
 Deduplicating large files can saturate I/O. SANCHAY uses a 3-tier cascade:
