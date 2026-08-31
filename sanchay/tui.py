@@ -13,7 +13,7 @@ from textual.app import App, ComposeResult
 from textual.containers import Horizontal
 from textual.widgets import DataTable, Footer, Header, Static
 
-from . import dedup, forecast, plan, scan, storage
+from . import dedup, forecast, managed, plan, scan, storage
 
 KIND_STYLE = {
     "disposable": "bold green",
@@ -108,14 +108,16 @@ class Sanchay(App):
     @work(thread=True)
     def scan_disk(self):
         files = scan.scan(self.root)
-        groups = dedup.duplicates(files, root=self.root)
+        groups = dedup.duplicates(managed.content_candidates(files), root=self.root)
         cleanup_plan = plan.build(files, groups, self.root, limit=500)
         rows = cleanup_plan["recommendations"]
         protected = cleanup_plan["safety"]["protected_unique_files"]
         hardlinks = cleanup_plan["safety"]["excluded_hardlink_entries"]
-        self.call_from_thread(self.show, files, groups, rows, protected, hardlinks)
+        managed_storage = cleanup_plan["safety"]["managed_operational_storage"]
+        self.call_from_thread(self.show, files, groups, rows, protected, hardlinks,
+                              managed_storage)
 
-    def show(self, files, groups, rows, protected, hardlinks):
+    def show(self, files, groups, rows, protected, hardlinks, managed_storage):
         self.all_rows = rows
         self.rows = list(rows)
         stats = self.query(Stat)
@@ -132,12 +134,19 @@ class Sanchay(App):
                      f"{human(forecast.rate(files))}/day mtime estimate")
 
         self.update_status_bar()
-        self.query_one("#guard", Static).update(Text.assemble(
+        guard = Text.assemble(
             (f"{protected:,} files held back. ", "bold red"),
             ("Unique, untracked, uncached files have no known reproducibility "
              "proof, so they are excluded from the review plan. ", "dim"),
-            (f"{hardlinks:,} hardlinked entries are also excluded because one link removal frees no bytes.",
-             "dim")))
+            (f"{hardlinks:,} hardlinked entries are also excluded because one link removal frees no bytes. ",
+             "dim"))
+        if managed_storage:
+            deferred_entries = sum(item["entries"] for item in managed_storage)
+            deferred_bytes = sum(item["allocated_bytes"] for item in managed_storage)
+            guard.append(
+                f"{deferred_entries:,} system-managed entries ({human(deferred_bytes)}) are deferred to APT or journal policy.",
+                style="dim")
+        self.query_one("#guard", Static).update(guard)
         self.fill()
 
     def update_status_bar(self):

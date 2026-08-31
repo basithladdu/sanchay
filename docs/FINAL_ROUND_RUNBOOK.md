@@ -115,7 +115,9 @@ invented exact full-disk date.
 dependency-light, local by default, and stays on one filesystem unless the
 operator explicitly opts into crossing that boundary. Common credential paths
 are excluded before metadata collection or hashing, and no file content leaves
-the machine through the core workflow.
+the machine through the core workflow. On Debian-derived BOSS, SANCHAY reports
+APT archives and persistent journals as tool-owned operational storage; it
+does not convert them into raw file-deletion candidates or target-reclaim bytes.
 
 ## What not to claim
 

@@ -24,9 +24,12 @@ from . import storage
 # output. Whole dependency trees and environments are deliberately excluded:
 # their presence alone is not proof that reinstalling them is possible.
 DISPOSABLE = (
-    "/.cache/", "/var/cache/", "/__pycache__/", "/target/debug/",
+    "/.cache/", "/__pycache__/", "/target/debug/",
     "/target/release/", "/.next/cache/", "/.tox/",
 )
+# ``/var/cache`` is deliberately absent.  It contains tool-owned system state;
+# named areas such as APT archives are reported as managed advisories rather
+# than being promoted into raw file-level cleanup recommendations.
 
 REGRET = {
     "disposable": 0.02,   # a build system rebuilds it

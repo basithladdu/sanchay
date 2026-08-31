@@ -13,7 +13,7 @@ import os
 from pathlib import Path
 import stat
 
-from . import dedup, regret, storage
+from . import dedup, managed, regret, storage
 
 
 PLAN_SCHEMA_VERSION = 5
@@ -139,6 +139,7 @@ def build(files, duplicate_groups, root, now=None, limit=25,
         raise ValueError("Reclaim target must be greater than zero")
     duplicate_of = dedup.confirmed_duplicate_map(duplicate_groups, root=root)
     by_path = {info.path: info for info in files}
+    managed_advisories = managed.advisories(files)
     eligible = []
     protected_count = 0
     protected_bytes = 0
@@ -146,6 +147,8 @@ def build(files, duplicate_groups, root, now=None, limit=25,
     hardlinked = []
 
     for info in files:
+        if managed.classify(info.path) is not None:
+            continue
         if storage.is_hardlinked(info):
             excluded_hardlink_entries += 1
             hardlinked.append(info)
@@ -197,6 +200,11 @@ def build(files, duplicate_groups, root, now=None, limit=25,
             "candidate_count": len(eligible),
             "candidate_bytes": sum(row["size"] for row, _ in eligible),
             "rule": "unique, untracked, uncached files and every hardlinked entry are excluded before ranking",
+            "managed_operational_storage": managed_advisories,
+            "deferred_managed_entries": sum(
+                item["entries"] for item in managed_advisories),
+            "deferred_managed_bytes": sum(
+                item["allocated_bytes"] for item in managed_advisories),
             "content_read_boundary": (
                 "duplicate evidence rejects non-regular files and identity drift; "
                 "on Linux, descriptor reads are rooted at the canonical scan root "

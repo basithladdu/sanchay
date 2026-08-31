@@ -17,6 +17,12 @@ endorses SANCHAY or defines the hackathon scoring rubric.
   hackathon rule. Source: [C-DAC Secure OS tender, pp. 35–36](https://www.cdac.in/index.aspx?dynamicId=NjY2MTA5MjE%3D&id=tenders_viewpdf).
 - The SSM portal frames the programme around a sovereign secure OS and national
   challenges. Source: [SSM Portal](https://ssm.cdac.in/).
+- Debian documents that `apt-get clean` clears retrieved package files from the
+  local archive cache, while `autoclean` only removes packages that can no
+  longer be downloaded. Source: [Debian `apt-get(8)`](https://manpages.debian.org/bookworm/apt/apt-get.8.en.html).
+- systemd documents that `journalctl --vacuum-size=` removes **archived**
+  journals only, so active journals and retention policy still matter. Source:
+  [systemd `journalctl`](https://www.freedesktop.org/software/systemd/man/255/journalctl.html).
 
 ### Storage-systems research
 
@@ -38,6 +44,10 @@ endorses SANCHAY or defines the hackathon scoring rubric.
   hardlink when deduplicating. Source: [r/selfhosted discussion](https://www.reddit.com/r/selfhosted/comments/1r8bn44/dealing_with_duplicates/).
 - Linux users often know how to locate disk usage with `ncdu` but cannot tell
   what is safe to remove. Source: [r/linuxquestions discussion](https://www.reddit.com/r/linuxquestions/comments/eriamd/how_can_i_figure_out_what_i_can_delete_to_free_up_space/).
+- A recent Debian user reported a root filesystem filled by logs and commenters
+  noted that deleting a still-open file does not necessarily return its space.
+  This is anecdotal evidence for surfacing journal storage as a policy review,
+  not promising an immediate raw-file reclaim. Source: [r/debian discussion](https://www.reddit.com/r/debian/comments/1l6elfa/).
 
 ## Decisions derived from the evidence
 
@@ -47,6 +57,7 @@ endorses SANCHAY or defines the hackathon scoring rubric.
 | Make every recommendation auditable | Include class, typed recovery evidence with strength, survivor path for duplicates, observed device/inode/logical-size/allocated-size/mtime-nanoseconds/link count, and a SHA-256 integrity checksum (not a signature). | Implemented |
 | Preserve source-of-truth and hardlinks | Keep a deterministic duplicate survivor; identify hardlinks by `(device, inode)`, count each inode once, and exclude individual hardlinked paths because one unlink releases no bytes. | Implemented |
 | Avoid treating a path swap as duplicate proof | On Linux, walk from the canonical scan-root descriptor with `openat` plus no-follow flags; reject non-regular files or identity drift before/after a content read. | Implemented |
+| Make BOSS storage operations safer | Measure APT archive and persistent systemd-journal storage separately; defer action to the owning tool and approved package/log-retention policy instead of raw file deletion or reclaim-target selection. | Implemented |
 | Avoid crossing a governance boundary silently | Scan one filesystem by default; cross-filesystem traversal requires an explicit flag. | Implemented |
 | Keep forecasting honest | Label the first pass an mtime-derived estimate; capture aggregate local snapshots for observed growth and an explainable local linear trend. | Implemented |
 | Support government/BOSS deployment | Keep the core local, dependency-light, inspectable, and suitable for an offline terminal workflow. | Implemented |

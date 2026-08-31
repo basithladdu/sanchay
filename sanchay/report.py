@@ -11,7 +11,7 @@ import html
 import time
 from pathlib import Path
 
-from . import dedup, forecast, plan, storage
+from . import dedup, forecast, managed, plan, storage
 
 CSS = """
 :root{--bg:#090d16;--panel:#111827;--panel-sub:#1a2333;--ink:#f3f4f6;--mute:#9ca3af;--line:#1f293d;
@@ -130,11 +130,12 @@ def build(files, root, free_bytes, out="sanchay-report.html", limit=50,
           target_reclaim_bytes=None):
     from . import viz
 
-    groups = dedup.duplicates(files, root=root)
+    groups = dedup.duplicates(managed.content_candidates(files), root=root)
     cleanup_plan = plan.build(files, groups, root, limit=limit,
                               target_reclaim_bytes=target_reclaim_bytes)
     rows = cleanup_plan["recommendations"]
     protected_count = cleanup_plan["safety"]["protected_unique_files"]
+    managed_storage = cleanup_plan["safety"]["managed_operational_storage"]
     dup_paths = plan.duplicate_evidence_paths(cleanup_plan)
 
     total = storage.physical_bytes(files)
@@ -162,6 +163,28 @@ def build(files, root, free_bytes, out="sanchay-report.html", limit=50,
             f'<td class="p" data-label="Relative path">{html.escape(_display_path(r["path"], root))}</td>'
             f'<td class="evidence" data-label="Recovery evidence">{html.escape(_evidence_label(r, root))}</td></tr>'
         )
+
+    managed_panel = ""
+    if managed_storage:
+        managed_rows = []
+        for item in managed_storage:
+            managed_rows.append(
+                f'<tr><td data-label="System area">{html.escape(item["label"])}</td>'
+                f'<td class="num" data-label="Allocated storage">{human(item["allocated_bytes"])}</td>'
+                f'<td class="num" data-label="Entries">{item["entries"]:,}</td>'
+                f'<td class="evidence" data-label="Human review">{html.escape(item["review_action"])}. '
+                f'{html.escape(item["boundary"])}</td></tr>'
+            )
+        managed_panel = f"""
+  <div class="panel">
+    <h2>System-managed storage</h2>
+    <p class="h">These paths are measured but excluded from file-level reclamation and target selection. Their owning Linux tools and an approved retention policy decide any action.</p>
+    <table>
+      <thead><tr><th>System area</th><th class="num">Allocated storage</th><th class="num">Entries</th><th>Human review</th></tr></thead>
+      <tbody>{"".join(managed_rows)}</tbody>
+    </table>
+  </div>
+"""
 
     page = f"""<!doctype html>
 <html lang="en">
@@ -231,6 +254,7 @@ def build(files, root, free_bytes, out="sanchay-report.html", limit=50,
       {html.escape(cleanup_plan["safety"]["content_read_boundary"])}. A single hardlink removal releases no physical bytes. The active policy excludes unique, untracked, uncached, and hardlinked entries before ranking. SANCHAY never deletes or moves files.
     </div>
   </div>
+  {managed_panel}
 </div>
 
 <script>

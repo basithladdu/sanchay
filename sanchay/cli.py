@@ -3,7 +3,7 @@ import argparse
 import re
 import shutil
 
-from . import dedup, explain, forecast, plan, regret, scan, snapshot, storage
+from . import dedup, explain, forecast, managed, plan, regret, scan, snapshot, storage
 
 
 def human(n):
@@ -100,7 +100,7 @@ def main(argv=None):
         print(f"{aliases:,} hardlink aliases are not double-counted")
     print()
 
-    groups = dedup.duplicates(files, root=args.root)
+    groups = dedup.duplicates(managed.content_candidates(files), root=args.root)
     print(f"duplicates: {len(groups)} groups, {human(dedup.reclaimable(groups))} potential allocated reclaim")
 
     free = shutil.disk_usage(args.root).free
@@ -144,6 +144,14 @@ def main(argv=None):
     hardlinks = cleanup_plan["safety"]["excluded_hardlink_entries"]
     if hardlinks:
         print(f"hardlinks: {hardlinks:,} entries excluded; a single link removal releases no physical bytes")
+    managed_storage = cleanup_plan["safety"]["managed_operational_storage"]
+    if managed_storage:
+        print(f"managed: {human(cleanup_plan['safety']['deferred_managed_bytes'])} across "
+              f"{cleanup_plan['safety']['deferred_managed_entries']:,} entries deferred "
+              "to their owning tools; never selected as file cleanup candidates")
+        for item in managed_storage:
+            print(f"  {item['label']}: {human(item['allocated_bytes'])} — "
+                  f"{item['review_action']}")
     selection = cleanup_plan.get("selection")
     if selection:
         state = "target met" if selection["target_met"] else (

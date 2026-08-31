@@ -589,7 +589,7 @@ button:focus-visible, a:focus-visible, input:focus-visible { outline: 3px solid 
     </div>
     <div class="card">
       <h3><span>04</span>Local by default</h3>
-      <p>Metadata stays local; file bytes are read locally only to confirm duplicate candidates.</p>
+      <p>Metadata stays local; file bytes are read locally only to confirm duplicate candidates. On BOSS/Debian, APT archives and persistent journals stay tool-owned advisories, never raw file-deletion targets.</p>
     </div>
   </div>
 
@@ -731,7 +731,7 @@ document.querySelectorAll('#fileTable tr').forEach(row => {
 const demoPlan = {
   schema_version: 5,
   execution: {automatic_deletion: false, requires_human_review: true},
-  safety: {protected_unique_files: 2, candidate_count: 4, excluded_hardlink_entries: 0, content_read_boundary: 'Linux root-anchored no-follow reads reject path substitution.'},
+  safety: {protected_unique_files: 2, candidate_count: 4, excluded_hardlink_entries: 0, managed_operational_storage: [], deferred_managed_entries: 0, deferred_managed_bytes: 0, content_read_boundary: 'Linux root-anchored no-follow reads reject path substitution.'},
   integrity: {algorithm: 'SHA-256', purpose: 'detects accidental plan changes; not a signature'},
   decision_model: {name: 'regret_aware_priority', version: 2, formula: 'priority = reclaimable_allocated_bytes × unchanged_age × (1 - regret_weight)'},
   recommendations: [

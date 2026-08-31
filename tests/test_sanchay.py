@@ -2,6 +2,7 @@ import subprocess
 import tempfile
 import time
 import unittest
+import importlib.util
 from unittest import mock
 import argparse
 import os
@@ -12,7 +13,8 @@ import shutil
 from types import SimpleNamespace
 from pathlib import Path
 
-from sanchay import cli, dedup, demo, forecast, plan, regret, report, scan, snapshot, storage
+from sanchay import (cli, dedup, demo, forecast, managed, plan, regret, report,
+                     scan, snapshot, storage)
 
 
 class TestSanchay(unittest.TestCase):
@@ -99,6 +101,79 @@ class TestSanchay(unittest.TestCase):
         self.assertFalse(selection['target_met'])
         self.assertEqual(selection['selected_reclaim_bytes'], 4000)
         self.assertEqual(selection['shortfall_bytes'], 2000)
+
+    def test_boss_managed_storage_is_deferred_to_its_owning_tool(self):
+        files = [
+            scan.FileInfo('/home/user/.cache/build.bin', 4000, self.now,
+                          self.now - 86400 * 90, 701),
+            scan.FileInfo('/var/cache/apt/archives/boss-tools.deb', 12000,
+                          self.now, self.now - 86400 * 90, 702),
+            scan.FileInfo('/var/log/journal/machine/system.journal', 16000,
+                          self.now, self.now - 86400 * 90, 703),
+            scan.FileInfo('/home/user/project/var/cache/apt/archives/not-system.deb',
+                          20000, self.now, self.now - 86400 * 90, 704),
+        ]
+
+        cleanup_plan = plan.build(files, [], '/', now=self.now,
+                                  target_reclaim_bytes=6000)
+        selected_paths = [item['path'] for item in cleanup_plan['recommendations']]
+        advisory = {item['key']: item
+                    for item in cleanup_plan['safety']['managed_operational_storage']}
+
+        self.assertEqual(selected_paths, ['/home/user/.cache/build.bin'])
+        self.assertFalse(cleanup_plan['selection']['target_met'])
+        self.assertEqual(cleanup_plan['selection']['shortfall_bytes'], 2000)
+        self.assertEqual(cleanup_plan['safety']['deferred_managed_entries'], 2)
+        self.assertEqual(cleanup_plan['safety']['deferred_managed_bytes'], 28000)
+        self.assertIn('apt_archive_cache', advisory)
+        self.assertIn('persistent_system_journal', advisory)
+        self.assertIn('apt-get autoclean', advisory['apt_archive_cache']['review_action'])
+        self.assertIn('journalctl --disk-usage',
+                      advisory['persistent_system_journal']['review_action'])
+        self.assertEqual(managed.classify(files[-1].path), None)
+        self.assertEqual(regret.classify(files[-1], False), 'unique')
+        self.assertEqual(managed.content_candidates(files), [files[0], files[-1]])
+
+    @unittest.skipUnless(importlib.util.find_spec('pandas'),
+                         'requires the optional report dependencies')
+    def test_report_separates_system_managed_storage_from_file_cleanup(self):
+        files = [
+            scan.FileInfo('/home/user/.cache/build.bin', 4000, self.now,
+                          self.now - 86400 * 90, 711),
+            scan.FileInfo('/var/cache/apt/archives/boss-tools.deb', 12000,
+                          self.now, self.now - 86400 * 90, 712),
+            scan.FileInfo('/var/log/journal/machine/system.journal', 16000,
+                          self.now, self.now - 86400 * 90, 713),
+        ]
+        with tempfile.TemporaryDirectory() as tmp:
+            output = Path(tmp) / 'report.html'
+            report.build(files, '/', 1000000, output)
+            page = output.read_text(encoding='utf-8')
+
+        self.assertIn('System-managed storage', page)
+        self.assertIn('APT archive cache', page)
+        self.assertIn('Persistent systemd journal', page)
+        self.assertIn('excluded from file-level reclamation', page)
+
+    def test_cli_labels_managed_storage_as_deferred_not_reclaimable(self):
+        files = [
+            scan.FileInfo('/home/user/.cache/build.bin', 4000, self.now,
+                          self.now - 86400 * 90, 721),
+            scan.FileInfo('/var/cache/apt/archives/boss-tools.deb', 12000,
+                          self.now, self.now - 86400 * 90, 722),
+        ]
+        output = io.StringIO()
+        with mock.patch.object(scan, 'scan', return_value=files), \
+                mock.patch.object(shutil, 'disk_usage',
+                                  return_value=SimpleNamespace(free=1000000)), \
+                contextlib.redirect_stdout(output):
+            status = cli.main(['/'])
+
+        rendered = output.getvalue()
+        self.assertIsNone(status)
+        self.assertIn('managed:', rendered)
+        self.assertIn('APT archive cache', rendered)
+        self.assertIn('never selected as file cleanup candidates', rendered)
 
     def test_reclaim_target_prefers_lowest_risk_with_minimal_safe_excess(self):
         with tempfile.TemporaryDirectory() as tmp:

@@ -58,6 +58,15 @@ usage, snapshot, forecast, and treemap metrics, using allocated blocks rather
 than sparse logical length where Linux exposes `st_blocks`, and excludes every
 individual hardlinked path from the review plan.
 
+**1a. Separates tool-owned system storage.** On Debian-derived BOSS, APT
+archives in `/var/cache/apt/archives/` and persistent systemd journals in
+`/var/log/journal/` are useful space signals but not loose-file cleanup
+candidates. SANCHAY measures them in a separate advisory section, excludes them
+from deduplication reads and `--target-reclaim`, and names the owning-tool
+review route. APT archives remain under APT policy; journal vacuuming remains
+under an approved retention policy because it may affect audit or incident
+evidence.
+
 **2. Works out how recoverable each file is.** This is the core of the tool.
 Every file lands in one of four classes:
 

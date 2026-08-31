@@ -91,6 +91,8 @@ Put the command in small monospace text only:
 
 - Local core workflow; no file contents transmitted.
 - One filesystem by default; cross-filesystem traversal is explicit.
+- On Debian-derived BOSS, APT archives and persistent journals are measured as
+  tool-owned operational storage, never raw file-deletion candidates.
 - Dependency-free Python core; TUI, plots, and narrative are optional.
 - Inspectable JSON manifest with SHA-256 integrity checksum (not a signature)
   and observed identity.
@@ -113,4 +115,4 @@ has been independently tested from the presentation device.
   context, not hackathon rules.
 - Storage redundancy and forecasting research: docs/FINAL_ROUND_RESEARCH.md.
 - Implementation claims: sanchay/plan.py, sanchay/dedup.py,
-  sanchay/snapshot.py, and the verified test suite.
+  sanchay/managed.py, sanchay/snapshot.py, and the verified test suite.
