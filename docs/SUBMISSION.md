@@ -42,7 +42,9 @@ It then does six things.
 Before the scan records metadata, SANCHAY excludes common credential
 directories, environment files, private-key formats, local credential vaults,
 Docker configuration, and npm and Terraform CLI credential files. They are
-never duplicate-hashed or placed in a recommendation.
+never duplicate-hashed or placed in a recommendation. The same path boundary is
+reapplied by the content-evidence and plan APIs when a caller supplies records
+directly.
 
 **1. Finds duplicates cheaply.** Files are grouped by size first. Only groups
 that collide get their first 64 KB hashed. Only what still collides after that

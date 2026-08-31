@@ -729,9 +729,9 @@ document.querySelectorAll('#fileTable tr').forEach(row => {
 });
 
 const demoPlan = {
-  schema_version: 7,
+  schema_version: 8,
   execution: {automatic_deletion: false, requires_human_review: true},
-  safety: {protected_unique_files: 2, candidate_count: 4, excluded_hardlink_entries: 0, managed_operational_storage: [], deferred_managed_entries: 0, deferred_managed_bytes: 0, scan_coverage: {complete: true, unreadable_directories: 0, unreadable_files: 0}, content_read_boundary: 'Linux root-anchored no-follow reads reject path substitution.'},
+  safety: {protected_unique_files: 2, excluded_credential_control_entries: 0, candidate_count: 4, excluded_hardlink_entries: 0, managed_operational_storage: [], deferred_managed_entries: 0, deferred_managed_bytes: 0, scan_coverage: {complete: true, unreadable_directories: 0, unreadable_files: 0}, content_read_boundary: 'Linux root-anchored no-follow reads reject path substitution.'},
   integrity: {algorithm: 'SHA-256', purpose: 'detects accidental plan changes; not a signature'},
   decision_model: {name: 'regret_aware_priority', version: 2, formula: 'priority = reclaimable_allocated_bytes × unchanged_age × (1 - regret_weight)'},
   recommendations: [

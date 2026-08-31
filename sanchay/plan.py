@@ -16,7 +16,7 @@ import stat
 from . import dedup, managed, regret, scan, storage
 
 
-PLAN_SCHEMA_VERSION = 7
+PLAN_SCHEMA_VERSION = 8
 IDENTITY_FIELDS = (
     "device", "inode", "size", "allocated_size", "mtime", "mtime_ns", "nlink",
 )
@@ -147,10 +147,14 @@ def build(files, duplicate_groups, root, now=None, limit=25,
     eligible = []
     protected_count = 0
     protected_bytes = 0
+    excluded_credential_control_entries = 0
     excluded_hardlink_entries = 0
     hardlinked = []
 
     for info in files:
+        if scan.is_protected_path(info.path):
+            excluded_credential_control_entries += 1
+            continue
         if managed.classify(info.path) is not None:
             continue
         if storage.is_hardlinked(info):
@@ -197,13 +201,17 @@ def build(files, duplicate_groups, root, now=None, limit=25,
         "safety": {
             "protected_unique_files": protected_count,
             "protected_unique_bytes": protected_bytes,
+            "excluded_credential_control_entries": excluded_credential_control_entries,
             "logical_file_entries": len(files),
             "physical_file_count": len(storage.physical_records(files)),
             "excluded_hardlink_entries": excluded_hardlink_entries,
             "excluded_hardlink_physical_bytes": storage.physical_bytes(hardlinked),
             "candidate_count": len(eligible),
             "candidate_bytes": sum(row["size"] for row, _ in eligible),
-            "rule": "unique, untracked, uncached files and every hardlinked entry are excluded before ranking",
+            "rule": (
+                "known credential/control paths, unique, untracked, uncached files, "
+                "and every hardlinked entry are excluded before ranking"
+            ),
             "managed_operational_storage": managed_advisories,
             "deferred_managed_entries": sum(
                 item["entries"] for item in managed_advisories),
@@ -277,6 +285,7 @@ def read(path):
     required = {"schema_version", "root", "execution", "recommendations", "safety",
                 "fingerprint_sha256"}
     safety_required = {"protected_unique_files", "protected_unique_bytes",
+                       "excluded_credential_control_entries",
                        "logical_file_entries", "physical_file_count",
                        "excluded_hardlink_entries", "excluded_hardlink_physical_bytes",
                        "candidate_count", "candidate_bytes", "rule",

@@ -12,7 +12,7 @@ its file-level reclaim target.
 """
 from dataclasses import dataclass
 
-from . import storage
+from . import scan, storage
 
 
 @dataclass(frozen=True)
@@ -132,7 +132,12 @@ def classify(path):
 
 def content_candidates(files):
     """Return files that may safely enter content-deduplication evidence."""
-    return [info for info in files if classify(info.path) is None]
+    return [info for info in files if is_content_candidate(info.path)]
+
+
+def is_content_candidate(path):
+    """Keep managed and known credential/control paths out of content reads."""
+    return classify(path) is None and not scan.is_protected_path(path)
 
 
 def advisories(files):

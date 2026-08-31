@@ -107,6 +107,25 @@ def _is_protected_file(name):
             and normalized not in {".env.example", ".env.sample"})
 
 
+def _path_is_protected(path, protected_dirs):
+    parts = [part for part in str(path).replace("\\", "/").split("/")
+             if part not in {"", "."}]
+    return (any(part.lower() in protected_dirs for part in parts)
+            or bool(parts) and _is_protected_file(parts[-1]))
+
+
+def is_protected_path(path, skip=DEFAULT_SKIP_DIRS):
+    """Return whether a path is a known credential or control path.
+
+    This public predicate lets callers that already hold ``FileInfo`` records
+    preserve the same metadata and content-read boundary as :func:`scan`.
+    It is intentionally a conservative path policy, not a claim that every
+    sensitive file can be identified by its name.
+    """
+    protected_dirs = frozenset(str(name).lower() for name in skip)
+    return _path_is_protected(path, protected_dirs)
+
+
 def scan_with_coverage(root, skip=DEFAULT_SKIP_DIRS,
                        cross_filesystems=False):
     """Return regular files plus honest coverage evidence for one tree.
@@ -120,7 +139,8 @@ def scan_with_coverage(root, skip=DEFAULT_SKIP_DIRS,
     # Canonicalise the user-supplied root once.  All emitted paths then share
     # one stable root for later descriptor-relative content reads.
     root = os.path.realpath(os.path.abspath(root))
-    if os.path.basename(os.path.normpath(root)) in skip:
+    protected_dirs = frozenset(str(name).lower() for name in skip)
+    if _path_is_protected(root, protected_dirs):
         raise ValueError(f"Refusing to scan protected directory: {root}")
     try:
         root_device = os.stat(root).st_dev
@@ -139,7 +159,10 @@ def scan_with_coverage(root, skip=DEFAULT_SKIP_DIRS,
         # Prune at the parent so os.walk never descends into sensitive or
         # control directories. `skip` accepts directory basenames to keep this
         # policy portable across Linux and Windows paths.
-        dirnames[:] = [name for name in dirnames if name not in skip]
+        dirnames[:] = [
+            name for name in dirnames
+            if not _path_is_protected(os.path.join(dirpath, name), protected_dirs)
+        ]
         if not cross_filesystems:
             try:
                 if os.stat(dirpath).st_dev != root_device:
@@ -161,9 +184,9 @@ def scan_with_coverage(root, skip=DEFAULT_SKIP_DIRS,
                     continue
             dirnames[:] = same_filesystem
         for name in filenames:
-            if _is_protected_file(name):
-                continue
             path = os.path.join(dirpath, name)
+            if _path_is_protected(path, protected_dirs):
+                continue
             try:
                 st = os.lstat(path)
             except OSError:

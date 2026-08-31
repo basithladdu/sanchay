@@ -159,7 +159,8 @@ invented exact full-disk date.
 dependency-light, local by default, and stays on one filesystem unless the
 operator explicitly opts into a multi-mount inventory. That inventory does not
 make a shared capacity forecast or reclaim-target claim. Common credential paths
-are excluded before metadata collection or hashing, and no file content leaves
+are excluded before metadata collection or hashing, and the same known-path gate
+is reapplied if a caller supplies file records directly. No file content leaves
 the machine through the core workflow. On Debian-derived BOSS, SANCHAY reports
 APT archives and persistent journals as tool-owned operational storage. When
 they exist, Docker, containerd, and Flatpak stores receive the same treatment;

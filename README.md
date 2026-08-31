@@ -239,7 +239,9 @@ sanchay-ui .
 * **Credential boundary**: Common credential directories, environment files,
   private-key formats, local credential vaults, Docker configuration, and npm
   and Terraform CLI credential files are excluded before metadata collection or
-  duplicate hashing.
+  duplicate hashing. The same known credential/control-path gate is reapplied
+  by the content-evidence and plan APIs, so caller-supplied `FileInfo` records
+  cannot bypass it.
 * **Content-read boundary**: Duplicate evidence is tied to the inode observed
   during the scan. Linux reads are rooted at the canonical scan directory and
   reject symlink components; all platforms reject non-regular files and

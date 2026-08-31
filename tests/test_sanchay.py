@@ -197,6 +197,41 @@ class TestSanchay(unittest.TestCase):
             self.assertEqual(dedup.duplicates(files[1:]), [])
         digest.assert_not_called()
 
+    def test_library_inputs_reapply_known_credential_path_boundary(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            keeper = root / 'archive' / 'source.bin'
+            duplicate = root / 'downloads' / 'copy.bin'
+            credential = root / '.ssh' / 'id_rsa'
+            for path in (keeper, duplicate, credential):
+                path.parent.mkdir(parents=True, exist_ok=True)
+                path.write_bytes(b'x' * 4096)
+
+            def info(path):
+                observed = path.stat()
+                return scan.FileInfo(
+                    str(path), observed.st_size, observed.st_atime,
+                    observed.st_mtime, observed.st_ino, observed.st_dev,
+                    observed.st_nlink, storage.allocated_bytes_from_stat(observed),
+                    getattr(observed, 'st_mtime_ns', None))
+
+            files = [info(keeper), info(duplicate), info(credential)]
+            with mock.patch.object(dedup, '_digest', wraps=dedup._digest) as digest:
+                groups = dedup.duplicates(files, root=root)
+            cleanup_plan = plan.build(files, groups, root, now=self.now)
+
+        self.assertTrue(scan.is_protected_path(credential))
+        self.assertEqual(managed.content_candidates(files), files[:2])
+        self.assertEqual(
+            {item.path for group in groups for item in group},
+            {str(keeper), str(duplicate)})
+        self.assertNotIn(str(credential), [call.args[0] for call in digest.call_args_list])
+        self.assertNotIn(str(credential), repr(cleanup_plan))
+        self.assertEqual(cleanup_plan['safety']['excluded_credential_control_entries'], 1)
+        self.assertEqual(
+            {item['path'] for item in cleanup_plan['recommendations']},
+            {str(duplicate)})
+
     @unittest.skipUnless(importlib.util.find_spec('pandas'),
                          'requires the optional report dependencies')
     def test_report_separates_system_managed_storage_from_file_cleanup(self):
@@ -638,7 +673,7 @@ class TestSanchay(unittest.TestCase):
             self.assertIn(str(duplicate_a), item['recovery_evidence']['detail'])
             self.assertEqual(item['observed_identity']['size'], 4096)
             self.assertEqual(item['observed_identity']['allocated_size'], 4096)
-            self.assertEqual(cleanup_plan['schema_version'], 7)
+            self.assertEqual(cleanup_plan['schema_version'], 8)
             self.assertTrue(cleanup_plan['safety']['scan_coverage']['complete'])
             self.assertIn('mtime_ns', item['observed_identity'])
             self.assertEqual(item['decision_trace']['name'], 'regret_aware_priority')
@@ -858,6 +893,16 @@ class TestSanchay(unittest.TestCase):
             with self.assertRaises(ValueError):
                 plan.read(legacy_path)
 
+            missing_boundary = copy.deepcopy(cleanup_plan)
+            missing_boundary['safety'].pop('excluded_credential_control_entries')
+            unsigned = {key: value for key, value in missing_boundary.items()
+                        if key != 'fingerprint_sha256'}
+            missing_boundary['fingerprint_sha256'] = plan._fingerprint(unsigned)
+            missing_path = root / 'missing-credential-boundary.json'
+            plan.write(missing_boundary, missing_path)
+            with self.assertRaises(ValueError):
+                plan.read(missing_path)
+
             tampered = copy.deepcopy(cleanup_plan)
             tampered['safety']['rule'] = 'changed after review'
             tampered_result = plan.verify(tampered)
@@ -993,7 +1038,7 @@ class TestSanchay(unittest.TestCase):
             root = Path(tmp)
             visible = root / 'visible.txt'
             visible.write_text('candidate', encoding='utf-8')
-            for name in ('.git', '.ssh', '.docker', '.azure', '.oci',
+            for name in ('.env', '.git', '.ssh', '.docker', '.azure', '.oci',
                          '.terraform.d'):
                 protected = root / name
                 protected.mkdir()
@@ -1002,9 +1047,14 @@ class TestSanchay(unittest.TestCase):
 
             paths = {item.path for item in scan.scan(root)}
             self.assertEqual(paths, {str(visible)})
-            for name in ('.ssh', '.docker', '.azure', '.oci', '.terraform.d'):
+            for name in ('.env', '.ssh', '.docker', '.azure', '.oci',
+                         '.terraform.d'):
                 with self.subTest(name=name), self.assertRaises(ValueError):
                     scan.scan(root / name)
+            nested_ssh = root / '.ssh' / 'nested'
+            nested_ssh.mkdir()
+            with self.assertRaises(ValueError):
+                scan.scan(nested_ssh)
 
     def test_scan_with_coverage_records_unreadable_entries_without_paths(self):
         with tempfile.TemporaryDirectory() as tmp:

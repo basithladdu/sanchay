@@ -150,6 +150,7 @@ def build(files, root, free_bytes, out="sanchay-report.html", limit=50,
                               scan_coverage=scan_coverage)
     rows = cleanup_plan["recommendations"]
     protected_count = cleanup_plan["safety"]["protected_unique_files"]
+    credential_control_entries = cleanup_plan["safety"]["excluded_credential_control_entries"]
     managed_storage = cleanup_plan["safety"]["managed_operational_storage"]
     coverage = cleanup_plan["safety"]["scan_coverage"]
     dup_paths = plan.duplicate_evidence_paths(cleanup_plan)
@@ -232,6 +233,16 @@ def build(files, root, free_bytes, out="sanchay-report.html", limit=50,
     <p class="h">{coverage['unreadable_directories']:,} directory(ies) and {coverage['unreadable_files']:,} file(s) could not be inspected. This report inventories only readable in-scope files; it does not calculate a growth forecast or create a comparable snapshot from this partial view.</p>
   </div>
 """
+
+    credential_boundary = ""
+    if credential_control_entries:
+        credential_boundary = (
+            f"<br>{credential_control_entries:,} known credential/control path entry "
+            "was excluded before content evidence and planning."
+            if credential_control_entries == 1 else
+            f"<br>{credential_control_entries:,} known credential/control path entries "
+            "were excluded before content evidence and planning."
+        )
 
     process_panel = ""
     process_held = tuple(process_held or ())
@@ -336,7 +347,7 @@ def build(files, root, free_bytes, out="sanchay-report.html", limit=50,
     <div class="guard">
       <b>{protected_count:,} unique files and {cleanup_plan["safety"]["excluded_hardlink_entries"]:,} hardlinked entries are excluded from this plan.</b><br>
       Integrity checksum (not a signature): <code>{cleanup_plan["fingerprint_sha256"]}</code><br>
-      {html.escape(cleanup_plan["safety"]["content_read_boundary"])}. A single hardlink removal releases no physical bytes. The active policy excludes unique, untracked, uncached, and hardlinked entries before ranking. SANCHAY never deletes or moves files.
+      {html.escape(cleanup_plan["safety"]["content_read_boundary"])}. A single hardlink removal releases no physical bytes. The active policy excludes known credential/control paths, unique, untracked, uncached, and hardlinked entries before ranking.{credential_boundary} SANCHAY never deletes or moves files.
     </div>
   </div>
   {managed_panel}
