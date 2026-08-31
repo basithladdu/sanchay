@@ -96,9 +96,11 @@ with the readable allocated inventory and visible deleted-open bytes, then
 labels any signed remainder an accounting gap. It does not claim that the gap
 has one cause or can be freed: protected paths, filesystem metadata, snapshots
 or shared extents, mount-overlaid data, and inaccessible state can contribute.
-The same read-only audit reports POSIX inode/file-entry capacity (total, free,
-and, when reported, unprivileged availability), so it can distinguish byte
-capacity from the separate inability to create a new file. It identifies no
+The same read-only audit distinguishes free filesystem blocks from blocks
+available to the unprivileged operator, then reports POSIX inode/file-entry
+capacity (total, free, and, when reported, unprivileged availability). It can
+therefore distinguish a filesystem-policy boundary and the separate inability
+to create a new file from an ordinary byte-capacity shortage. It identifies no
 file to remove and runs no filesystem, LVM, container, or cleanup action.
 
 **1e. Fences system-reserved OS paths before content reads.** A duplicated byte

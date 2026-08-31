@@ -145,6 +145,9 @@ entry capacity where the filesystem exposes it: total entries, free entries,
 and entries available to an unprivileged process. This catches the distinct
 case where byte space remains but no file entry can be created. It does not
 identify a file to remove or claim a cause when the counters are unavailable.
+It also distinguishes free blocks from blocks actually available to the
+unprivileged operator, so a filesystem policy/reservation boundary is visible
+without recommending a change to that policy.
 
 **Why does SANCHAY show mount context?** C-DAC describes Secure BOSS as
 LVM-encrypted, so filesystem-free bytes alone do not establish volume-group or

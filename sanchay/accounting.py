@@ -13,6 +13,7 @@ from . import scan, storage
 
 ACCOUNTING_SCHEMA_VERSION = 1
 INODE_CAPACITY_SCHEMA_VERSION = 1
+BLOCK_AVAILABILITY_SCHEMA_VERSION = 1
 BOUNDARY = (
     "This is a readable-inventory accounting diagnostic, not a full filesystem "
     "reconciliation. Protected paths, filesystem metadata, snapshots or shared "
@@ -22,6 +23,12 @@ INODE_BOUNDARY = (
     "This is a mount-level inode/file-entry capacity observation, not a cleanup "
     "recommendation or a diagnosis. It cannot identify a safe file to remove, "
     "and some filesystems do not expose meaningful inode counters."
+)
+BLOCK_AVAILABILITY_BOUNDARY = (
+    "This is a mount-level block-availability observation, not a cleanup "
+    "recommendation or a diagnosis. Free blocks that are unavailable to an "
+    "unprivileged process can reflect filesystem policy; this does not identify "
+    "bytes to remove or authorize a policy change."
 )
 
 
@@ -42,6 +49,16 @@ def _inode_unassessed(reason, coverage):
         "reason": reason,
         "scan_coverage": coverage,
         "boundary": INODE_BOUNDARY,
+    }
+
+
+def _block_unassessed(reason, coverage):
+    return {
+        "schema_version": BLOCK_AVAILABILITY_SCHEMA_VERSION,
+        "assessed": False,
+        "reason": reason,
+        "scan_coverage": coverage,
+        "boundary": BLOCK_AVAILABILITY_BOUNDARY,
     }
 
 
@@ -68,6 +85,62 @@ def _non_negative_int(value):
             and value >= 0 else None)
 
 
+def _statvfs(root, *, scan_coverage, unavailable):
+    """Read POSIX mount statistics without leaking a target path in failures."""
+    statvfs = getattr(os, "statvfs", None)
+    if not callable(statvfs):
+        return None, unavailable(
+            "POSIX capacity counters are unavailable because this platform has no statvfs support",
+            scan.coverage_summary(scan_coverage))
+    try:
+        return statvfs(root), None
+    except OSError as exc:
+        return None, unavailable(
+            "POSIX capacity counters are unavailable from this filesystem "
+            f"({type(exc).__name__})", scan.coverage_summary(scan_coverage))
+
+
+def assess_block_availability(root, *, scan_coverage=None, root_is_mount=False,
+                              cross_filesystems=False):
+    """Read POSIX block availability without suggesting a filesystem change."""
+    gate = _capacity_gate(
+        scan_coverage=scan_coverage, root_is_mount=root_is_mount,
+        cross_filesystems=cross_filesystems, unavailable=_block_unassessed)
+    if gate:
+        return gate
+
+    stats, unavailable = _statvfs(
+        root, scan_coverage=scan_coverage, unavailable=_block_unassessed)
+    if unavailable:
+        return unavailable
+    fragment = _non_negative_int(getattr(stats, "f_frsize", None))
+    if not fragment:
+        fragment = _non_negative_int(getattr(stats, "f_bsize", None))
+    total_blocks = _non_negative_int(getattr(stats, "f_blocks", None))
+    free_blocks = _non_negative_int(getattr(stats, "f_bfree", None))
+    available_blocks = _non_negative_int(getattr(stats, "f_bavail", None))
+    if (not fragment or total_blocks is None or total_blocks == 0
+            or free_blocks is None
+            or available_blocks is None or free_blocks > total_blocks
+            or available_blocks > free_blocks):
+        return _block_unassessed(
+            "this filesystem does not report usable block-availability counters",
+            scan.coverage_summary(scan_coverage))
+
+    return {
+        "schema_version": BLOCK_AVAILABILITY_SCHEMA_VERSION,
+        "assessed": True,
+        "total_bytes": total_blocks * fragment,
+        "used_bytes": (total_blocks - free_blocks) * fragment,
+        "free_bytes": free_blocks * fragment,
+        "available_bytes": available_blocks * fragment,
+        "free_unavailable_to_unprivileged_bytes": (
+            free_blocks - available_blocks) * fragment,
+        "scan_coverage": scan.coverage_summary(scan_coverage),
+        "boundary": BLOCK_AVAILABILITY_BOUNDARY,
+    }
+
+
 def assess_inode_capacity(root, *, scan_coverage=None, root_is_mount=False,
                           cross_filesystems=False):
     """Read POSIX inode/file-entry counters as a strictly advisory diagnostic.
@@ -83,17 +156,10 @@ def assess_inode_capacity(root, *, scan_coverage=None, root_is_mount=False,
     if gate:
         return gate
 
-    statvfs = getattr(os, "statvfs", None)
-    if not callable(statvfs):
-        return _inode_unassessed(
-            "inode capacity is unavailable because this platform has no statvfs support",
-            scan.coverage_summary(scan_coverage))
-    try:
-        stats = statvfs(root)
-    except OSError as exc:
-        return _inode_unassessed(
-            "inode capacity is unavailable from this filesystem "
-            f"({type(exc).__name__})", scan.coverage_summary(scan_coverage))
+    stats, unavailable = _statvfs(
+        root, scan_coverage=scan_coverage, unavailable=_inode_unassessed)
+    if unavailable:
+        return unavailable
 
     total = _non_negative_int(getattr(stats, "f_files", None))
     free = _non_negative_int(getattr(stats, "f_ffree", None))

@@ -172,10 +172,12 @@ signal, restart, truncate, or delete anything held by a process.
 root of one mounted filesystem. It compares reported filesystem-used blocks
 with the readable allocated-file inventory plus visible deleted-open files and
 labels the signed remainder an **accounting gap**. It also reads the mounted
-filesystem's POSIX `statvfs` file-entry/inode counters: total, free, and, when
-reported, entries available to an unprivileged process. That catches the
-separate failure mode where Linux cannot create a file despite free byte space.
-Neither signal is called reclaimable or unexplained space: protected paths,
+filesystem's POSIX `statvfs` block and file-entry/inode counters. It separates
+free blocks from blocks available to an unprivileged process, then reports
+total, free, and, when reported, available file entries. That catches both the
+filesystem-policy boundary where an ordinary user cannot consume all free
+blocks and the separate failure mode where Linux cannot create a file despite
+free byte space. Neither signal is called reclaimable or unexplained space: protected paths,
 filesystem metadata, Btrfs snapshots or shared extents, mount-overlaid data,
 and inaccessible state can all contribute. The audit identifies no file to
 remove and never runs a filesystem, volume, container, or cleanup command.
@@ -336,8 +338,8 @@ sanchay-ui .
 * **Capacity-audit boundary**: `--capacity-audit` works only for a complete
   single-filesystem scan begun at that mount's root. It reports a signed
   accounting gap after readable inventory and visible deleted-open storage,
-  alongside any usable POSIX inode/file-entry capacity counters. It never
-  treats either signal as a cleanup target or a complete explanation of
+  alongside usable POSIX block-availability and inode/file-entry capacity
+  counters. It never treats any signal as a cleanup target or a complete explanation of
   filesystem use.
 
 ---

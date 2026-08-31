@@ -89,6 +89,7 @@ def _capacity_summary(capacity_accounting):
             "requested": True,
             "assessed": False,
             "inode_capacity": {"assessed": False},
+            "block_availability": {"assessed": False},
         }
     summary = {
         "requested": True,
@@ -114,28 +115,47 @@ def _capacity_summary(capacity_accounting):
     inode_capacity = capacity_accounting.get("inode_capacity")
     if not isinstance(inode_capacity, dict) or not inode_capacity.get("assessed"):
         summary["inode_capacity"] = {"assessed": False}
+    else:
+        total = _non_negative_int(inode_capacity.get("total_inodes"))
+        free = _non_negative_int(inode_capacity.get("free_inodes"))
+        used = _non_negative_int(inode_capacity.get("used_inodes"))
+        available = inode_capacity.get("available_inodes")
+        available = (_non_negative_int(available)
+                     if available is not None else None)
+        if (total is None or total == 0 or free is None or used is None
+                or free > total or used > total or used != total - free
+                or (available is not None and available > total)):
+            summary["inode_capacity"] = {"assessed": False}
+        else:
+            summary["inode_capacity"] = {
+                "assessed": True,
+                "total_inodes": total,
+                "free_inodes": free,
+                "available_inodes": available,
+                "used_inodes": used,
+                "used_percent": inode_capacity.get("used_percent")
+                if isinstance(inode_capacity.get("used_percent"), (int, float))
+                and not isinstance(inode_capacity.get("used_percent"), bool) else 0,
+            }
+    block_availability = capacity_accounting.get("block_availability")
+    if not isinstance(block_availability, dict) or not block_availability.get("assessed"):
+        summary["block_availability"] = {"assessed": False}
         return summary
-    total = _non_negative_int(inode_capacity.get("total_inodes"))
-    free = _non_negative_int(inode_capacity.get("free_inodes"))
-    used = _non_negative_int(inode_capacity.get("used_inodes"))
-    available = inode_capacity.get("available_inodes")
-    available = (_non_negative_int(available)
-                 if available is not None else None)
-    if (total is None or total == 0 or free is None or used is None
-            or free > total or used > total or used != total - free
-            or (available is not None and available > total)):
-        summary["inode_capacity"] = {"assessed": False}
-        return summary
-    summary["inode_capacity"] = {
-        "assessed": True,
-        "total_inodes": total,
-        "free_inodes": free,
-        "available_inodes": available,
-        "used_inodes": used,
-        "used_percent": inode_capacity.get("used_percent")
-        if isinstance(inode_capacity.get("used_percent"), (int, float))
-        and not isinstance(inode_capacity.get("used_percent"), bool) else 0,
+    allowed = {
+        key: _non_negative_int(block_availability.get(key))
+        for key in (
+            "total_bytes", "used_bytes", "free_bytes", "available_bytes",
+            "free_unavailable_to_unprivileged_bytes",
+        )
     }
+    if (any(value is None for value in allowed.values())
+            or allowed["used_bytes"] + allowed["free_bytes"] != allowed["total_bytes"]
+            or allowed["available_bytes"] > allowed["free_bytes"]
+            or (allowed["free_bytes"] - allowed["available_bytes"]
+                != allowed["free_unavailable_to_unprivileged_bytes"])):
+        summary["block_availability"] = {"assessed": False}
+        return summary
+    summary["block_availability"] = {"assessed": True, **allowed}
     return summary
 
 

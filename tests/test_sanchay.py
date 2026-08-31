@@ -371,6 +371,22 @@ class TestSanchay(unittest.TestCase):
         self.assertFalse(unavailable['assessed'])
         self.assertIn('no statvfs support', unavailable['reason'])
 
+    def test_block_availability_audit_distinguishes_free_from_user_available(self):
+        stats = SimpleNamespace(
+            f_frsize=4096, f_bsize=4096, f_blocks=1000, f_bfree=100, f_bavail=90)
+        with mock.patch.object(accounting.os, 'statvfs', return_value=stats,
+                               create=True):
+            audit = accounting.assess_block_availability(
+                '/mnt/data', scan_coverage=scan.ScanCoverage(), root_is_mount=True)
+
+        self.assertTrue(audit['assessed'])
+        self.assertEqual(audit['total_bytes'], 4096000)
+        self.assertEqual(audit['used_bytes'], 3686400)
+        self.assertEqual(audit['free_bytes'], 409600)
+        self.assertEqual(audit['available_bytes'], 368640)
+        self.assertEqual(audit['free_unavailable_to_unprivileged_bytes'], 40960)
+        self.assertIn('not a cleanup recommendation', audit['boundary'])
+
     @unittest.skipUnless(importlib.util.find_spec('pandas'),
                          'requires the optional report dependencies')
     def test_report_surfaces_capacity_accounting_as_a_boundary(self):
@@ -386,6 +402,11 @@ class TestSanchay(unittest.TestCase):
             'assessed': True, 'total_inodes': 1000, 'free_inodes': 12,
             'available_inodes': 9, 'used_inodes': 988, 'used_percent': 98.8,
         }
+        audit['block_availability'] = {
+            'assessed': True, 'total_bytes': 16384, 'used_bytes': 8192,
+            'free_bytes': 8192, 'available_bytes': 4096,
+            'free_unavailable_to_unprivileged_bytes': 4096,
+        }
         with tempfile.TemporaryDirectory() as tmp:
             output = Path(tmp) / 'report.html'
             report.build(files, '/mnt/data', 1000000, output,
@@ -399,6 +420,8 @@ class TestSanchay(unittest.TestCase):
         self.assertIn('data-label="Accounting gap"', page)
         self.assertIn('Inode capacity advisory', page)
         self.assertIn('1,000 file entries; 12 free; 98.8% used', page)
+        self.assertIn('Block availability advisory', page)
+        self.assertIn('8.0 KB free; 4.0 KB available', page)
 
     def test_cli_labels_managed_storage_as_deferred_not_reclaimable(self):
         files = [
@@ -458,6 +481,11 @@ class TestSanchay(unittest.TestCase):
             'assessed': True, 'total_inodes': 1000, 'free_inodes': 12,
             'available_inodes': 9, 'used_inodes': 988, 'used_percent': 98.8,
         }
+        audit['block_availability'] = {
+            'assessed': True, 'total_bytes': 49152, 'used_bytes': 32768,
+            'free_bytes': 16384, 'available_bytes': 12288,
+            'free_unavailable_to_unprivileged_bytes': 4096,
+        }
 
         document = brief.build(
             files, cleanup_plan, process_held=[held], capacity_accounting=audit)
@@ -485,6 +513,12 @@ class TestSanchay(unittest.TestCase):
             'inode_capacity'], {
                 'assessed': True, 'total_inodes': 1000, 'free_inodes': 12,
                 'available_inodes': 9, 'used_inodes': 988, 'used_percent': 98.8,
+            })
+        self.assertEqual(document['operational_advisories']['capacity_accounting'][
+            'block_availability'], {
+                'assessed': True, 'total_bytes': 49152, 'used_bytes': 32768,
+                'free_bytes': 16384, 'available_bytes': 12288,
+                'free_unavailable_to_unprivileged_bytes': 4096,
             })
         for sensitive in (root, 'private-note.txt', '.aws', 'credentials',
                           'private-service', '9101', 'deleted-audit.log',
@@ -625,12 +659,20 @@ class TestSanchay(unittest.TestCase):
             'available_inodes': 9, 'used_inodes': 988, 'used_percent': 98.8,
             'boundary': 'inode metrics are advisory only',
         }
+        block_audit = {
+            'assessed': True, 'total_bytes': 16384, 'used_bytes': 8192,
+            'free_bytes': 8192, 'available_bytes': 4096,
+            'free_unavailable_to_unprivileged_bytes': 4096,
+            'boundary': 'block metrics are advisory only',
+        }
         with mock.patch.object(scan, 'scan_with_coverage',
                                return_value=(files, scan.ScanCoverage())), \
                 mock.patch.object(processes, 'deleted_open_files', return_value=[held]), \
                 mock.patch.object(mounts, 'is_mount_root', return_value=True), \
                 mock.patch.object(accounting, 'assess_inode_capacity',
                                   return_value=inode_audit), \
+                mock.patch.object(accounting, 'assess_block_availability',
+                                  return_value=block_audit), \
                 mock.patch.object(shutil, 'disk_usage',
                                   return_value=SimpleNamespace(
                                       free=1000000, used=16384)), \
@@ -646,6 +688,8 @@ class TestSanchay(unittest.TestCase):
         self.assertIn('not a full filesystem reconciliation', rendered)
         self.assertIn('inode capacity: 1,000 file entries; 12 free; 98.8% used', rendered)
         self.assertIn('available to an unprivileged process: 9 file entries', rendered)
+        self.assertIn('block availability: 8.0KB free; 4.0KB available', rendered)
+        self.assertIn('free but unavailable to an unprivileged process: 4.0KB', rendered)
 
     def test_cli_marks_incomplete_coverage_and_withholds_snapshot(self):
         files = [

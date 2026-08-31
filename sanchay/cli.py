@@ -263,6 +263,12 @@ def main(argv=None):
             root_is_mount=root_is_mount,
             cross_filesystems=args.cross_filesystems,
         )
+        capacity_accounting["block_availability"] = accounting.assess_block_availability(
+            args.root,
+            scan_coverage=scan_coverage,
+            root_is_mount=root_is_mount,
+            cross_filesystems=args.cross_filesystems,
+        )
         if capacity_accounting["assessed"]:
             gap = capacity_accounting["accounting_gap_bytes"]
             print("capacity audit: filesystem used "
@@ -286,6 +292,19 @@ def main(argv=None):
             print("  boundary: " + inode_capacity["boundary"])
         else:
             print("inode capacity: not assessed; " + inode_capacity["reason"])
+        block_availability = capacity_accounting["block_availability"]
+        if block_availability["assessed"]:
+            print("block availability: "
+                  f"{human(block_availability['free_bytes'])} free; "
+                  f"{human(block_availability['available_bytes'])} available to "
+                  "an unprivileged process")
+            unavailable = block_availability["free_unavailable_to_unprivileged_bytes"]
+            if unavailable:
+                print("  free but unavailable to an unprivileged process: "
+                      + human(unavailable))
+            print("  boundary: " + block_availability["boundary"])
+        else:
+            print("block availability: not assessed; " + block_availability["reason"])
     current_snapshot = (
         snapshot.capture(files, args.root, free, scan_coverage=scan_coverage)
         if free is not None and scan_coverage["complete"] else None)

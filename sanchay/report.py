@@ -291,6 +291,25 @@ def build(files, root, free_bytes, out="sanchay-report.html", limit=50,
                     "<p class=\"h\">Inode capacity advisory not assessed: "
                     + html.escape(inode_capacity.get("reason", "unavailable"))
                     + ".</p>")
+            block_availability = capacity_accounting.get("block_availability")
+            block_note = ""
+            if isinstance(block_availability, dict) and block_availability.get("assessed"):
+                unavailable = block_availability[
+                    "free_unavailable_to_unprivileged_bytes"]
+                unavailable_note = (
+                    f"; {human(unavailable)} free but unavailable to an unprivileged process"
+                    if unavailable else "")
+                block_note = (
+                    f"<p class=\"h\">Block availability advisory: "
+                    f"{human(block_availability['free_bytes'])} free; "
+                    f"{human(block_availability['available_bytes'])} available to an "
+                    f"unprivileged process{unavailable_note}. This is a mount-level "
+                    f"observation, not a filesystem-policy change.</p>")
+            elif isinstance(block_availability, dict):
+                block_note = (
+                    "<p class=\"h\">Block availability advisory not assessed: "
+                    + html.escape(block_availability.get("reason", "unavailable"))
+                    + ".</p>")
             accounting_panel = f"""
   <div class="panel">
     <h2>Filesystem accounting boundary</h2>
@@ -301,6 +320,7 @@ def build(files, root, free_bytes, out="sanchay-report.html", limit=50,
     </table>
     <p class="h">{html.escape(capacity_accounting['boundary'])}</p>
     {inode_note}
+    {block_note}
   </div>
 """
         else:
