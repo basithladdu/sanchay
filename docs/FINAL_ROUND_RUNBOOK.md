@@ -87,8 +87,10 @@ Point out these concrete facts, not a generic dashboard:
 - `sanchay-demo --risk-prove` is available only as a transparent synthetic
   aggregate rehearsal: it demonstrates that a qualifying seven-snapshot model
   result is withheld after a capacity resize. It is not a live-device forecast.
-- The explicit `600K` reclaim request selects 712 KB of reviewable evidence;
-  it does not broaden into the thesis or hardlinked entries to meet a target.
+- The explicit `600K` reclaim request first uses the 204,800-byte regenerable
+  cache, then uses the 524,288-byte duplicate as the exact minimum-excess choice
+  for the remaining target. The plan records that optimizer strategy; it does
+  not broaden into the thesis or hardlinked entries to meet a target.
 - `cleanup-plan.json` has a SHA-256 integrity checksum (not a signature),
   candidate identity including link count, typed recovery evidence, and a
   human-review requirement. Each recommendation also carries its frozen

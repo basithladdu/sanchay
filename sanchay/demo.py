@@ -109,6 +109,11 @@ def rehearse(root=None):
             raise RuntimeError("The duplicate recommendation inferred a retention decision")
         if not document.get("selection", {}).get("target_met"):
             raise RuntimeError("The disposable evidence set did not meet its reclaim target")
+        target_steps = document["selection"].get("optimizer", {}).get("class_steps", [])
+        target_strategies = tuple(step.get("strategy") for step in target_steps)
+        if target_strategies != (
+                "all_lower_risk_candidates", "exact_minimum_excess_subset"):
+            raise RuntimeError("The disposable target did not preserve its optimizer boundary")
 
         with cache.open("ab") as changed_fixture:
             changed_fixture.write(b"rehearsal mutation: verification must fail closed\n")
@@ -210,6 +215,8 @@ def main(argv=None):
         print("retention boundary -> matching bytes do not identify the authoritative copy")
         print(f"hardlink boundary -> {result['excluded_hardlink_entries']} entries excluded")
         print(f"reclaim evidence  -> {result['selected_reclaim_bytes']:,} bytes selected for review")
+        print("target optimizer -> lower-risk candidates first; exact minimum-excess "
+              "subset used for the remaining target")
         print("fail-closed check -> a synthetic cache mutation invalidated the plan")
         print("proof -> PASS; no file was deleted, moved, or transmitted")
         return 0

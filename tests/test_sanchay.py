@@ -1826,6 +1826,8 @@ class TestSanchay(unittest.TestCase):
         self.assertIn('retention boundary -> matching bytes do not identify the authoritative copy',
                       rendered)
         self.assertIn('hardlink boundary -> 2 entries excluded', rendered)
+        self.assertIn('target optimizer -> lower-risk candidates first; exact minimum-excess',
+                      rendered)
         self.assertIn('fail-closed check -> a synthetic cache mutation invalidated the plan', rendered)
         self.assertIn('proof -> PASS; no file was deleted, moved, or transmitted', rendered)
 
