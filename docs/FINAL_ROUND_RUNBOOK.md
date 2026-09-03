@@ -49,10 +49,10 @@ human acts.
    `python -m sanchay.demo --risk-prove`. Its first line explicitly identifies synthetic
    aggregate snapshots, not endpoint telemetry. It proves the seven-snapshot
    and changed-capacity gates, not a forecast for the demo machine.
-9. Do not make the local-Ollama narrator part of the core demo. It is optional
-   evidence of an on-device AI integration only when the operator has verified
-   that a pre-provisioned model runs locally and has rehearsed it. The live
-   proof must still work with no model service.
+9. The bundled recommendation classifier is the always-available first AI stage.
+   When a pre-provisioned local model is available, enable the constrained
+   second stage with `--ai-provider ollama`; keep the deterministic gate and
+   local fallback visible in the demo.
 
 ## Exact live-demo sequence
 
@@ -128,18 +128,20 @@ important fail-closed evidence in the live demonstration.
 
 ## Concise jury answers
 
-**Where is the AI?** The decision layer is intentionally explainable: a local
-recoverability model ranks eligible candidates, and mount-scoped snapshots fit
-a local linear bytes/day trend from filesystem-used bytes. We do not claim this
-is a trained black box. The default narration is local. A separately opt-in
-cloud LLM receives opaque candidate IDs plus class, allocated bytes, and
-unchanged age—not raw paths or file contents—and cannot promote protected files
-or execute actions.
+**Where is the AI?** A local three-class logistic-regression model predicts Keep,
+Cleanup Review, or Archive Review from bounded metadata and positive activity
+evidence. A constrained Ollama or explicitly configured OpenAI-compatible model
+then reviews only the locally prefiltered candidates. It receives opaque IDs,
+metadata, probabilities, allowed actions, and evidence flags—not raw paths or
+file contents—and returns structured action/confidence/reason fields. It may
+confirm a permitted review or change it to Keep; it cannot promote protected
+files or execute actions.
 
-An optional `--ollama-narrative` sends the same opaque records to a fixed
-loopback Ollama endpoint only: no proxy or redirect is used. It cannot promote
-protected files or execute actions, and its model selection/provisioning remain
-operator policy. The deterministic recovery model still makes every decision.
+`--ai-provider ollama` sends those opaque records to a fixed loopback Ollama
+endpoint only: no proxy or redirect is used. `--ai-provider auto` prefers that
+local path and falls back to an API only when `SANCHAY_AI_API_*` is explicitly
+configured. Invalid or unavailable model output retains the local classifier
+result. Deterministic gates still decide every permitted action class.
 
 **Why show capacity risk rather than an exact date?** Storage use can be
 non-linear. With strong local history, `--risk-horizon DAYS` estimates the
@@ -154,18 +156,19 @@ or volume action.
 sensitive path names, and file-derived text is untrusted input for an LLM. The
 local narrative is default. `--cloud-narrative` requires separate consent and
 transmits only opaque IDs and fixed numeric/class metadata; the decision gate,
-plan, verification, and absence of a cleanup executor are enforced outside the
-model.
+plan, verification, and guarded action permissions are enforced outside the
+language model.
 
 `--ollama-narrative` is a separately requested loopback call; the default
-remains the deterministic local narrative. Neither model path can alter the
-plan, verification, or lack of a cleanup executor.
+remains the deterministic local narrative. Neither narration path can alter the
+plan, verification, or guarded action executor.
 
 **Why not automate deletion?** The requested problem includes recommendations;
 the irreversible step has a different risk profile. SANCHAY supplies an
 auditable plan and revalidation gate so an operator retains authority.
 
-**What about archiving?** `--verify-archive SOURCE RETAINED_COPY` is a
+**What about archiving?** The local classifier can place cold unique files in
+Archive Review, but never cleanup. `--verify-archive SOURCE RETAINED_COPY` is a
 read-only gate for an operator-chosen copy. It rejects credential and
 system-managed paths, a hardlink alias posing as a second copy, mismatched
 bytes, and identity changes during the check. A verified separate inode then

@@ -7,15 +7,18 @@ import unittest
 from unittest import mock
 from urllib.request import urlopen
 
-from sanchay import actions, cli, dedup, plan, report, scan
+from sanchay import actions, advisor, cli, dedup, plan, report, scan
 from sanchay.session import ScanSession
 from sanchay.shell import ReportServer, SanchayShell, split_arguments
 from sanchay.palette import (COMMAND_CHOICES, CONTINUE_PROMPT, STORAGE_MARK,
-                             SlashCommandCompleter, can_use_palette,
-                             welcome_content, wordmark_width)
+                             TERMINAL_TITLE, SlashCommandCompleter,
+                             can_use_palette, configure_terminal_title,
+                             reset_terminal_title, welcome_content,
+                             wordmark_width)
 from prompt_toolkit.formatted_text import fragment_list_to_text
 from sanchay.paths import report_destination
-from sanchay.spinner import LoadingIndicator, loading_text
+from sanchay.spinner import (LoadingIndicator, format_elapsed,
+                             loading_text, shimmer_fragments)
 from prompt_toolkit.document import Document
 
 
@@ -52,6 +55,29 @@ class TestInteractiveShell(unittest.TestCase):
     def test_slash_palette_is_disabled_for_redirected_shells(self):
         shell = SanchayShell(stdin=io.StringIO(), stdout=io.StringIO())
         self.assertFalse(can_use_palette(shell))
+
+    def test_interactive_title_identifies_sanchay_and_is_released_on_exit(self):
+        with mock.patch('sanchay.palette.set_title') as set_tab_title, \
+                mock.patch('sanchay.palette.clear_title') as clear_tab_title:
+            configured = configure_terminal_title()
+            reset_terminal_title(configured)
+
+        self.assertEqual(TERMINAL_TITLE, '💾 SANCHAY')
+        set_tab_title.assert_called_once_with('💾 SANCHAY')
+        clear_tab_title.assert_called_once_with()
+
+    def test_terminal_title_falls_back_when_emoji_encoding_is_unavailable(self):
+        with mock.patch(
+                'sanchay.palette.set_title',
+                side_effect=[UnicodeEncodeError('ascii', '💾', 0, 1, 'unsupported'), None],
+        ) as set_tab_title:
+            configured = configure_terminal_title()
+
+        self.assertTrue(configured)
+        self.assertEqual(
+            set_tab_title.call_args_list,
+            [mock.call('💾 SANCHAY'), mock.call('SANCHAY')],
+        )
 
     def test_welcome_screen_describes_sanchay_and_downloads(self):
         with tempfile.TemporaryDirectory() as tmp, mock.patch.dict(
@@ -99,11 +125,66 @@ class TestInteractiveShell(unittest.TestCase):
             rendered,
             '[/] Working (7s) | Building the HTML report | Ctrl+C to cancel')
 
+    def test_elapsed_reads_as_a_stopwatch_at_every_scale(self):
+        self.assertEqual(format_elapsed(0), '0s')
+        self.assertEqual(format_elapsed(7.9), '7s')
+        self.assertEqual(format_elapsed(111), '1m 51s')
+        self.assertEqual(format_elapsed(3845), '1h 04m')
+        self.assertEqual(format_elapsed(-5), '0s')
+
+    def test_shimmer_moves_one_highlight_across_the_word(self):
+        def lit(tick):
+            fragments = shimmer_fragments(
+                'Working', tick, base='base', mid='mid', glow='glow')
+            text = ''.join(text for _, text in fragments)
+            self.assertEqual(text, 'Working')
+            return ''.join(
+                text for style, text in fragments if style == 'glow')
+
+        highlights = [lit(tick) for tick in range(13)]
+        self.assertEqual(''.join(highlights), 'Working')
+        # The sweep repeats, so the animation never settles on one frame.
+        self.assertEqual(lit(3), lit(16))
+
     def test_loading_animation_is_silent_for_redirected_output(self):
         output = io.StringIO()
         with LoadingIndicator(output, 'Scanning'):
             pass
         self.assertEqual(output.getvalue(), '')
+
+    def test_report_chart_falls_back_when_optional_visualization_is_missing(self):
+        missing = ModuleNotFoundError("No module named 'plotly'", name='plotly')
+        with mock.patch('sanchay.report.import_module', side_effect=missing):
+            rendered = report._recoverability_chart([], set(), '/')
+
+        self.assertIn('Chart unavailable', rendered)
+        self.assertIn('AI recommendations', rendered)
+        self.assertIn('.[viz]', rendered)
+
+    def test_report_still_writes_without_optional_visualization(self):
+        missing = ModuleNotFoundError("No module named 'pandas'", name='pandas')
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            (root / 'document.txt').write_text('retain me', encoding='utf-8')
+            files = scan.scan(root)
+            output = root / 'report.html'
+
+            with mock.patch('sanchay.report.import_module', side_effect=missing):
+                written = report.build(files, root, 1_000_000, output)
+
+            rendered = output.read_text(encoding='utf-8')
+
+        self.assertEqual(written, output)
+        self.assertIn('Chart unavailable', rendered)
+        self.assertIn('AI Recommendation Model', rendered)
+        self.assertIn('Reviewable Storage Candidates', rendered)
+
+    def test_report_chart_does_not_hide_unrelated_import_errors(self):
+        missing = ModuleNotFoundError(
+            "No module named 'sanchay.internal'", name='sanchay.internal')
+        with mock.patch('sanchay.report.import_module', side_effect=missing):
+            with self.assertRaises(ModuleNotFoundError):
+                report._recoverability_chart([], set(), '/')
 
     def test_slash_prefix_routes_to_regular_cmd_handlers(self):
         shell = SanchayShell(stdout=io.StringIO())
@@ -141,6 +222,32 @@ class TestInteractiveShell(unittest.TestCase):
         self.assertIn('evidence-first storage review assistant', rendered)
         self.assertIn('auditable HTML report in Downloads', rendered)
         self.assertIn('disabled by default', rendered)
+
+    def test_ai_command_selects_ollama_for_the_next_scan(self):
+        output = io.StringIO()
+        shell = SanchayShell(stdout=output)
+        runtime = {
+            "ollama_available": True,
+            "ollama_models": ["qwen2.5-coder:7b"],
+            "selected_ollama_model": "qwen2.5-coder:7b",
+            "api_configured": False,
+        }
+
+        with mock.patch.object(advisor, "runtime_status", return_value=runtime):
+            shell.onecmd('/ai ollama qwen2.5-coder:7b')
+
+        self.assertEqual(shell.advisor_config.provider, "ollama")
+        self.assertEqual(shell.advisor_config.ollama_model, "qwen2.5-coder:7b")
+        self.assertIn("applies to the next /analyze", output.getvalue())
+        self.assertNotIn("API key", str(shell.advisor_config.public()))
+
+    def test_ai_off_rejects_a_model_name(self):
+        output = io.StringIO()
+        shell = SanchayShell(stdout=output)
+
+        shell.onecmd('/ai off unexpected-model')
+
+        self.assertIn("off mode does not accept", output.getvalue())
 
     def test_pasted_file_path_gets_a_command_hint(self):
         with tempfile.TemporaryDirectory() as tmp:

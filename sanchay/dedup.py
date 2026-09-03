@@ -5,11 +5,18 @@ colliding heads before hashing in full. Hardlinks to the same inode are not
 duplicates -- they already share their bytes.
 """
 import hashlib
+import errno
 import os
 import stat
+from concurrent.futures import CancelledError
 from collections import defaultdict
 
 from . import managed, storage
+
+
+def _check_cancel(cancel_event):
+    if cancel_event is not None and cancel_event.is_set():
+        raise CancelledError("duplicate verification cancelled")
 
 HEAD = 64 * 1024
 CHUNK = 1 << 20
@@ -22,14 +29,33 @@ def root_anchoring_available():
             and os.open in getattr(os, "supports_dir_fd", set()))
 
 
-def _read_flags(directory=False):
+def _read_flags(directory=False, preserve_atime=False):
     """Build read-only flags that cannot block on an unexpected FIFO."""
     flags = os.O_RDONLY
     for name in ("O_BINARY", "O_CLOEXEC", "O_NOFOLLOW", "O_NONBLOCK"):
         flags |= getattr(os, name, 0)
     if directory:
         flags |= getattr(os, "O_DIRECTORY", 0)
+    elif preserve_atime:
+        flags |= getattr(os, "O_NOATIME", 0)
     return flags
+
+
+def _open_content(path, dir_fd=None):
+    """Prefer a no-atime content read, with a permission-safe fallback."""
+    def open_with(flags):
+        if dir_fd is None:
+            return os.open(path, flags)
+        return os.open(path, flags, dir_fd=dir_fd)
+
+    noatime = getattr(os, "O_NOATIME", 0)
+    if noatime:
+        try:
+            return open_with(_read_flags(preserve_atime=True))
+        except OSError as exc:
+            if exc.errno not in (errno.EACCES, errno.EINVAL, errno.EPERM):
+                raise
+    return open_with(_read_flags())
 
 
 def _path_under_root(path, root):
@@ -71,10 +97,10 @@ def _open_readonly(path, root=None):
                                   dir_fd=directory_fd)
                 os.close(directory_fd)
                 directory_fd = next_fd
-            return os.open(parts[-1], _read_flags(), dir_fd=directory_fd)
+            return _open_content(parts[-1], dir_fd=directory_fd)
         finally:
             os.close(directory_fd)
-    return os.open(path, _read_flags())
+    return _open_content(path)
 
 
 def _identity_from_stat(stat_result):
@@ -137,13 +163,14 @@ def _unchanged(before, after):
     return _identity_from_stat(before) == _identity_from_stat(after)
 
 
-def _digest(path, limit=None, expected=None, root=None):
+def _digest(path, limit=None, expected=None, root=None, cancel_event=None):
     """Hash one unchanged, regular file descriptor or return ``None``.
 
     A scan result is only evidence for the exact inode that was observed.  The
     descriptor is verified both before and after reading so a concurrent path
     swap or mutation cannot become duplicate evidence.
     """
+    _check_cancel(cancel_event)
     opened = _open_verified(path, expected=expected, root=root)
     if opened is None:
         return None
@@ -155,6 +182,7 @@ def _digest(path, limit=None, expected=None, root=None):
                 h.update(fh.read(limit))
             else:
                 for chunk in iter(lambda: fh.read(CHUNK), b""):
+                    _check_cancel(cancel_event)
                     h.update(chunk)
         if not _unchanged(before, os.fstat(fd)):
             return None
@@ -166,13 +194,14 @@ def _digest(path, limit=None, expected=None, root=None):
 
 
 def same_content(left, right, expected_left=None, expected_right=None,
-                 root=None):
+                 root=None, cancel_event=None):
     """Return whether two readable files match byte for byte.
 
     The fast scan already narrows this expensive comparison to pairs with the
     same size, prefix digest, and full BLAKE2b-256 digest. A review plan then
     performs this direct comparison before relying on a named survivor.
     """
+    _check_cancel(cancel_event)
     left_opened = _open_verified(left, expected=expected_left, root=root)
     if left_opened is None:
         return False
@@ -188,6 +217,7 @@ def same_content(left, right, expected_left=None, expected_right=None,
         with os.fdopen(left_fd, "rb", closefd=False) as left_fh, \
                 os.fdopen(right_fd, "rb", closefd=False) as right_fh:
             while True:
+                _check_cancel(cancel_event)
                 left_chunk = left_fh.read(CHUNK)
                 right_chunk = right_fh.read(CHUNK)
                 if left_chunk != right_chunk:
@@ -211,12 +241,13 @@ def _bucket(files, key):
     return [g for g in groups.values() if len(g) > 1]
 
 
-def duplicates(files, min_size=4096, root=None):
+def duplicates(files, min_size=4096, root=None, cancel_event=None):
     # Select one path per inode before opening any candidate. A hardlink alias
     # has the same bytes, so hashing it again would only repeat I/O. System-
     # managed, system-reserved, and known credential/control paths are filtered
     # here as a second boundary for library callers as well as the
     # CLI/TUI/report pre-filter.
+    _check_cancel(cancel_event)
     candidates = [
         f for f in storage.physical_records(files)
         if f.size >= min_size and managed.is_content_candidate(f.path)
@@ -225,13 +256,17 @@ def duplicates(files, min_size=4096, root=None):
 
     refined = []
     for group in groups:
+        _check_cancel(cancel_event)
         refined += _bucket(group, lambda f: _digest(f.path, HEAD,
-                                                     expected=f, root=root))
+                                                     expected=f, root=root,
+                                                     cancel_event=cancel_event))
 
     final = []
     for group in refined:
+        _check_cancel(cancel_event)
         for same in _bucket(group, lambda f: _digest(f.path, expected=f,
-                                                      root=root)):
+                                                      root=root,
+                                                      cancel_event=cancel_event)):
             if len(same) > 1:
                 final.append(same)
     return final
@@ -261,7 +296,7 @@ def duplicate_map(groups):
     return copies
 
 
-def confirmed_duplicate_map(groups, root=None):
+def confirmed_duplicate_map(groups, root=None, cancel_event=None):
     """Keep only digest candidates that also pass a byte-for-byte comparison."""
     return {
         duplicate.path: survivor.path
@@ -269,7 +304,7 @@ def confirmed_duplicate_map(groups, root=None):
         for duplicate, survivor in _reviewable_duplicate_pairs(group)
         if same_content(duplicate.path, survivor.path,
                         expected_left=duplicate, expected_right=survivor,
-                        root=root)
+                        root=root, cancel_event=cancel_event)
     }
 
 

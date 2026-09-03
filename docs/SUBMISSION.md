@@ -146,16 +146,26 @@ Every file lands in one of four classes:
 - tracked — it is committed inside a git repository.
 - unique — none of the above. Nothing gets it back.
 
-Files in the unique class are dropped from consideration entirely, before any
-ranking happens.
+Unique files are structurally prohibited from cleanup. They may appear only in
+a separate, review-only archive recommendation whose destination must be chosen
+by the operator.
 
-**3. Ranks what survives.** priority = reclaimable allocated bytes ×
-unchanged-age × (1 − regret),
-where unchanged-age runs from 0 for a file modified today up to 1 for a file
-unchanged for a year, and regret is a fixed weight per class (0.02 disposable,
-0.10 duplicate, 0.20 tracked). It deliberately does not claim that a file has
-not been read: access timestamps are mount-policy dependent and hashing can
-touch them.
+**3. Makes a learned, explainable action recommendation.** A local multiclass
+logistic-regression model recommends Keep, Cleanup Review, or Archive Review.
+It is trained from the disclosed, versioned synthetic expert-labelled profiles
+in `sanchay/data/recommendation_training.csv`. Features are bounded metadata:
+unchanged age, allocated-size scale, positive recent-access evidence, repeated-
+scan history and observed activity, recoverability class, and broad file-type
+signals. The plan freezes all three probabilities and the strongest feature
+contributions. Low confidence abstains to Keep.
+
+Cleanup ordering then uses: AI priority = reclaimable allocated bytes ×
+unchanged-age × (1 − regret) × learned cleanup probability. The fixed regret
+values remain a transparent recovery-risk constraint (0.02 disposable, 0.10
+duplicate, 0.20 tracked), not the AI itself. `/refresh` records positive access
+or modification events between completed scans. Absence of activity is weak
+evidence only—never deletion permission—and Linux content reads prefer
+`O_NOATIME` so SANCHAY does not manufacture its own usage signal.
 
 An operator can also state a reclaim target such as `--target-reclaim 5G`.
 SANCHAY exhausts lower recovery-risk classes before it considers a higher-risk
@@ -223,13 +233,15 @@ evidence peer but do not infer the authoritative copy or retention decision.
 The JSON plan carries a SHA-256 integrity checksum, which detects
 accidental plan changes but is not a digital signature. `sanchay --verify-plan
 cleanup-plan.json` rechecks the checksum, file identity, duplicate evidence peer,
-and clean Git HEAD state where applicable. A changed link count invalidates the
+and clean Git HEAD state where applicable. It also rechecks every archive-
+candidate identity and destination-safety boundary. A changed link count invalidates the
 plan, because it changes whether a path can release physical storage. SANCHAY
 never deletes or moves files.
 
-The plan also freezes the decision trace for every recommendation: logical
-size, reclaimable allocated bytes, unchanged-age factor, regret weight,
-formula, and computed priority. A
+The plan also freezes the decision trace for every recommendation: model
+provenance and data checksum, three-class probabilities, top contributing
+features, logical size, reclaimable allocated bytes, unchanged-age factor,
+regret weight, formula, and computed AI priority. A
 reviewer can inspect the model inputs instead of accepting an opaque score.
 
 **Archive-copy proof is separate from archiving action.** An operator may run
@@ -249,10 +261,11 @@ narrative requires a separate explicit flag and receives only opaque candidate
 IDs, fixed recoverability class, allocated bytes, and unchanged age—not raw
 paths or file contents.
 
-The optional model receives this minimized metadata only after ranking is
-complete. It cannot add a file, remove a file, change an order, or invoke an
-action. If the model produced a completely wrong answer, the worst outcome is
-an awkward description — never an automatic file action.
+The learned classifier participates directly in recommendation selection and
+ranking; the optional language model remains narration-only. Neither can invoke
+an action. Even a wrong classifier output remains inside deterministic action
+constraints: no recovery evidence means no Cleanup Review, and a unique file
+can only be kept or proposed for separate archive review.
 
 ---
 
@@ -286,13 +299,13 @@ instead of something buried in a table.
 
 ## Innovation
 
-The safety boundary is structural, not behavioural. Most AI system tools try to
-make the model behave safely through careful prompting. We put the model outside
-the decision entirely — the ranking is finished before the model is called, and
-the model is given only files already judged eligible for review. A hallucination
-cannot promote a protected file into the recommendations because the model has no
-mechanism to promote anything. SANCHAY itself creates a review-only plan and does
-not delete or move user files.
+The safety boundary is structural, not behavioural. The learned model influences
+Keep/Cleanup/Archive recommendations, but it runs inside a deterministic action
+space. Credential and system-managed paths and hardlinks are excluded first;
+only files with recovery evidence can enter Cleanup Review; unique files can
+enter only Keep or Archive Review. A model error cannot promote a unique file
+into cleanup. SANCHAY itself creates a review-only plan and does not delete or
+move user files.
 
 This matters beyond storage. Any AI tool that acts on a user's system faces the
 same question, and "prompt the model to be careful" is a weaker answer than
@@ -306,9 +319,13 @@ evidence for each storage recommendation visible before a person acts.
 
 ## Data Set Used
 
-No external dataset is used.
+No external dataset is used. The learned classifier ships with 38 in-house,
+synthetic expert-labelled storage profiles. The versioned CSV and its SHA-256
+are disclosed in every generated plan. Reported training fit proves that the
+learned inference path is active; it is explicitly not presented as independent
+validation, production accuracy, or generalisation evidence.
 
-SANCHAY operates on the user's own filesystem metadata — paths, sizes, access
+For inference SANCHAY operates on the user's own filesystem metadata — paths, sizes, access
 and modification timestamps, and inode numbers. File contents are read only to
 confirm that two files of identical size are genuinely identical, and those
 reads are discarded immediately after hashing.
@@ -319,11 +336,13 @@ recoverability class, allocated bytes, and unchanged age. No raw paths, file
 contents, or credential metadata are transmitted. The cloud output cannot add
 or act on a candidate.
 
-`--ollama-narrative` is a separate optional loopback-Ollama path. It sends the
-same opaque metadata only to the fixed `127.0.0.1:11434` endpoint, with proxies
-and redirects disabled. SANCHAY makes no direct remote request; the selected
-local model and its provisioning remain operator policy. The output is
-explanatory only and cannot add, reorder, or act on a candidate.
+The optional recommendation reasoner uses `--ai-provider ollama`,
+`--ai-provider api`, or `--ai-provider auto`. It sees only opaque IDs, bounded
+metadata, local probabilities, allowed actions, and verified evidence flags.
+The Ollama route uses fixed loopback with proxies and redirects disabled; the
+API route requires an explicitly configured HTTPS OpenAI-compatible endpoint
+and environment-only key. Structured output may confirm a prefiltered review
+or change it to Keep, but cannot add an unsafe candidate or execute an action.
 
 ---
 
@@ -331,14 +350,15 @@ explanatory only and cannot add, reorder, or act on a candidate.
 
 Language: Python 3.9+
 
-Core (no third-party dependencies): os and hashlib from the standard library.
-blake2b is used for content hashing — faster than SHA-256 and adequate here,
-since this is duplicate detection rather than a security boundary.
+Core: Python standard-library filesystem, hashing, networking, and statistics,
+plus `prompt-toolkit` for the interactive slash-command shell. BLAKE2b is used
+for content hashing; the plan separately uses SHA-256 as an integrity checksum,
+not a signature.
 
-Optional: plotly (MIT) and pandas (BSD-3) for the treemap; anthropic (MIT) for
-the cloud-written summary. A local Ollama narrator uses only Python standard
-library HTTP against a fixed loopback endpoint. All optional narrators are
-lazy-loaded or opt-in, so the core installs and runs with zero dependencies.
+Optional: Plotly (MIT) and pandas (BSD-3) for the treemap; Anthropic (MIT) for
+the legacy cloud-written narrative. The Ollama/OpenAI-compatible constrained
+reasoner uses Python standard-library HTTP and is opt-in for one-shot CLI runs;
+the interactive shell can select it with `/ai`.
 
 Packaging: pip-installable via pyproject.toml, exposing a sanchay console
 command. Licence MIT.
@@ -353,12 +373,19 @@ the team's own, and the team can explain every line.
 
 Inbuilt Model.
 
-The model that makes the decisions — the regret classifier and the ranking
-function — was built by us. It is a rule-based, fully inspectable model rather
-than a trained one, chosen deliberately: every recommendation traces to a
-specific reason ("this is a conventional cache path", "this has a duplicate at that path")
-that can be printed and challenged. A trained classifier would need labelled
-ground truth and a validation story before it could safely influence this gate.
+The first decision model was built by the team: a three-class multinomial
+logistic regression trained locally from 38 disclosed synthetic expert-labelled
+profiles. It predicts Keep, Cleanup Review, or Archive Review and records class
+probabilities and feature contributions. This is a prototype bootstrap dataset;
+training fit is not presented as production validation or generalisation.
+
+The optional second stage is an existing Ollama or OpenAI-compatible language
+model. It reviews only candidates and action choices already permitted by the
+local classifier and deterministic evidence boundary. Its strict structured
+response, provider/model name, confidence, reason codes, and explanation are
+stored in the plan. Missing, contradictory, or invalid output fails closed to
+the local classifier result. Deterministic safety checks and human approval
+retain final authority.
 
 For capacity forecasting, the tool also learns an on-device linear trend from
 the user's mounted-filesystem snapshots and reports its slope and R-squared

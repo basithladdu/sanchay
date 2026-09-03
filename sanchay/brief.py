@@ -287,6 +287,28 @@ def build(files, cleanup_plan, *, process_held=None, capacity_accounting=None,
             "selected_by_evidence_class": _recommendation_summary(
                 cleanup_plan.get("recommendations", ())),
             "target_selection": selected_summary,
+            "ai_recommendations": {
+                "learned_inference": cleanup_plan.get(
+                    "ai_model", {}).get("learned_inference") is True,
+                "model": (
+                    cleanup_plan.get("ai_model", {}).get("name")
+                    if cleanup_plan.get("ai_model", {}).get("name")
+                    == "sanchay_local_action_classifier" else "unavailable"
+                ),
+                "cleanup_review_count": _non_negative_int(
+                    cleanup_plan.get("ai_recommendation_summary", {}).get(
+                        "cleanup_review_count")),
+                "archive_review_count": _non_negative_int(
+                    safety.get("archive_candidate_count")),
+                "archive_review_allocated_bytes": _non_negative_int(
+                    safety.get("archive_candidate_bytes")),
+                "keep_count": _non_negative_int(
+                    cleanup_plan.get("ai_recommendation_summary", {}).get(
+                        "keep_count")),
+                "abstention_count": _non_negative_int(
+                    cleanup_plan.get("ai_recommendation_summary", {}).get(
+                        "abstention_count")),
+            },
         },
         "safety": {
             "protected_unique_files": _non_negative_int(safety.get("protected_unique_files")),

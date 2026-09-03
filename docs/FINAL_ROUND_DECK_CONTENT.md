@@ -53,11 +53,11 @@ Speaker point: a size-only cleaner cannot distinguish a 2 GB cache from a 2 GB
 irreplaceable file. SANCHAY treats unknown recoverability as a reason to
 withhold a recommendation.
 
-### Slide 3 - Recovery evidence is a hard gate
+### Slide 3 - Learned recommendations inside a hard safety gate
 
 Visual flow:
 
-`Local scan -> recovery evidence -> protected-file gate -> review-only plan -> human decision`
+`Verified metadata + activity -> local 3-class ML -> deterministic allowed-action gate -> Ollama/API reasoning review -> Keep / Cleanup Review / Archive Review -> human decision`
 
 Show only these three evidence routes:
 
@@ -65,12 +65,18 @@ Show only these three evidence routes:
 - clean Git HEAD;
 - narrow regenerable cache/build-output path.
 
-Visible conclusion: **Unique, untracked, uncached, credential/control, managed
-OS, and hardlinked entries stay out before ranking.**
+Visible conclusion: **The model influences recommendations; deterministic
+recovery evidence decides which action types are allowed.**
 
-Speaker point: the optional cloud narration is separately opt-in, receives only
-opaque IDs plus fixed class/size/age metadata, and cannot add candidates,
-reorder safety gates, or execute an action.
+Speaker point: the classifier is a local multiclass logistic regression trained
+from a disclosed 38-row synthetic seed CSV. The plan exposes probabilities,
+feature contributions, version, and dataset checksum without claiming production
+accuracy. Unique files can be Keep or Archive Review, never Cleanup Review.
+An optional constrained reasoning stage can use local Ollama or an explicitly
+configured OpenAI-compatible API. It receives only opaque IDs, bounded metadata,
+local probabilities, allowed actions, and evidence flags. It may confirm an
+already-permitted review or change it to Keep; it cannot promote a protected
+file, bypass a gate, or execute an action.
 
 ### Slide 4 - A reclaim target is optimized inside the safety boundary
 
@@ -104,7 +110,7 @@ Footer: no file, volume, alert, or network action follows from a forecast.
 
 Show one terminal capture from the deterministic fixture, in this order:
 
-- `capstone-thesis.txt` is absent from the plan;
+- `capstone-thesis.txt` is absent from cleanup recommendations;
 - a duplicate has a named byte-confirmed evidence peer;
 - hardlink aliases are excluded from reclaimable storage;
 - the target optimizer prints a lower-risk-first selection trace, while the
@@ -176,15 +182,18 @@ has been tested from the presentation device.
 
 ### C. Concise jury answers
 
-**Where is the AI?** The decision layer is explainable and evidence-bounded:
-recoverability scoring, constrained target selection, and local observed-growth
-models. A separately opt-in cloud narration can summarize opaque metadata but
-cannot change selection or execute actions.
+**Where is the AI?** Stage 1 is a local multiclass logistic-regression classifier
+that directly recommends Keep, Cleanup Review, or Archive Review from bounded
+metadata and positive usage evidence. Stage 2 is an optional Ollama or
+OpenAI-compatible reasoning model that reviews only prefiltered candidates and
+returns a structured action, confidence, reason codes, and explanation. The
+generated plan records both model stages. Deterministic recovery rules constrain
+the action space, and neither model can execute actions.
 
-For a standalone Linux demonstration with an operator-provisioned local model,
-`--ollama-narrative` can instead send the same opaque records to a fixed local
-loopback Ollama endpoint. It is optional, does not use a proxy or redirect,
-and cannot affect selection, verification, or cleanup authority.
+For a standalone demonstration, use `--ai-provider ollama` or `/ai ollama`.
+The fixed local loopback request uses no proxy or redirect. The reasoning stage
+may conservatively veto or reprioritize already-permitted reviews, but cannot
+add an unsafe candidate, alter verification, or obtain cleanup authority.
 
 **Why not delete the obvious files automatically?** Matching bytes or a cache
 path is not proof of business ownership, retention policy, or operator intent.

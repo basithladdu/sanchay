@@ -8,8 +8,10 @@ Application Level · AI-Powered Intelligent Storage Optimizer for Linux OS
 [Continuous integration](https://github.com/basithladdu/sanchay/actions)
 
 SANCHAY is a local, review-first storage decision layer. Scans, reports, and
-plans do not change files. It identifies candidates with explicit recovery
-evidence and writes an integrity-checked review plan. An optional interactive
+plans do not change files. A bundled multiclass logistic-regression model uses
+file metadata and positive local activity evidence to recommend **Keep**,
+**Cleanup Review**, or **Archive Review**. Deterministic recovery gates then
+limit what each recommendation is allowed to do. An optional interactive
 action mode is disabled by default and can change only active-plan candidates
 after temporary permission, explicit execution, exact confirmation, and a
 fresh evidence recheck.
@@ -22,10 +24,12 @@ human review.
 
 To a naive tool, a 2 GB regenerable build cache (`node_modules/.cache`) and a 2 GB irreplaceable capstone project database dump look identical. When a user runs out of disk space, automated cleaners or hurried users delete unique personal files, causing catastrophic, irrecoverable data loss.
 
-**SANCHAY** (संचय) introduces **Regret-Aware Storage Intelligence**. It models the *cost of recovery* for every candidate file before calculating cleanup priority:
-**Priority = reclaimable allocated bytes × unchanged-age × (1 − regret)**
+**SANCHAY** (संचय) introduces **Regret-Aware Storage Intelligence**. It models the *cost of recovery* for every candidate file and combines it with a learned local recommendation:
+**AI Priority = reclaimable allocated bytes × unchanged-age × (1 − regret) × learned cleanup probability**
 
-For irreplaceable unique files, regret is 1.00, so priority is 0.0 and they are excluded from SANCHAY's **review-only recommendation plan**.
+For irreplaceable unique files, regret is 1.00, so they are prohibited from
+cleanup. The learned model may place an old unique file in a separate archive-
+review list, but it cannot copy, move, or delete it.
 
 ---
 
@@ -36,11 +40,46 @@ For irreplaceable unique files, regret is 1.00, so priority is 0.0 and they are 
 | Regenerable cache or build output | 0.02 | Review through its owning tool. |
 | Byte-confirmed duplicate | 0.10 | A named evidence peer remains; a human selects retention. |
 | Clean Git HEAD file | 0.20 | Confirm the project owner accepts removal. |
-| Unique or otherwise unproven file | 1.00 | Excluded from the plan. |
+| Unique or otherwise unproven file | 1.00 | Prohibited from cleanup; optional archive review only. |
 
 SANCHAY uses allocated bytes where the platform exposes them. A hardlink is
 not a reclaimable duplicate because removing one directory entry releases no
 physical storage.
+
+## Where AI is used
+
+The recommendation path contains real learned inference, not only generated
+text. `sanchay/intelligence.py` trains a local three-class logistic-regression
+classifier from the disclosed, versioned seed data in
+`sanchay/data/recommendation_training.csv`. Inputs are bounded metadata features:
+unchanged age, allocated-size scale, recent positive access evidence, repeated-
+scan history depth and activity, deterministic recovery class, and broad file-
+type signals. It never uses file content, owner identity, personal attributes,
+or a network service.
+
+The model supplies class probabilities, confidence, and the strongest feature
+contributions for every recommendation. It labels a cleanup/archive result as
+`potentially_cold_review`, never as proven unused. A low-confidence result abstains to
+Keep. `/refresh` adds positive access or modification events observed between
+completed scans; lack of an event is never proof that a file is unused. The
+bundled data is a small synthetic expert-labelled bootstrap set. Its training
+fit and SHA-256 are disclosed in each plan, and no production-accuracy or
+generalisation claim is made.
+
+`sanchay/advisor.py` adds an optional second AI stage over only the candidates
+that survive those local checks. It can use a loopback Ollama model or an
+explicitly configured OpenAI-compatible API. The reasoning model receives
+opaque candidate IDs, bounded numeric metadata, local probabilities, allowed
+actions, and verified evidence flags—never raw paths or file contents. Its
+strict structured output may confirm a permitted review or conservatively
+change it to Keep. Invalid, contradictory, missing, timed-out, or unavailable
+responses fail closed to the local classifier result. It cannot promote an
+unsafe file, invent a cleanup permission, or execute anything.
+
+Deterministic policy retains final authority: credential and managed paths and
+hardlinks are excluded before model assessment; only files with recovery
+evidence can enter Cleanup Review; unique files can enter only Keep or Archive
+Review; all file actions still require human permission and identity checks.
 
 ---
 
@@ -143,6 +182,13 @@ retained survivor. It never creates, moves, or deletes either file. A verified
 copy on the same filesystem can support a manual space-recovery review, but is
 explicitly not presented as an independent backup, retention policy, or restore
 procedure.
+
+The learned model places cold, preservation-oriented unique files in a separate
+archive-review list. Use `/archives` in the interactive shell to inspect it.
+Each item records model probabilities, feature contributions, source identity,
+and an explicit operator-selected-destination boundary. `--verify-plan` also
+rechecks archive-candidate identities. A recommendation is not a copy or a
+backup claim.
 
 ### 4. Interactive Treemap & TUI Reporting
 Interactive visualization color-coded by recoverability class rather than raw directory hierarchy alone.
@@ -291,8 +337,21 @@ sanchay /home/user --snapshot-history ~/.local/state/sanchay/home
 sanchay /home/user --history day-1.json day-2.json day-3.json day-4.json day-5.json day-6.json day-7.json --risk-horizon 30
 sanchay /home/user --snapshot-history ~/.local/state/sanchay/home --risk-horizon 30
 
-# 8. Generate an interactive Plotly HTML report (requires .[viz])
+# 8. Generate an HTML report. Without .[viz], the report keeps every table and
+# recommendation and replaces only the interactive treemap with a clear notice.
 sanchay /home/user --report report.html
+
+# Add a local Ollama reasoning review to the actual recommendation path.
+# SANCHAY auto-selects an installed text model unless one is specified.
+sanchay /home/user --report report.html --ai-provider ollama
+sanchay /home/user --ai-provider ollama --ai-ollama-model qwen2.5-coder:7b
+
+# Hybrid failover: prefer Ollama, then an explicitly configured
+# OpenAI-compatible API. The API key is environment-only and never printed.
+export SANCHAY_AI_API_BASE_URL=https://provider.example/v1
+export SANCHAY_AI_API_MODEL=provider-model-name
+export SANCHAY_AI_API_KEY=replace-with-secret
+sanchay /home/user --ai-provider auto
 
 # 9. Write a path-free aggregate operator handoff; no network transfer.
 # The artifact is write-once by default; replacement needs explicit intent.
@@ -342,7 +401,7 @@ review.
 git clone https://github.com/basithladdu/sanchay.git
 cd sanchay
 
-# Install the dependency-free core in editable mode
+# Install the dependency-light core and interactive slash-command shell
 pip install -e .
 
 # Optional: install the interactive terminal dashboard
@@ -381,14 +440,24 @@ The bold wordmark uses two offset terminal-block shades for a layered depth
 effect. Its compact database emblem has a white cap plus red, blue, and white
 tiers. Neither element requires terminal-specific inline-image support.
 
-Long foreground operations display an animated `Working (Ns)` indicator with
-the current phase and a Ctrl+C cancellation hint. This covers scanning,
-duplicate-evidence work, refreshes, report generation, saved-plan verification,
-and archive comparison. Animation is disabled automatically for redirected
-output and CI logs.
+In a real interactive terminal, `/analyze`, `/scan`, and `/refresh` run as
+managed background jobs so the prompt remains usable. A Codex-style gray live
+strip shows `● Working (13s • Esc to interrupt • /ps to view)` and changes to
+`Cancelling` or `Finishing` as appropriate; `/stop <id>` provides the same
+cooperative cancellation. A cancelled or failed job never replaces the last completed scan.
+Only one storage scan runs at a time, and file-changing commands are blocked
+while it is active. Redirected/scripted sessions remain synchronous and quiet.
+Other long foreground checks retain the animated `Working (Ns)` indicator.
 
 `/help` displays a command-and-purpose table, while `/about` explains SANCHAY's
 local evidence model, report workflow, and guarded file-action boundary.
+
+`/ai status` shows installed Ollama models and whether an API is configured.
+`/ai auto`, `/ai ollama [model]`, `/ai api [model]`, and `/ai off` select the
+reasoning stage for the next background scan. `auto` prefers local Ollama and
+uses the API only if the local provider is unavailable. API credentials are
+read only from `SANCHAY_AI_API_*` environment variables, never from command
+history.
 
 ```text
 sanchay> /analyze "/home/user" --report "home-report.html" --limit 20
@@ -404,6 +473,7 @@ The individual commands remain available when you want finer control:
 ```text
 sanchay> /scan "/home/user"
 sanchay> /candidates 20
+sanchay> /archives 20
 sanchay> /duplicates 10
 sanchay> /report "home-report.html"
 sanchay> /serve
@@ -415,6 +485,11 @@ active report. Use that complete URL, including its HTML filename; an older
 server root such as `http://127.0.0.1:8000/` may be serving the seeded demo.
 The report server appears as a background task in the bottom status bar. Use
 `/ps` to inspect it and `/stop <id>` (or `/stop all`) to close it.
+
+When SANCHAY itself is running inside WSL, pasted drive paths such as `E:`,
+`E:/`, and `E:\folder` are translated to `/mnt/e` paths. If the drive is not
+mounted, SANCHAY reports that exact mount problem. Native Linux paths such as
+`/mnt/e` and native Windows paths continue to work normally.
 
 Interactive HTML reports are always written to the current user's Downloads
 folder on Windows and Linux. A supplied `--report` or `/report` path contributes
@@ -439,15 +514,19 @@ copy.
 
 ## Privacy and safety boundaries
 
-* **Local by default**: Analysis, duplicate hashing, and `--explain` narration
-  run on-device. No file content or candidate data is transmitted. An optional
+* **Local by default**: Learned recommendation inference, duplicate hashing,
+  analysis, and `--explain` narration run on-device. The optional recommendation
+  reasoner can use loopback Ollama or an explicitly configured API, but receives
+  only opaque IDs, bounded metadata, probabilities, allowed actions, and
+  verified evidence flags. No raw path or file content is sent. An optional
   `--cloud-narrative` requires explicit user opt-in and sends only opaque
   candidate IDs, recoverability class, allocated bytes, and unchanged age—never
   raw paths or file contents. `--ollama-narrative` uses the same opaque
   metadata with a fixed `127.0.0.1:11434` loopback endpoint, no proxy, and no
   redirects; SANCHAY makes no direct remote request. The selected local-model
-  runtime and its provisioning remain operator policy, and neither model can
-  alter the plan or execute a cleanup action.
+  runtime and its provisioning remain operator policy. A reasoning model may
+  confirm an already-allowed review or change it to Keep; no model can bypass a
+  deterministic gate, authorize an execution, or perform a file action.
 * **Credential boundary**: Common credential directories, environment files,
   private-key formats, local credential vaults, Docker configuration, and npm
   and Terraform CLI credential files are excluded before metadata collection or
@@ -474,9 +553,10 @@ copy.
   authorize a cleanup action. It is write-once by default; replacing an
   existing handoff requires `--replace-operator-brief`.
 * **Inspectable evidence policy**: Every plan item records its classification,
-  logical and reclaimable allocated sizes, observed identity, typed recovery
-  evidence with its strength, and frozen decision-model inputs; files
-  classified as unique are excluded before ranking.
+  model probabilities and top feature contributions, logical and reclaimable
+  allocated sizes, observed identity, typed recovery evidence with its strength,
+  and frozen decision inputs. Unique files are structurally excluded from
+  cleanup and may appear only in the separate archive-review list.
 * **Review gate**: `--verify-plan` rechecks the integrity checksum (not a
   digital signature), candidate identity including link count, duplicate
   survivor, and clean Git HEAD state where applicable. Hardlinked entries are

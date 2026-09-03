@@ -592,7 +592,7 @@ button:focus-visible, a:focus-visible, input:focus-visible { outline: 3px solid 
     <div class="hero-copy">
       <span class="kicker">Track 2 · AI at Application Level</span>
       <h2>Reclaim space without gambling on files.</h2>
-      <p>SANCHAY ranks only candidates with visible recovery evidence, writes a <strong>review-only plan</strong>, and keeps the irreversible decision with the operator.</p>
+      <p>SANCHAY uses a local learned model to recommend <strong>Keep, Cleanup Review, or Archive Review</strong>, then constrains every result with recovery evidence and human approval.</p>
     </div>
     <aside class="hero-brief" aria-label="Operating boundary">
       <span>OPERATING BOUNDARY</span>
@@ -604,7 +604,7 @@ button:focus-visible, a:focus-visible, input:focus-visible { outline: 3px solid 
   <div class="grid-4">
     <div class="card">
       <h3><span>01</span>Protected-file gate</h3>
-      <p>Unique, untracked, uncached files are excluded from the plan before ranking.</p>
+      <p>Unique files are prohibited from cleanup; they may appear only in a separate archive-review list.</p>
     </div>
     <div class="card">
       <h3><span>02</span>Measured runway</h3>
@@ -623,9 +623,9 @@ button:focus-visible, a:focus-visible, input:focus-visible { outline: 3px solid 
   <div class="formula-box">
     <div>
       <div style="font-size: 11px; text-transform: uppercase; color: var(--text-muted); font-weight: 700;">Review priority model</div>
-      <div class="formula-code mono">Priority = Reclaimable Allocation × Unchanged Age × (1 − Regret)</div>
+      <div class="formula-code mono">AI Priority = Allocation × Age × (1 − Regret) × Learned Cleanup Probability</div>
     </div>
-    <div class="formula-badge">Unique files are excluded before ranking</div>
+    <div class="formula-badge">Local learned classifier · deterministic safety gate</div>
   </div>
 
   <section class="interactive-panel pressure-panel" aria-labelledby="pressure-title">
@@ -670,7 +670,7 @@ button:focus-visible, a:focus-visible, input:focus-visible { outline: 3px solid 
       <button type="button" class="tab" aria-controls="fileTable" aria-pressed="false" onclick="filterCategory('disposable', this)">Regenerable output (2)</button>
       <button type="button" class="tab" aria-controls="fileTable" aria-pressed="false" onclick="filterCategory('duplicate', this)">Verified duplicates (1)</button>
       <button type="button" class="tab" aria-controls="fileTable" aria-pressed="false" onclick="filterCategory('tracked', this)">Clean Git HEAD (1)</button>
-      <button type="button" class="tab" aria-controls="fileTable" aria-pressed="false" onclick="filterCategory('unique', this)">Blocked from plan (2)</button>
+      <button type="button" class="tab" aria-controls="fileTable" aria-pressed="false" onclick="filterCategory('unique', this)">Archive review (2)</button>
     </div>
 
     <div class="table-scroll"><table>
@@ -723,7 +723,7 @@ button:focus-visible, a:focus-visible, input:focus-visible { outline: 3px solid 
           <td class="mono">/home/user/documents/capstone_thesis_final.docx</td>
           <td>125 MB</td>
           <td>300 days</td>
-          <td><span class="locked-badge">EXCLUDED FROM PLAN</span></td>
+          <td><span class="locked-badge">AI ARCHIVE REVIEW · EXCLUDED FROM CLEANUP</span></td>
         </tr>
         <tr data-cat="unique">
           <td><span class="pill pill-unique">UNIQUE</span></td>
@@ -731,7 +731,7 @@ button:focus-visible, a:focus-visible, input:focus-visible { outline: 3px solid 
           <td class="mono">/home/user/projects/db_dump_production.sql</td>
           <td>3.20 GB</td>
           <td>200 days</td>
-          <td><span class="locked-badge">EXCLUDED FROM PLAN</span></td>
+          <td><span class="locked-badge">AI ARCHIVE REVIEW · EXCLUDED FROM CLEANUP</span></td>
         </tr>
       </tbody>
     </table></div>
@@ -807,11 +807,18 @@ document.querySelectorAll('#fileTable tr').forEach(row => {
 });
 
 const demoPlan = {
-  schema_version: 9,
+  schema_version: 11,
   execution: {automatic_deletion: false, requires_human_review: true},
-  safety: {protected_unique_files: 2, excluded_credential_control_entries: 0, candidate_count: 4, excluded_hardlink_entries: 0, managed_operational_storage: [], deferred_managed_entries: 0, deferred_managed_bytes: 0, scan_coverage: {complete: true, unreadable_directories: 0, unreadable_files: 0}, content_read_boundary: 'Linux root-anchored no-follow reads reject path substitution.'},
+  safety: {protected_unique_files: 2, excluded_credential_control_entries: 0, candidate_count: 4, archive_candidate_count: 2, excluded_hardlink_entries: 0, managed_operational_storage: [], deferred_managed_entries: 0, deferred_managed_bytes: 0, scan_coverage: {complete: true, unreadable_directories: 0, unreadable_files: 0}, content_read_boundary: 'Linux root-anchored no-follow reads reject path substitution.'},
   integrity: {algorithm: 'SHA-256', purpose: 'detects accidental plan changes; not a signature'},
-  decision_model: {name: 'regret_aware_priority', version: 2, formula: 'priority = reclaimable_allocated_bytes × unchanged_age × (1 - regret_weight)'},
+  decision_model: {name: 'regret_aware_priority', version: 2, formula: 'AI priority = reclaimable_allocated_bytes × unchanged_age × (1 - regret_weight) × learned_cleanup_probability'},
+  ai_model: {name: 'sanchay_local_action_classifier', version: 1, type: 'multiclass_logistic_regression', learned_inference: true, training_examples: 38, validation_boundary: 'synthetic bootstrap; no production accuracy claim'},
+  reasoning_model: {architecture: 'local_usage_classifier_plus_constrained_reasoning_model', requested_provider: 'off', provider: null, model: null, status: 'not_requested', applied: false, candidate_count: 0, reviewed_candidate_count: 0, confirmed_review_count: 0, kept_count: 0},
+  ai_recommendation_summary: {cleanup_review_count: 4, archive_review_count: 2, keep_count: 0},
+  archive_recommendations: [
+    {kind: 'archive', path: '/home/user/documents/capstone_thesis_final.docx', cleanup_eligible: false},
+    {kind: 'archive', path: '/home/user/projects/db_dump_production.sql', cleanup_eligible: false}
+  ],
   recommendations: [
     {kind: 'disposable', path: '/app/node_modules/.cache/webpack.pack', recovery_evidence: {type: 'known_regenerable_path', strength: 'heuristic'}},
     {kind: 'duplicate', path: '/home/user/downloads/ubuntu-24.04-live.iso', survivor: '/home/user/archive/ubuntu-24.04-live.iso', retention_boundary: {source_of_truth_inferred: false, operator_retention_confirmation_required: true, detail: 'Named evidence peer only; the operator confirms retention.'}, recovery_evidence: {type: 'byte_for_byte_match', strength: 'direct'}},

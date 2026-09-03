@@ -1,12 +1,14 @@
 """sanchay -- regret-aware storage intelligence for Linux."""
 import argparse
+from dataclasses import replace
 import os
 import re
 import shutil
 import sys
 
-from . import (accounting, archive, brief, dedup, explain, forecast, managed, mounts, plan,
-               processes, regret, scan, snapshot, storage)
+from . import (accounting, advisor, archive, brief, dedup, explain, forecast,
+               managed, mounts, plan, processes, regret, scan, snapshot, storage)
+from .paths import scan_target
 
 
 def human(n):
@@ -118,6 +120,18 @@ def main(argv=None):
                     help="with --explain, request an optional opaque-metadata narrative from fixed local Ollama loopback")
     ap.add_argument("--ollama-model", metavar="MODEL",
                     help="with --ollama-narrative, select a model already available to local Ollama")
+    ap.add_argument("--ai-provider", choices=sorted(advisor.PROVIDERS),
+                    help="reasoning review: off, local Ollama, API, or auto (Ollama then API); default is off unless SANCHAY_AI_PROVIDER is set")
+    ap.add_argument("--ai-ollama-model", metavar="MODEL",
+                    help="installed Ollama model for the constrained recommendation review")
+    ap.add_argument("--ai-api-model", metavar="MODEL",
+                    help="OpenAI-compatible API model for the constrained recommendation review")
+    ap.add_argument("--ai-api-base-url", metavar="HTTPS_URL",
+                    help="OpenAI-compatible API base URL; the API key is accepted only through SANCHAY_AI_API_KEY")
+    ap.add_argument("--ai-max-candidates", metavar="N", type=int,
+                    help="maximum prefiltered candidates sent to the reasoning model")
+    ap.add_argument("--ai-timeout", metavar="SECONDS", type=int,
+                    help="positive timeout for the bounded reasoning request")
     ap.add_argument("--viz", metavar="OUT.html", help="write a regret treemap")
     ap.add_argument("--report", metavar="OUT.html",
                     help="write a detailed local HTML review report; contains relative paths")
@@ -164,6 +178,27 @@ def main(argv=None):
         ap.error("choose either --cloud-narrative or --ollama-narrative")
     if args.ollama_model and not args.ollama_narrative:
         ap.error("--ollama-model requires --ollama-narrative")
+    try:
+        advisor_config = advisor.config_from_environment(default_provider="off")
+        advisor_config = replace(
+            advisor_config,
+            provider=args.ai_provider or advisor_config.provider,
+            ollama_model=args.ai_ollama_model or advisor_config.ollama_model,
+            api_model=args.ai_api_model or advisor_config.api_model,
+            api_base_url=args.ai_api_base_url or advisor_config.api_base_url,
+            max_candidates=(
+                args.ai_max_candidates
+                if args.ai_max_candidates is not None
+                else advisor_config.max_candidates
+            ),
+            timeout_seconds=(
+                args.ai_timeout
+                if args.ai_timeout is not None
+                else advisor_config.timeout_seconds
+            ),
+        ).normalized()
+    except ValueError as exc:
+        ap.error(str(exc))
     if args.snapshot and args.snapshot_history:
         ap.error("use either --snapshot OUT.json or --snapshot-history DIR, not both")
     if args.replace_plan and not args.plan:
@@ -301,6 +336,10 @@ def main(argv=None):
 
     if not args.root:
         ap.error("ROOT is required unless --verify-plan is used")
+    try:
+        args.root = scan_target(args.root)
+    except ValueError as exc:
+        ap.error(str(exc))
 
     if args.tui:
         if args.cross_filesystems:
@@ -562,15 +601,21 @@ def main(argv=None):
         else:
             print("capacity risk: withheld; current mounted-filesystem history is unavailable")
 
-    cleanup_plan = plan.build(files, groups, args.root, limit=args.limit,
-                              target_reclaim_bytes=args.target_reclaim,
-                              cross_filesystems=args.cross_filesystems,
-                              filesystem_context=filesystem_context,
-                              scan_coverage=scan_coverage)
+    try:
+        cleanup_plan = plan.build(
+            files, groups, args.root, limit=args.limit,
+            target_reclaim_bytes=args.target_reclaim,
+            cross_filesystems=args.cross_filesystems,
+            filesystem_context=filesystem_context,
+            scan_coverage=scan_coverage,
+            advisor_config=advisor_config)
+    except (RuntimeError, ValueError) as exc:
+        ap.error(f"recommendation plan unavailable: {exc}")
     rows = cleanup_plan["recommendations"]
+    archive_rows = cleanup_plan.get("archive_recommendations", [])
     excluded = cleanup_plan["safety"]["protected_unique_files"]
     print(f"candidates: {len(rows)} shown, {cleanup_plan['safety']['candidate_count']:,} eligible, "
-          f"{excluded:,} irreplaceable files excluded")
+          f"{excluded:,} irreplaceable files protected from cleanup")
     hardlinks = cleanup_plan["safety"]["excluded_hardlink_entries"]
     if hardlinks:
         print(f"hardlinks: {hardlinks:,} entries excluded; a single link removal releases no physical bytes")
@@ -582,6 +627,27 @@ def main(argv=None):
         for item in managed_storage:
             print(f"  {item['label']}: {human(item['allocated_bytes'])} — "
                   f"{item['review_action']}")
+    ai_model = cleanup_plan["ai_model"]
+    ai_summary = cleanup_plan["ai_recommendation_summary"]
+    print(
+        f"usage-prediction AI: {ai_model['type']} v{ai_model['version']}; "
+        f"{ai_summary['cleanup_review_count']:,} cleanup, "
+        f"{ai_summary['archive_review_count']:,} archive, "
+        f"{ai_summary['keep_count']:,} keep review action(s)")
+    reasoning = cleanup_plan["reasoning_model"]
+    if reasoning["status"] == "completed":
+        print(
+            f"reasoning AI: {reasoning['provider']} / {reasoning['model']}; "
+            f"{reasoning['reviewed_candidate_count']:,} reviewed, "
+            f"{reasoning['confirmed_review_count']:,} confirmed, "
+            f"{reasoning['kept_count']:,} changed to keep")
+    elif reasoning["status"] == "not_requested":
+        print("reasoning AI: off; local learned recommendations remain active")
+    else:
+        print(
+            f"reasoning AI: {reasoning['status']}; safe local-classifier fallback "
+            "used without weakening deterministic gates")
+    print("  boundary: " + ai_summary["boundary"])
     selection = cleanup_plan.get("selection")
     if selection:
         state = "target met" if selection["target_met"] else (
@@ -597,14 +663,28 @@ def main(argv=None):
                 f"(regret {step['regret_weight']:.2f}); "
                 f"{human(step['selected_reclaim_bytes'])} selected from "
                 f"{human(step['available_reclaim_bytes'])} eligible ({strategy})")
-        print("  table below: deterministic review priority, not an execution order")
+        print(
+            "  table below: deterministic review priority, not an execution order; "
+            "learned probabilities rank candidates inside the safety gate")
     print()
 
-    print(f"{'reclaim':>10}  {'kind':<11} {'unchanged':>9}  path")
-    print("-" * 78)
+    print(f"{'reclaim':>10}  {'kind':<11} {'AI clean':>8} {'unchanged':>9}  path")
+    print("-" * 90)
     for r in rows:
+        cleanup_probability = r["ai_assessment"]["probabilities"]["cleanup_review"]
         print(f"{human(r['size']):>10}  {r['kind']:<11} "
-              f"{r['staleness'] * 365:>7.1f}d  {r['path']}")
+              f"{cleanup_probability:>7.0%} {r['staleness'] * 365:>7.1f}d  {r['path']}")
+
+    if archive_rows:
+        print("\nAI archive reviews (unique files remain prohibited from cleanup)")
+        print(f"{'allocated':>10}  {'AI archive':>10} {'unchanged':>9}  path")
+        print("-" * 90)
+        for row in archive_rows:
+            archive_probability = row["ai_assessment"]["probabilities"]["archive_review"]
+            print(
+                f"{human(row['size']):>10}  {archive_probability:>9.0%} "
+                f"{row['staleness'] * 365:>7.1f}d  {row['path']}")
+        print("  copy through an operator-approved workflow, then verify with --verify-archive")
 
     if args.report:
         try:
@@ -697,7 +777,7 @@ def main(argv=None):
 
     if args.explain:
         print("\n" + explain.explain(
-            rows,
+            rows + archive_rows,
             allow_cloud=args.cloud_narrative,
             allow_ollama=args.ollama_narrative,
             ollama_model=args.ollama_model,

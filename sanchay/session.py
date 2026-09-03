@@ -10,7 +10,9 @@ import os
 import shutil
 from pathlib import Path
 
-from . import dedup, managed, mounts, plan, processes, report, scan, storage
+from . import (dedup, intelligence, managed, mounts, plan, processes, report,
+               scan, storage)
+from .paths import scan_target
 
 
 DEFAULT_RECOMMENDATION_LIMIT = 50
@@ -34,25 +36,31 @@ class ScanSession:
     last_report: str = None
     last_plan: str = None
     stale: bool = False
+    activity_profiles: dict = field(default_factory=dict)
+    advisor_config: object = None
 
     @property
     def ready(self):
         return self.root is not None and self.active_plan is not None
 
     def scan(self, root, cross_filesystems=False,
-             limit=DEFAULT_RECOMMENDATION_LIMIT):
+             limit=DEFAULT_RECOMMENDATION_LIMIT, cancel_event=None,
+             advisor_config=None):
         """Scan *root* once, then byte-confirm and retain its review evidence.
 
         State is assigned only after every stage succeeds.  A failed or
         interrupted refresh therefore leaves the preceding completed session
         available for review.
         """
+        root = scan_target(root)
         canonical_root = os.path.realpath(os.path.abspath(os.path.expanduser(root)))
         files, coverage_record = scan.scan_with_coverage(
-            canonical_root, cross_filesystems=cross_filesystems)
+            canonical_root, cross_filesystems=cross_filesystems,
+            cancel_event=cancel_event)
         coverage = coverage_record.as_dict()
         groups = dedup.duplicates(
-            managed.content_candidates(files), root=canonical_root)
+            managed.content_candidates(files), root=canonical_root,
+            cancel_event=cancel_event)
         filesystem_context = mounts.capacity_context(canonical_root)
 
         devices = {
@@ -68,11 +76,18 @@ class ScanSession:
         held_deleted = processes.deleted_open_files(devices or None)
         usage = None if cross_filesystems else shutil.disk_usage(canonical_root)
         free_bytes = None if usage is None else usage.free
+        activity_profiles = intelligence.update_activity_profiles(
+            self.files if self.ready else (), files,
+            self.activity_profiles if self.ready else None,
+        )
         cleanup_plan = plan.build(
             files, groups, canonical_root, limit=limit,
             cross_filesystems=cross_filesystems,
             filesystem_context=filesystem_context,
-            scan_coverage=coverage)
+            scan_coverage=coverage,
+            activity_profiles=activity_profiles,
+            cancel_event=cancel_event,
+            advisor_config=advisor_config)
 
         self.root = canonical_root
         self.cross_filesystems = cross_filesystems
@@ -88,6 +103,8 @@ class ScanSession:
         self.last_report = None
         self.last_plan = None
         self.stale = False
+        self.activity_profiles = activity_profiles
+        self.advisor_config = advisor_config
         return self.summary()
 
     def summary(self):
@@ -103,11 +120,13 @@ class ScanSession:
             "duplicate_groups": len(self.groups),
             "duplicate_reclaimable_bytes": dedup.reclaimable(self.groups),
             "candidate_count": safety["candidate_count"],
+            "archive_candidate_count": safety.get("archive_candidate_count", 0),
             "protected_unique_files": safety["protected_unique_files"],
             "excluded_hardlink_entries": safety["excluded_hardlink_entries"],
             "coverage": self.coverage,
             "cross_filesystems": self.cross_filesystems,
             "stale": self.stale,
+            "reasoning_model": self.active_plan.get("reasoning_model", {}),
         }
 
     def candidates(self, limit=20):
@@ -115,6 +134,13 @@ class ScanSession:
         if limit <= 0:
             raise ValueError("Candidate limit must be greater than zero")
         return self.active_plan["recommendations"][:limit]
+
+    def archive_candidates(self, limit=20):
+        """Return AI-ranked archive reviews without making or moving a copy."""
+        self._require_fresh_scan()
+        if limit <= 0:
+            raise ValueError("Archive candidate limit must be greater than zero")
+        return self.active_plan.get("archive_recommendations", [])[:limit]
 
     def target(self, target_reclaim_bytes):
         self._require_fresh_scan()
@@ -126,7 +152,9 @@ class ScanSession:
             target_reclaim_bytes=target_reclaim_bytes,
             cross_filesystems=False,
             filesystem_context=self.filesystem_context,
-            scan_coverage=self.coverage)
+            scan_coverage=self.coverage,
+            activity_profiles=self.activity_profiles,
+            advisor_config=self.advisor_config)
         return self.active_plan["selection"]
 
     def clear_target(self):
@@ -139,7 +167,7 @@ class ScanSession:
         self.last_plan = str(Path(written).resolve())
         return self.last_plan
 
-    def write_report(self, out):
+    def write_report(self, out, cancel_event=None):
         self._require_fresh_scan()
         written = report.build(
             self.files, self.root, self.free_bytes, out,
@@ -148,7 +176,8 @@ class ScanSession:
             filesystem_context=self.filesystem_context,
             scan_coverage=self.coverage,
             duplicate_groups=self.groups,
-            cleanup_plan=self.active_plan)
+            cleanup_plan=self.active_plan,
+            cancel_event=cancel_event)
         self.last_report = str(Path(written).resolve())
         return self.last_report
 

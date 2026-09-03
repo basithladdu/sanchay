@@ -6,9 +6,15 @@ naive dedup tools slow on large trees.
 """
 import os
 import stat
+from concurrent.futures import CancelledError
 from dataclasses import dataclass
 
 from . import mounts, storage
+
+
+def _check_cancel(cancel_event):
+    if cancel_event is not None and cancel_event.is_set():
+        raise CancelledError("scan cancelled")
 
 
 # These contain repository internals or credential material rather than user
@@ -127,7 +133,7 @@ def is_protected_path(path, skip=DEFAULT_SKIP_DIRS):
 
 
 def scan_with_coverage(root, skip=DEFAULT_SKIP_DIRS,
-                       cross_filesystems=False):
+                       cross_filesystems=False, cancel_event=None):
     """Return regular files plus honest coverage evidence for one tree.
 
     A default scan stays on the root filesystem and prunes every visible child
@@ -140,6 +146,7 @@ def scan_with_coverage(root, skip=DEFAULT_SKIP_DIRS,
     """
     # Canonicalise the user-supplied root once.  All emitted paths then share
     # one stable root for later descriptor-relative content reads.
+    _check_cancel(cancel_event)
     root = os.path.realpath(os.path.abspath(root))
     protected_dirs = frozenset(str(name).lower() for name in skip)
     if _path_is_protected(root, protected_dirs):
@@ -173,6 +180,7 @@ def scan_with_coverage(root, skip=DEFAULT_SKIP_DIRS,
         unreadable_directories += 1
 
     for dirpath, dirnames, filenames in os.walk(root, onerror=record_directory_error):
+        _check_cancel(cancel_event)
         # Prune at the parent so os.walk never descends into sensitive or
         # control directories. `skip` accepts directory basenames to keep this
         # policy portable across Linux and Windows paths.
@@ -213,6 +221,7 @@ def scan_with_coverage(root, skip=DEFAULT_SKIP_DIRS,
                     continue
             dirnames[:] = same_filesystem
         for name in filenames:
+            _check_cancel(cancel_event)
             path = os.path.join(dirpath, name)
             if _path_is_protected(path, protected_dirs):
                 continue
@@ -235,11 +244,12 @@ def scan_with_coverage(root, skip=DEFAULT_SKIP_DIRS,
 
 
 def scan(root, skip=DEFAULT_SKIP_DIRS,
-         cross_filesystems=False):
+         cross_filesystems=False, cancel_event=None):
     """Return regular files below *root* without following symlinks.
 
     This compatibility API returns only files. Call :func:`scan_with_coverage`
     when an operator-visible completeness boundary is required.
     """
     return scan_with_coverage(root, skip=skip,
-                              cross_filesystems=cross_filesystems)[0]
+                              cross_filesystems=cross_filesystems,
+                              cancel_event=cancel_event)[0]

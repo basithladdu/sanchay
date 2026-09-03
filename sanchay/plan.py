@@ -13,11 +13,13 @@ import json
 import os
 from pathlib import Path
 import stat
+import time
+from concurrent.futures import CancelledError
 
-from . import dedup, managed, regret, scan, storage
+from . import advisor, dedup, intelligence, managed, regret, scan, storage
 
 
-PLAN_SCHEMA_VERSION = 9
+PLAN_SCHEMA_VERSION = 11
 EXACT_TARGET_SELECTION_LIMIT = 28
 IDENTITY_FIELDS = (
     "device", "inode", "size", "allocated_size", "mtime", "mtime_ns", "nlink",
@@ -69,7 +71,7 @@ def _evidence(row, duplicate_of):
 
 def _decision_trace(row):
     """Freeze the exact model inputs behind one review recommendation."""
-    return {
+    trace = {
         **DECISION_MODEL,
         "inputs": {
             "reclaimable_allocated_bytes": row["size"],
@@ -78,12 +80,50 @@ def _decision_trace(row):
             "regret_weight": row["regret"],
         },
         "computed_priority": row["priority"],
+        "ai_cleanup_probability": row["ai_assessment"]["probabilities"]["cleanup_review"],
+        "ai_adjusted_priority": row["ai_priority"],
     }
+    reasoning = row.get("reasoning_assessment")
+    if isinstance(reasoning, dict):
+        trace["reasoning_action"] = reasoning.get("action")
+        trace["reasoning_confidence"] = reasoning.get("confidence")
+        trace["reasoning_priority_multiplier"] = row.get(
+            "reasoning_priority_multiplier", 1.0)
+    return trace
 
 
 def _candidate_order(item):
     row, _ = item
-    return (-row["priority"], row["path"].replace("\\", "/"))
+    return (-row.get("ai_priority", row["priority"]),
+            -row["priority"], row["path"].replace("\\", "/"))
+
+
+def _archive_order(item):
+    row, _ = item
+    return (-row["archive_priority"], row["path"].replace("\\", "/"))
+
+
+def _reasoning_order(item):
+    row, _ = item
+    return (-max(row.get("ai_priority", 0), row.get("archive_priority", 0)),
+            row["path"].replace("\\", "/"))
+
+
+def _local_reasoning_fallback(row):
+    assessment = row["ai_assessment"]
+    action = assessment["recommended_action"]
+    return {
+        "candidate_id": None,
+        "action": action,
+        "confidence": assessment["probabilities"].get(action, 0),
+        "reason_codes": ["uncertain"],
+        "explanation": (
+            "This candidate was outside the bounded reasoning batch; the local "
+            "classifier recommendation remains subject to deterministic safety and "
+            "human review."
+        ),
+        "applied": False,
+    }
 
 
 def _normalized_path(item):
@@ -249,14 +289,19 @@ def _fingerprint_valid(document):
 
 def build(files, duplicate_groups, root, now=None, limit=25,
           target_reclaim_bytes=None, cross_filesystems=False,
-          filesystem_context=None, scan_coverage=None):
+          filesystem_context=None, scan_coverage=None, activity_profiles=None,
+          cancel_event=None, advisor_config=None):
     """Build a non-executing cleanup manifest from one scan result."""
     if target_reclaim_bytes is not None and target_reclaim_bytes <= 0:
         raise ValueError("Reclaim target must be greater than zero")
     if cross_filesystems and target_reclaim_bytes is not None:
         raise ValueError("A cross-filesystem inventory cannot use a shared reclaim target")
+    if cancel_event is not None and cancel_event.is_set():
+        raise CancelledError("plan construction cancelled")
     coverage = scan.coverage_summary(scan_coverage)
-    duplicate_of = dedup.confirmed_duplicate_map(duplicate_groups, root=root)
+    assessed_at = time.time() if now is None else now
+    duplicate_of = dedup.confirmed_duplicate_map(
+        duplicate_groups, root=root, cancel_event=cancel_event)
     by_path = {info.path: info for info in files}
     managed_advisories = managed.advisories(files)
     eligible = []
@@ -265,8 +310,15 @@ def build(files, duplicate_groups, root, now=None, limit=25,
     excluded_credential_control_entries = 0
     excluded_hardlink_entries = 0
     hardlinked = []
+    archive_eligible = []
+    ai_kept_files = 0
+    ai_abstentions = 0
+    ai_safety_overrides = 0
+    reasoning_kept_files = 0
 
     for info in files:
+        if cancel_event is not None and cancel_event.is_set():
+            raise CancelledError("plan construction cancelled")
         if scan.is_protected_path(info.path):
             excluded_credential_control_entries += 1
             continue
@@ -276,15 +328,83 @@ def build(files, duplicate_groups, root, now=None, limit=25,
             excluded_hardlink_entries += 1
             hardlinked.append(info)
             continue
-        row = regret.score(info, info.path in duplicate_of, now)
+        row = regret.score(info, info.path in duplicate_of, assessed_at)
+        ai_assessment = intelligence.assess(
+            info, row["kind"], assessed_at,
+            activity=(activity_profiles or {}).get(info.path),
+        )
+        row["ai_assessment"] = ai_assessment
+        row["ai_priority"] = (
+            row["priority"]
+            * ai_assessment["probabilities"]["cleanup_review"]
+        )
+        ai_abstentions += int(ai_assessment["abstained"])
+        ai_safety_overrides += int(ai_assessment["safety_override_applied"])
         if row["kind"] == "unique":
             protected_count += 1
             protected_bytes += storage.allocated_bytes(info)
+            if ai_assessment["recommended_action"] == "archive_review":
+                row["archive_priority"] = (
+                    row["size"]
+                    * max(0.01, row["staleness"])
+                    * ai_assessment["probabilities"]["archive_review"]
+                )
+                archive_eligible.append((row, info))
+            else:
+                ai_kept_files += 1
             continue
-        eligible.append((row, info))
+        if ai_assessment["recommended_action"] == "cleanup_review":
+            eligible.append((row, info))
+        else:
+            ai_kept_files += 1
 
     eligible.sort(key=_candidate_order)
+    archive_eligible.sort(key=_archive_order)
+    reasoning_pool = sorted(
+        eligible + archive_eligible,
+        key=_reasoning_order,
+    )
+    reasoning_run = advisor.recommend(
+        [row for row, _ in reasoning_pool],
+        config=advisor_config,
+        cancel_event=cancel_event,
+    )
+    reasoning_decisions = reasoning_run.pop("decisions")
+    reasoning_confirmed_reviews = sum(
+        decision["action"] != "keep" for decision in reasoning_decisions
+    ) if reasoning_run["applied"] else 0
+    reasoning_kept_ids = set()
+    for (row, _), decision in zip(reasoning_pool, reasoning_decisions):
+        row["reasoning_assessment"] = {
+            **decision,
+            "applied": reasoning_run["applied"],
+            "provider": reasoning_run.get("provider"),
+            "model": reasoning_run.get("model"),
+        }
+        if reasoning_run["applied"] and decision["action"] == "keep":
+            reasoning_kept_ids.add(id(row))
+            reasoning_kept_files += 1
+            continue
+        multiplier = (
+            0.5 + 0.5 * float(decision["confidence"])
+            if reasoning_run["applied"] else 1.0
+        )
+        row["reasoning_priority_multiplier"] = round(multiplier, 6)
+        if "archive_priority" in row:
+            row["archive_priority"] *= multiplier
+        else:
+            row["ai_priority"] *= multiplier
+
+    eligible = [item for item in eligible if id(item[0]) not in reasoning_kept_ids]
+    archive_eligible = [
+        item for item in archive_eligible if id(item[0]) not in reasoning_kept_ids]
+    for row, _ in eligible + archive_eligible:
+        row.setdefault("reasoning_assessment", _local_reasoning_fallback(row))
+        row.setdefault("reasoning_priority_multiplier", 1.0)
+    eligible.sort(key=_candidate_order)
     selected = eligible[:limit]
+    archive_eligible.sort(key=_archive_order)
+    selected_archives = archive_eligible[:limit]
     selection_steps = ()
     if target_reclaim_bytes is not None:
         selected, selection_steps = _select_for_target(eligible, target_reclaim_bytes)
@@ -296,6 +416,7 @@ def build(files, duplicate_groups, root, now=None, limit=25,
             "proposed_action": ACTION[row["kind"]],
             "recovery_evidence": _evidence(row, duplicate_of),
             "decision_trace": _decision_trace(row),
+            "reasoning_assessment": row["reasoning_assessment"],
             "requires_human_review": True,
             "observed_identity": _identity(info),
         }
@@ -309,6 +430,43 @@ def build(files, duplicate_groups, root, now=None, limit=25,
                 "detail": DUPLICATE_RETENTION_BOUNDARY,
             }
         recommendations.append(item)
+
+    archive_recommendations = []
+    for row, info in selected_archives:
+        archive_recommendations.append({
+            "path": row["path"],
+            "kind": "archive",
+            "source_kind": "unique",
+            "size": row["size"],
+            "logical_size": row["logical_size"],
+            "staleness": row["staleness"],
+            "archive_priority": row["archive_priority"],
+            "proposed_action": (
+                "review for a copy to an operator-approved archive destination; "
+                "verify the retained copy before any separate source decision"
+            ),
+            "archive_evidence": {
+                "type": "ai_metadata_recommendation",
+                "strength": "learned_bootstrap",
+                "detail": (
+                    "the local model recommends archival from metadata; the file remains "
+                    "unique and is prohibited from cleanup"
+                ),
+            },
+            "ai_assessment": row["ai_assessment"],
+            "reasoning_assessment": row["reasoning_assessment"],
+            "observed_identity": _identity(info),
+            "requires_human_review": True,
+            "cleanup_eligible": False,
+            "destination": {
+                "operator_selection_required": True,
+                "durability_inferred": False,
+                "verification": (
+                    "after an operator-controlled copy, use --verify-archive to require "
+                    "a separate inode, matching bytes, and stable identities"
+                ),
+            },
+        })
 
     document = {
         "schema_version": PLAN_SCHEMA_VERSION,
@@ -333,9 +491,13 @@ def build(files, duplicate_groups, root, now=None, limit=25,
             "excluded_hardlink_physical_bytes": storage.physical_bytes(hardlinked),
             "candidate_count": len(eligible),
             "candidate_bytes": sum(row["size"] for row, _ in eligible),
+            "archive_candidate_count": len(archive_eligible),
+            "archive_candidate_bytes": sum(
+                row["size"] for row, _ in archive_eligible),
             "rule": (
-                "known credential/control paths, unique, untracked, uncached files, "
-                "and every hardlinked entry are excluded before ranking"
+                "known credential/control paths, system-managed paths, and every "
+                "hardlinked entry are excluded before AI assessment; unique files are "
+                "prohibited from cleanup but may receive a review-only archive recommendation"
             ),
             "managed_operational_storage": managed_advisories,
             "deferred_managed_entries": sum(
@@ -354,7 +516,35 @@ def build(files, duplicate_groups, root, now=None, limit=25,
             "purpose": "detects accidental plan changes; this checksum is not a signature",
         },
         "decision_model": DECISION_MODEL,
+        "ai_model": intelligence.model_card(),
+        "reasoning_model": {
+            **reasoning_run,
+            "reviewed_candidate_count": (
+                reasoning_run["candidate_count"] if reasoning_run["applied"] else 0
+            ),
+            "confirmed_review_count": reasoning_confirmed_reviews,
+            "kept_count": reasoning_kept_files,
+        },
+        "ai_recommendation_summary": {
+            "assessed_file_count": (
+                len(files) - excluded_credential_control_entries
+                - sum(item["entries"] for item in managed_advisories)
+                - excluded_hardlink_entries
+            ),
+            "cleanup_review_count": len(eligible),
+            "archive_review_count": len(archive_eligible),
+            "keep_count": ai_kept_files + reasoning_kept_files,
+            "abstention_count": ai_abstentions,
+            "safety_override_count": ai_safety_overrides,
+            "boundary": (
+                "The local classifier selects and ranks review actions; an optional "
+                "constrained reasoning model may keep or confirm those actions. "
+                "Deterministic gates decide what is permitted, and unique files can "
+                "never enter cleanup"
+            ),
+        },
         "recommendations": recommendations,
+        "archive_recommendations": archive_recommendations,
     }
     if cross_filesystems:
         document["safety"]["scan_scope"] = "cross_filesystem_inventory"
@@ -432,13 +622,17 @@ def duplicate_evidence_paths(document):
 def read(path):
     """Load a plan without performing any filesystem action."""
     document = json.loads(Path(path).read_text(encoding="utf-8"))
-    required = {"schema_version", "root", "execution", "recommendations", "safety",
-                "fingerprint_sha256"}
+    required = {
+        "schema_version", "root", "execution", "recommendations",
+        "archive_recommendations", "safety", "ai_model", "reasoning_model",
+        "ai_recommendation_summary", "fingerprint_sha256",
+    }
     safety_required = {"protected_unique_files", "protected_unique_bytes",
                        "excluded_credential_control_entries",
                        "logical_file_entries", "physical_file_count",
                        "excluded_hardlink_entries", "excluded_hardlink_physical_bytes",
-                       "candidate_count", "candidate_bytes", "rule",
+                       "candidate_count", "candidate_bytes",
+                       "archive_candidate_count", "archive_candidate_bytes", "rule",
                        "content_read_boundary", "scan_coverage"}
     if (document.get("schema_version") != PLAN_SCHEMA_VERSION or not required.issubset(document)
             or not isinstance(document["root"], str)
@@ -446,6 +640,11 @@ def read(path):
             or not isinstance(document["safety"], dict)
             or not safety_required.issubset(document["safety"])
             or not isinstance(document["recommendations"], list)
+            or not isinstance(document["archive_recommendations"], list)
+            or not isinstance(document["ai_model"], dict)
+            or document["ai_model"].get("learned_inference") is not True
+            or not isinstance(document["reasoning_model"], dict)
+            or not isinstance(document["ai_recommendation_summary"], dict)
             or not isinstance(document["fingerprint_sha256"], str)):
         raise ValueError("Unsupported or incomplete SANCHAY cleanup plan")
     try:
@@ -510,6 +709,7 @@ def verify(document):
         "fingerprint_valid": _fingerprint_valid(document),
         "checked": 0,
         "recommendations": [],
+        "archive_recommendations": [],
     }
     if not result["fingerprint_valid"]:
         result["reason"] = "plan integrity checksum does not match its contents"
@@ -534,6 +734,13 @@ def verify(document):
         if kind not in ACTION or not isinstance(path, str):
             reasons.append("unsupported recommendation")
         else:
+            assessment = item.get("ai_assessment")
+            if (not isinstance(assessment, dict)
+                    or assessment.get("model_name")
+                    != intelligence.MODEL_NAME
+                    or assessment.get("recommended_action")
+                    != "cleanup_review"):
+                reasons.append("learned cleanup assessment is missing or invalid")
             changed = _inside_root(path, document["root"], "candidate")
             if not changed:
                 changed = _identity_check(path, item.get("observed_identity", {}),
@@ -570,5 +777,48 @@ def verify(document):
             "reasons": reasons,
         })
 
-    result["valid"] = all(item["valid"] for item in result["recommendations"])
+    for item in document.get("archive_recommendations", []):
+        reasons = []
+        if not isinstance(item, dict):
+            path = None
+            reasons.append("archive recommendation is not an object")
+        else:
+            path = item.get("path")
+            destination = item.get("destination")
+            assessment = item.get("ai_assessment")
+            if (item.get("kind") != "archive"
+                    or item.get("source_kind") != "unique"
+                    or item.get("cleanup_eligible") is not False
+                    or item.get("requires_human_review") is not True
+                    or not isinstance(path, str)
+                    or not isinstance(assessment, dict)
+                    or assessment.get("model_name") != intelligence.MODEL_NAME
+                    or assessment.get("recommended_action") != "archive_review"):
+                reasons.append("unsupported archive recommendation")
+            elif (not isinstance(destination, dict)
+                  or destination.get("operator_selection_required") is not True
+                  or destination.get("durability_inferred") is not False
+                  or not isinstance(destination.get("verification"), str)):
+                reasons.append("archive destination boundary is missing or invalid")
+            else:
+                changed = _inside_root(path, document["root"], "archive candidate")
+                if not changed:
+                    changed = _identity_check(
+                        path, item.get("observed_identity", {}), "archive candidate")
+                if changed:
+                    reasons.append(changed)
+        result["checked"] += 1
+        result["archive_recommendations"].append({
+            "path": path,
+            "kind": "archive",
+            "valid": not reasons,
+            "reasons": reasons,
+        })
+
+    result["valid"] = all(
+        item["valid"]
+        for item in (
+            result["recommendations"] + result["archive_recommendations"]
+        )
+    )
     return result

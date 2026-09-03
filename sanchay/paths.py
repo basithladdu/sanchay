@@ -1,6 +1,39 @@
 """Platform-aware user artifact locations."""
 import os
-from pathlib import Path
+from pathlib import Path, PurePosixPath
+
+
+def _running_under_wsl():
+    if os.name == "nt":
+        return False
+    if os.environ.get("WSL_DISTRO_NAME") or os.environ.get("WSL_INTEROP"):
+        return True
+    try:
+        release = Path("/proc/sys/kernel/osrelease").read_text(
+            encoding="utf-8", errors="replace")
+    except OSError:
+        return False
+    return "microsoft" in release.lower() or "wsl" in release.lower()
+
+
+def scan_target(value):
+    """Translate pasted Windows drive syntax when SANCHAY runs under WSL."""
+    supplied = str(value).strip()
+    is_drive_path = (
+        len(supplied) >= 2
+        and supplied[0].isalpha()
+        and supplied[1] == ":"
+        and (len(supplied) == 2 or supplied[2] in ("/", "\\"))
+    )
+    if not is_drive_path or not _running_under_wsl():
+        return supplied
+
+    mount = PurePosixPath("/mnt") / supplied[0].lower()
+    if not Path(str(mount)).is_dir():
+        raise ValueError(
+            f"Windows drive {supplied[0].upper()}: is not mounted at {mount} in WSL")
+    remainder = supplied[2:].lstrip("/\\").replace("\\", "/")
+    return str(mount / remainder) if remainder else str(mount)
 
 
 def downloads_directory():

@@ -8,7 +8,9 @@ Self-contained HTML -- plotly is inlined, so the file opens anywhere with no
 network.
 """
 import html
+from importlib import import_module
 import time
+from concurrent.futures import CancelledError
 from pathlib import Path
 
 from . import dedup, forecast, managed, plan, storage
@@ -51,6 +53,7 @@ td.p{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:12px;colo
 .disposable{background:rgba(16,185,129,.18);color:#34d399}
 .duplicate{background:rgba(132,204,22,.18);color:#a3e635}
 .tracked{background:rgba(245,158,11,.18);color:#fcd34d}
+.archive{background:rgba(59,130,246,.18);color:#60a5fa}
 .guard{background:rgba(239,68,68,.1);border-left:3px solid var(--red);border-radius:0 8px 8px 0;padding:14px 18px;margin-top:16px}
 .guard b{color:var(--red)}
 @media (max-width:600px){
@@ -90,7 +93,7 @@ h1{font-size:19px;letter-spacing:.06em}
 .panel h2{color:var(--ink);font-size:18px;letter-spacing:-.03em}.panel .h{color:var(--mute);font-size:12px;margin-bottom:16px}
 .formula-box{background:var(--panel-sub);border:1px solid var(--line);border-left:4px solid var(--ink);border-radius:0;font-size:12px;padding:12px 14px}.formula-tag{color:var(--ink);font-size:10px}
 .controls{border-bottom:1px solid var(--line);gap:8px;padding-bottom:12px}.search-box{background:var(--panel);border:1px solid var(--ink);border-radius:0;color:var(--ink);font-size:12px;padding:8px 10px}.filter-btn{background:transparent;border:0;border-bottom:2px solid transparent;border-radius:0;color:var(--mute);font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:10px;padding:7px 0}.filter-btn:hover,.filter-btn.active{background:transparent;border-bottom-color:var(--ink);color:var(--ink)}
-table{font-size:12px}th{color:var(--mute);font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:9px;padding:10px 8px}td{border-bottom-color:var(--line);color:var(--ink);padding:11px 8px}td.p{color:var(--mute);font-size:11px}.tag{background:transparent;border:1px solid currentColor;border-radius:0;font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:9px;padding:3px 5px}.disposable{color:var(--green)}.duplicate{color:var(--accent)}.tracked{color:var(--amber)}.evidence{color:var(--mute);font-size:11px}
+table{font-size:12px}th{color:var(--mute);font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:9px;padding:10px 8px}td{border-bottom-color:var(--line);color:var(--ink);padding:11px 8px}td.p{color:var(--mute);font-size:11px}.tag{background:transparent;border:1px solid currentColor;border-radius:0;font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:9px;padding:3px 5px}.disposable{color:var(--green)}.duplicate{color:var(--accent)}.tracked{color:var(--amber)}.archive{color:var(--accent)}.evidence{color:var(--mute);font-size:11px}
 .guard{background:#f1eadc;border:1px solid #d2b984;border-left:3px solid var(--amber);border-radius:0;color:#5b4829;padding:12px 14px}.guard b{color:#77501b}.guard code{overflow-wrap:anywhere}
 @media (max-width:600px){body{padding:16px 12px}.cards{grid-template-columns:1fr}.card,.card:first-child,.card:last-child{border-bottom:1px solid var(--line);border-right:0;padding:15px 0}.panel{padding:16px}.formula-box{padding:12px}.search-box{min-width:0}.filter-btn{flex:1 1 42%}td::before{color:var(--mute);font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:9px}.guard{font-size:12px}}
 """
@@ -129,6 +132,25 @@ def _evidence_label(row, root):
     return f"{strength}: {evidence['detail']}"
 
 
+def _ai_factor_label(row):
+    assessment = row.get("ai_assessment", {})
+    factors = assessment.get("top_factors", [])
+    labels = [item["label"] for item in factors if item.get("direction") == "supports"]
+    return ", ".join(labels[:3]) or "no dominant positive factor"
+
+
+def _reasoning_label(row):
+    assessment = row.get("reasoning_assessment", {})
+    if not assessment.get("applied"):
+        return "not applied; the local classifier recommendation was retained"
+    provider = assessment.get("provider") or "reasoning provider"
+    model = assessment.get("model") or "configured model"
+    action = str(assessment.get("action", "keep")).replace("_", " ")
+    confidence = assessment.get("confidence", 0)
+    explanation = assessment.get("explanation", "No explanation returned.")
+    return f"{provider}/{model}: {action} at {confidence:.0%} confidence — {explanation}"
+
+
 def _holder_summary(record):
     """Render a bounded, human-readable list of processes holding one inode."""
     shown = record.holders[:3]
@@ -140,23 +162,59 @@ def _holder_summary(record):
     return summary
 
 
+def _recoverability_chart(files, duplicate_paths, root):
+    """Build the optional Plotly chart without making the report optional too."""
+    try:
+        viz = import_module(".viz", __package__)
+    except ModuleNotFoundError as exc:
+        missing = (exc.name or "").split(".", 1)[0]
+        if missing not in {"pandas", "plotly"}:
+            raise
+        return (
+            '<div class="formula-box">'
+            '<span class="formula-tag">Chart unavailable:</span>'
+            '<span>The optional visualization package '
+            f'<code>{html.escape(missing)}</code> is not installed. '
+            'The inventory, AI recommendations, recovery evidence, and safety tables '
+            'below remain complete. Install <code>pip install -e &quot;.[viz]&quot;</code> '
+            'to include the interactive treemap.</span></div>'
+        )
+    figure = viz.figure(files, duplicate_paths, root=root)
+    return figure.to_html(
+        full_html=False,
+        include_plotlyjs=True,
+        default_height="500px",
+        config={"displayModeBar": False},
+    )
+
+
 def build(files, root, free_bytes, out="sanchay-report.html", limit=50,
           target_reclaim_bytes=None, cross_filesystems=False, process_held=None,
           filesystem_context=None, scan_coverage=None, capacity_accounting=None,
-          duplicate_groups=None, cleanup_plan=None):
-    from . import viz
+          duplicate_groups=None, cleanup_plan=None, cancel_event=None):
+    if cancel_event is not None and cancel_event.is_set():
+        raise CancelledError("report generation cancelled")
 
-    groups = (duplicate_groups if duplicate_groups is not None
-              else dedup.duplicates(managed.content_candidates(files), root=root))
+    groups = (
+        duplicate_groups if duplicate_groups is not None
+        else dedup.duplicates(
+            managed.content_candidates(files), root=root,
+            cancel_event=cancel_event)
+    )
     if cleanup_plan is None:
         cleanup_plan = plan.build(files, groups, root, limit=limit,
                                   target_reclaim_bytes=target_reclaim_bytes,
                                   cross_filesystems=cross_filesystems,
                                   filesystem_context=filesystem_context,
-                                  scan_coverage=scan_coverage)
+                                  scan_coverage=scan_coverage,
+                                  cancel_event=cancel_event)
     elif cleanup_plan.get("root") != str(Path(root).resolve()):
         raise ValueError("Precomputed report plan does not match the selected scan root")
     rows = cleanup_plan["recommendations"]
+    archive_rows = cleanup_plan.get("archive_recommendations", [])
+    ai_model = cleanup_plan.get("ai_model", {})
+    ai_summary = cleanup_plan.get("ai_recommendation_summary", {})
+    reasoning_model = cleanup_plan.get("reasoning_model", {})
     protected_count = cleanup_plan["safety"]["protected_unique_files"]
     credential_control_entries = cleanup_plan["safety"]["excluded_credential_control_entries"]
     managed_storage = cleanup_plan["safety"]["managed_operational_storage"]
@@ -199,19 +257,83 @@ def build(files, root, free_bytes, out="sanchay-report.html", limit=50,
         review_note = (f"{human(selection['selected_reclaim_bytes'])} selected for "
                        f"{human(selection['target_reclaim_bytes'])} target; {state}")
 
-    fig = viz.figure(files, dup_paths, root=root)
-    chart = fig.to_html(full_html=False, include_plotlyjs=True,
-                        default_height="500px", config={"displayModeBar": False})
+    chart = _recoverability_chart(files, dup_paths, root)
+    if cancel_event is not None and cancel_event.is_set():
+        raise CancelledError("report generation cancelled")
 
     table_rows = []
     for r in rows:
+        cleanup_probability = r["ai_assessment"]["probabilities"]["cleanup_review"]
         table_rows.append(
             f'<tr data-kind="{r["kind"]}"><td class="num font-bold" data-label="Allocated reclaim">{human(r["size"])}</td>'
             f'<td data-label="Category"><span class="tag {r["kind"]}">{r["kind"]}</span></td>'
+            f'<td class="num" data-label="AI cleanup confidence">{cleanup_probability:.0%}</td>'
             f'<td class="num" data-label="Unchanged">{r["staleness"] * 365:.0f} d</td>'
             f'<td class="p" data-label="Relative path">{html.escape(_display_path(r["path"], root))}</td>'
-            f'<td class="evidence" data-label="Recovery evidence">{html.escape(_evidence_label(r, root))}</td></tr>'
+            f'<td class="evidence" data-label="Evidence and AI factors">{html.escape(_evidence_label(r, root))}. '
+            f'AI factors: {html.escape(_ai_factor_label(r))}. Reasoning: '
+            f'{html.escape(_reasoning_label(r))}.</td></tr>'
         )
+
+    archive_panel = ""
+    if archive_rows:
+        rendered_archives = []
+        for row in archive_rows:
+            confidence = row["ai_assessment"]["probabilities"]["archive_review"]
+            rendered_archives.append(
+                f'<tr><td class="num" data-label="Allocated storage">{human(row["size"])}</td>'
+                f'<td data-label="Action"><span class="tag archive">archive review</span></td>'
+                f'<td class="num" data-label="AI archive confidence">{confidence:.0%}</td>'
+                f'<td class="num" data-label="Unchanged">{row["staleness"] * 365:.0f} d</td>'
+                f'<td class="p" data-label="Relative path">{html.escape(_display_path(row["path"], root))}</td>'
+                f'<td class="evidence" data-label="AI factors">{html.escape(_ai_factor_label(row))}. '
+                f'Reasoning: {html.escape(_reasoning_label(row))}.</td></tr>'
+            )
+        archive_panel = f"""
+  <div class="panel">
+    <h2>AI Archive Recommendations</h2>
+    <p class="h">These unique files are prohibited from cleanup. The local learned model ranks them for human archive review; it does not infer destination durability or copy any data.</p>
+    <table>
+      <thead><tr><th>Allocated storage</th><th>Action</th><th class="num">AI confidence</th><th class="num">Unchanged</th><th>Relative path</th><th>Top model factors</th></tr></thead>
+      <tbody>{"".join(rendered_archives)}</tbody>
+    </table>
+    <div class="guard"><b>Archive and deletion are separate decisions.</b><br>Choose an operator-approved destination, copy outside this report, and use <code>--verify-archive</code> to check separate identity and matching bytes. Verification is not a durability or backup guarantee.</div>
+  </div>
+"""
+
+    training = ai_model.get("training", {})
+    responsible_use = ai_model.get("responsible_use", {})
+    if reasoning_model.get("status") == "completed":
+        reasoning_status = (
+            f"{reasoning_model.get('provider', 'provider')}/"
+            f"{reasoning_model.get('model', 'model')} reviewed "
+            f"{reasoning_model.get('reviewed_candidate_count', 0):,} prefiltered "
+            f"candidate(s), confirmed "
+            f"{reasoning_model.get('confirmed_review_count', 0):,}, and changed "
+            f"{reasoning_model.get('kept_count', 0):,} to Keep."
+        )
+    elif reasoning_model.get("status") == "not_requested":
+        reasoning_status = (
+            "Reasoning AI was disabled for this scan; the local learned model "
+            "and deterministic gates produced the plan."
+        )
+    else:
+        reasoning_status = (
+            "The requested reasoning provider was unavailable or returned invalid "
+            "structured output, so SANCHAY safely retained the local-classifier plan."
+        )
+    ai_panel = f"""
+  <div class="panel">
+    <h2>AI Recommendation Model — Hybrid Pipeline</h2>
+    <p class="h"><b>Stage 1 — usage and action prediction:</b> {html.escape(ai_model.get("name", "unavailable"))} v{html.escape(str(ai_model.get("version", "?")))} is a local {html.escape(ai_model.get("type", "unavailable"))} model that predicts Keep, Cleanup Review, or Archive Review from bounded metadata and positive activity observations.</p>
+    <div class="formula-box">
+      <span class="formula-tag">Learned inference:</span>
+      <span>{training.get("examples", 0):,} disclosed synthetic expert-labelled seed profiles &middot; {ai_summary.get("cleanup_review_count", 0):,} cleanup &middot; {ai_summary.get("archive_review_count", 0):,} archive &middot; {ai_summary.get("keep_count", 0):,} keep</span>
+    </div>
+    <p class="h"><b>Stage 2 — constrained reasoning:</b> {html.escape(reasoning_status)} Only opaque IDs, bounded metadata, local probabilities, and verified evidence flags are eligible for this stage; paths and file contents are excluded.</p>
+    <p class="h">{html.escape(training.get("validation_boundary", "No model validation claim is available."))} {html.escape(responsible_use.get("uncertainty_policy", ""))}. {html.escape(responsible_use.get("known_limitations", ""))}. {html.escape(ai_summary.get("boundary", ""))}</p>
+  </div>
+"""
 
     managed_panel = ""
     if managed_storage:
@@ -395,6 +517,8 @@ def build(files, root, free_bytes, out="sanchay-report.html", limit=50,
     {_card("First-run orientation", forecast.runway_label(days), runway_note, "#3b82f6")}
   </div>
 
+  {ai_panel}
+
   <div class="panel">
     <h2>Storage Recoverability Treemap</h2>
     <p class="h">One block represents one physical inode sized by allocated bytes. Blocks are coloured by recoverability evidence: green has cache or byte-confirmed duplicate evidence; red has no known recovery proof.</p>
@@ -403,11 +527,11 @@ def build(files, root, free_bytes, out="sanchay-report.html", limit=50,
 
   <div class="panel">
     <h2>Reviewable Storage Candidates</h2>
-    <p class="h">Ranked by the regret objective. This report never executes cleanup. Separate interactive file actions remain disabled unless an operator passes every permission and evidence gate.</p>
+    <p class="h">Ranked by learned cleanup probability and, when successfully applied, a constrained reasoning-confidence multiplier inside the deterministic recovery-evidence boundary. This report never executes cleanup. Separate interactive file actions remain disabled unless an operator passes every permission and evidence gate.</p>
     
     <div class="formula-box">
       <span class="formula-tag">Objective:</span>
-      <span>Priority = Reclaimable Allocated Bytes &times; Unchanged Age &times; (1 &minus; Regret) &nbsp;|&nbsp; Regret Weights: 0.02 (Disposable), 0.10 (Duplicate), 0.20 (Tracked Git)</span>
+      <span>AI Priority = Reclaimable Allocated Bytes &times; Unchanged Age &times; (1 &minus; Regret) &times; Learned Cleanup Probability &times; Reasoning Multiplier (or 1 when unavailable)</span>
     </div>
 
     <div class="controls">
@@ -423,9 +547,10 @@ def build(files, root, free_bytes, out="sanchay-report.html", limit=50,
         <tr>
           <th style="width: 110px;">Allocated reclaim</th>
           <th style="width: 120px;">Category</th>
+          <th class="num" style="width: 90px;">AI clean</th>
           <th class="num" style="width: 90px;">Unchanged</th>
           <th>Relative Path</th>
-          <th>Recovery evidence</th>
+          <th>Recovery evidence and AI factors</th>
         </tr>
       </thead>
       <tbody>
@@ -434,11 +559,12 @@ def build(files, root, free_bytes, out="sanchay-report.html", limit=50,
     </table>
 
     <div class="guard">
-      <b>{protected_count:,} unique files and {cleanup_plan["safety"]["excluded_hardlink_entries"]:,} hardlinked entries are excluded from this plan.</b><br>
+      <b>{protected_count:,} unique files are excluded from cleanup; {len(archive_rows):,} are shown for archive review. {cleanup_plan["safety"]["excluded_hardlink_entries"]:,} hardlinked entries are excluded from both action lists.</b><br>
       Integrity checksum (not a signature): <code>{cleanup_plan["fingerprint_sha256"]}</code><br>
-      {html.escape(cleanup_plan["safety"]["content_read_boundary"])}. A single hardlink removal releases no physical bytes. The active policy excludes known credential/control paths, unique, untracked, uncached, and hardlinked entries before ranking.{credential_boundary} Scanning, reports, and plans never change files. Interactive actions require temporary permission, explicit execution, exact confirmation, and a fresh plan recheck.
+      {html.escape(cleanup_plan["safety"]["content_read_boundary"])}. A single hardlink removal releases no physical bytes. The active policy excludes known credential/control paths, unique, untracked, uncached, and hardlinked entries from cleanup ranking.{credential_boundary} Scanning, reports, and plans never change files. Interactive actions require temporary permission, explicit execution, exact confirmation, and a fresh plan recheck.
     </div>
   </div>
+  {archive_panel}
   {managed_panel}
   {coverage_panel}
   {process_panel}
@@ -473,5 +599,7 @@ function filterCandidates() {{
 """
 
     page = "\n".join(line.rstrip() for line in page.splitlines()) + "\n"
+    if cancel_event is not None and cancel_event.is_set():
+        raise CancelledError("report generation cancelled")
     Path(out).write_text(page, encoding="utf-8")
     return out

@@ -98,7 +98,8 @@ def rehearse(root=None):
             if item["kind"] == "duplicate" and item["path"] == str(duplicate)
         ]
         if str(thesis) in recommendation_paths:
-            raise RuntimeError("The unique demonstration document entered the review plan")
+            raise RuntimeError(
+                "The unique demonstration document entered cleanup recommendations")
         if hardlink_paths & recommendation_paths:
             raise RuntimeError("A hardlink entry entered the review plan")
         if not duplicate_items or duplicate_items[0].get("survivor_path") != str(survivor):
@@ -208,7 +209,9 @@ def main(argv=None):
     if args.prove:
         result = rehearse(args.root)
         print(f"rehearsal fixture -> {result['fixture']}")
-        print(f"protected unique -> {result['protected_relative_path']} stayed out of the review plan")
+        print(
+            f"protected unique -> {result['protected_relative_path']} stayed out of "
+            "cleanup recommendations")
         print("duplicate proof   -> "
               f"{result['duplicate_relative_path']} matched "
               f"{result['survivor_relative_path']} as a named evidence peer")

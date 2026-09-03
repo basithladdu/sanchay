@@ -139,17 +139,26 @@ control files, managed OS state, hardlinked entries.
 
 ## Slide 5 — AI & Technical Approach
 
-**Claim line:** The decision layer is explainable and evidence-bounded — and it
-explains, it never decides.
+**Claim line:** Learned recommendations operate inside deterministic recovery
+and human-approval boundaries.
 
-**Body — three stages:**
+**Body — five stages:**
 
-1. **Recoverability scoring** from typed evidence, not from filename heuristics.
-2. **Constrained target selection.** For a same-risk class of up to 28
+1. **Local learned action model.** A three-class logistic regression recommends
+   Keep, Cleanup Review, or Archive Review from bounded metadata and positive
+   usage evidence. Plans expose probabilities, factors, model version, and the
+   38-row synthetic seed-data checksum; this is bootstrap, not an accuracy claim.
+2. **Deterministic recovery gate.** Credential/managed paths and hardlinks are
+   excluded; unique files cannot enter cleanup, regardless of model output.
+3. **Constrained reasoning review.** Local Ollama or an explicitly configured
+   OpenAI-compatible API reviews only prefiltered candidates. It receives opaque
+   IDs, bounded metadata, local probabilities, allowed actions, and evidence
+   flags; it may confirm a permitted review or change it to Keep.
+4. **Constrained target selection.** For a same-risk class of up to 28
    candidates, a bounded exact subset search minimizes excess; a larger class
    records a deterministic greedy fallback inside the plan. It never expands
    into protected files to meet a target.
-3. **Local observed-growth models** with hard withholding gates (slide 6).
+5. **Local observed-growth models** with hard withholding gates (slide 6).
 
 **Real trace — `--target-reclaim 600K` on the fixture:**
 
@@ -157,17 +166,19 @@ explains, it never decides.
 intent: reclaim 600.0KB; 712.0KB selected (target met)
   selection 1: regenerable output (regret 0.02); 200.0KB from 200.0KB eligible
   selection 2: byte-confirmed alternate copy (regret 0.10); 512.0KB, exact minimum-excess subset
-  table below: deterministic review priority, not an execution order
+  table below: deterministic safety-gated AI review priority, not an execution order
 ```
 
-**The language model's boundary.** Narration is separately opt-in — a
-deterministic local narrative by default, optionally a cloud model, or a
-loopback Ollama model for standalone Linux. It receives **opaque IDs plus fixed
-class, size, and age metadata only**. It cannot add a candidate, reorder a
-safety gate, or execute an action.
+**The language model's boundary.** `/ai ollama`, `/ai api`, or `/ai auto`
+enables a real second recommendation stage. It receives **opaque IDs plus
+bounded metadata, local probabilities, allowed actions, and evidence flags
+only**—never paths or contents. It can conservatively Keep or confirm an
+already-permitted review; it cannot promote an unsafe candidate, reorder a
+safety gate, or execute an action. Invalid output fails closed to the local
+classifier.
 
-**Visual:** the trace as a real terminal capture; a one-way arrow from plan to
-narrator with a blocked return arrow.
+**Visual:** the trace as a real terminal capture; a reasoning stage inside the
+allowed-action boundary, with a blocked arrow toward execution.
 
 **Notes:** this answers "where is the AI?" — say it before the jury asks.
 
@@ -243,15 +254,15 @@ diagram with everything outside labelled *not transmitted*.
 
 **Claim line:** Dependency-light core, and a proof that is controlled and repeatable.
 
-**Body — what is built:** a Python core with no required third-party
-dependency; an interactive `sanchay` shell with a slash-command palette and
+**Body — what is built:** a dependency-light Python core and a `prompt-toolkit`
+interactive `sanchay` shell with a slash-command palette and
 background scan jobs; optional Textual dashboard and self-contained Plotly HTML
 report; GitHub Actions CI running the full suite plus the final-round rehearsal
 on every push.
 
 **The live sequence, in this order:**
 
-1. `documents/capstone-thesis.txt` — a unique file — is **absent** from the plan.
+1. `documents/capstone-thesis.txt` — a unique file — is **absent** from cleanup recommendations and may appear only in archive review.
 2. `downloads/boss-image-copy.iso` appears only with `archive/boss-image.iso`
    named as its byte-confirmed evidence peer.
 3. `hardlinks/source.bin` and `hardlinks/alias.bin` — 2 entries excluded; one

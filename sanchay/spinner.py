@@ -4,6 +4,41 @@ import time
 
 
 FRAMES = ("|", "/", "-", "\\")
+SPINNER_FRAMES = ("⠋", "⠙", "⠹", "⠸", "⠼", "⠴",
+                  "⠦", "⠧", "⠇", "⠏")
+TICKS_PER_SECOND = 8
+
+
+def animation_tick(now=None):
+    """Derive one animation frame number from the clock, not a call count."""
+    moment = time.monotonic() if now is None else now
+    return int(moment * TICKS_PER_SECOND)
+
+
+def format_elapsed(seconds):
+    """Format a live task age like a compact working indicator."""
+    minutes, seconds = divmod(max(0, int(seconds)), 60)
+    hours, minutes = divmod(minutes, 60)
+    if hours:
+        return f"{hours}h {minutes:02}m"
+    if minutes:
+        return f"{minutes}m {seconds:02}s"
+    return f"{seconds}s"
+
+
+def shimmer_fragments(word, tick, base, mid, glow):
+    """Sweep a highlight across a word so live work reads as still moving."""
+    period = len(word) + 6
+    head = tick % period - 3
+    fragments = []
+    for index, character in enumerate(word):
+        distance = abs(index - head)
+        style = glow if distance == 0 else mid if distance == 1 else base
+        if fragments and fragments[-1][0] == style:
+            fragments[-1] = (style, fragments[-1][1] + character)
+        else:
+            fragments.append((style, character))
+    return fragments
 
 
 def loading_text(message, frame="|", elapsed_seconds=0):

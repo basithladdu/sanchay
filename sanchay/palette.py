@@ -7,10 +7,16 @@ from prompt_toolkit import PromptSession, print_formatted_text, prompt
 from prompt_toolkit.completion import Completer, Completion
 from prompt_toolkit.formatted_text import FormattedText
 from prompt_toolkit.key_binding import KeyBindings
-from prompt_toolkit.shortcuts import CompleteStyle, clear
+from prompt_toolkit.patch_stdout import patch_stdout
+from prompt_toolkit.shortcuts import CompleteStyle, clear, clear_title, set_title
 from prompt_toolkit.styles import Style
 
 from .paths import downloads_directory
+from .spinner import (SPINNER_FRAMES, TICKS_PER_SECOND, animation_tick,
+                      format_elapsed, shimmer_fragments)
+
+
+TERMINAL_TITLE = "💾 SANCHAY"
 
 
 @dataclass(frozen=True)
@@ -25,9 +31,11 @@ COMMAND_CHOICES = (
     CommandChoice("/run", "Short alias for /analyze", True),
     CommandChoice("/scan", "Scan a folder and retain its evidence", True),
     CommandChoice("/refresh", "Rescan the active target"),
+    CommandChoice("/ai", "Show or configure hybrid AI reasoning", True),
     CommandChoice("/status", "Show the active scan and artifact status"),
     CommandChoice("/coverage", "Show scan completeness"),
     CommandChoice("/candidates", "Show ranked storage candidates", True),
+    CommandChoice("/archives", "Show AI-ranked archive reviews", True),
     CommandChoice("/duplicates", "Show byte-confirmed duplicate groups", True),
     CommandChoice("/target", "Set or clear a reclaim target", True),
     CommandChoice("/report", "Generate an HTML report", True),
@@ -91,15 +99,15 @@ WORDMARK_ECHOES = ((1, 1, "class:welcome-logo-shadow"),)
 STORAGE_MARK = (
     (("class:storage-frame", " ╭────────╮ "),),
     (("class:storage-frame", "╭╯"),
-     ("class:storage-red", "▓▓▓▓▓"),
+     ("class:storage-red", "█████"),
      ("class:storage-empty", "░░░"),
      ("class:storage-frame", "╰╮")),
     (("class:storage-frame", "│"),
-     ("class:storage-blue", "▓▓▓▓▓▓▓"),
+     ("class:storage-blue", "███████"),
      ("class:storage-empty", "░░░"),
      ("class:storage-frame", "│")),
     (("class:storage-frame", "╰╮"),
-     ("class:storage-green", "▓▓▓"),
+     ("class:storage-green", "███"),
      ("class:storage-empty", "░░░░░"),
      ("class:storage-frame", "╭╯")),
     (("class:storage-frame", " ╰────────╯ "),),
@@ -141,21 +149,29 @@ PALETTE_STYLE = Style.from_dict({
     "completion-menu.meta.completion.current": "bg:#0969da #ffffff",
     "scrollbar.background": "bg:#253442",
     "scrollbar.button": "bg:#0969da",
-    "bottom-toolbar": "bg:#18232d #b8c7d3",
-    "welcome-logo": "#e07a5f bold",
-    "welcome-logo-shadow": "#a2543f",
+    "bottom-toolbar": "bg:#202124 #9ca3af",
+    "bottom-toolbar.activity": "bg:#202124 #34d399 bold",
+    "bottom-toolbar.label": "bg:#202124 #e5e7eb bold",
+    "bottom-toolbar.meta": "bg:#202124 #9ca3af",
+    "bottom-toolbar.spinner": "bg:#202124 #63b3ff bold",
+    "bottom-toolbar.word": "bg:#202124 #7d8590 bold",
+    "bottom-toolbar.lit": "bg:#202124 #c9d1d9 bold",
+    "bottom-toolbar.glow": "bg:#202124 #ffffff bold",
+    "bottom-toolbar.phase": "bg:#202124 #6b7280",
+    "welcome-logo": "#4d9fff bold",
+    "welcome-logo-shadow": "#9a6cff",
     "welcome-rule": "#3b4652",
     "welcome-title": "#f2f2f2 bold",
-    "welcome-heading": "#f0b35a bold",
+    "welcome-heading": "#63b3ff bold",
     "welcome-number": "#e07a5f bold",
     "welcome-text": "#d3d7dc",
     "welcome-muted": "#8f969e",
     "welcome-continue": "#8a8cff bold",
-    "storage-frame": "#c8d0d8",
-    "storage-empty": "#3b4652",
-    "storage-red": "#ef6259 bold",
-    "storage-blue": "#55a7ff bold",
-    "storage-green": "#5fd38d bold",
+    "storage-frame": "#e6edf5",
+    "storage-empty": "#49576b",
+    "storage-red": "#ff7b6b bold",
+    "storage-blue": "#6fb8ff bold",
+    "storage-green": "#6ff0a8 bold",
 })
 
 
@@ -287,6 +303,87 @@ def terminal_columns():
     return shutil.get_terminal_size(fallback=(80, 24)).columns
 
 
+def _phase_text(task, available):
+    """Say what the job is doing right now, but only while it fits one line."""
+    text = str(task.details).strip()
+    if not text or available < 16:
+        return ""
+    return text if len(text) <= available else text[:available - 1] + "…"
+
+
+def background_status_toolbar(shell, tick=None):
+    """Animate the latest job so running work reads as moving, not stalled."""
+    tasks = shell.background_tasks.active()
+    if not tasks:
+        return ""
+
+    cancellable = [task for task in tasks if task.cancellable]
+    task = max(cancellable or tasks, key=lambda item: item.id)
+    status = task.status.lower()
+
+    details = [format_elapsed(task.elapsed_seconds)]
+    if task.cancellable and status not in {"cancelling", "finishing"}:
+        details.append("Esc to interrupt")
+    details.append("/ps to view")
+    other_count = len(tasks) - 1
+    if other_count:
+        noun = "task" if other_count == 1 else "tasks"
+        details.append(f"+{other_count} {noun}")
+    meta = f" ({' • '.join(details)})"
+
+    if not task.cancellable:
+        # A hosted report is waiting, not working; a spinner would overstate it.
+        return FormattedText((
+            ("class:bottom-toolbar.activity", " ● "),
+            ("class:bottom-toolbar.label", "Background service"),
+            ("class:bottom-toolbar.meta", meta + " "),
+        ))
+
+    label = {
+        "cancelling": "Cancelling",
+        "finishing": "Finishing",
+    }.get(status, "Working")
+    tick = animation_tick() if tick is None else tick
+    frame = SPINNER_FRAMES[tick % len(SPINNER_FRAMES)]
+    fragments = [("class:bottom-toolbar.spinner", f" {frame} ")]
+    fragments.extend(shimmer_fragments(
+        label, tick,
+        base="class:bottom-toolbar.word",
+        mid="class:bottom-toolbar.lit",
+        glow="class:bottom-toolbar.glow"))
+    fragments.append(("class:bottom-toolbar.meta", meta))
+    drawn = sum(len(text) for _, text in fragments)
+    phase = _phase_text(task, terminal_columns() - drawn - 4)
+    if phase:
+        fragments.append(("class:bottom-toolbar.phase", f"  {phase}"))
+    fragments.append(("class:bottom-toolbar.meta", " "))
+    return FormattedText(fragments)
+
+
+def configure_terminal_title():
+    """Give a real interactive SANCHAY session a recognizable tab title."""
+    try:
+        set_title(TERMINAL_TITLE)
+    except UnicodeEncodeError:
+        try:
+            set_title("SANCHAY")
+        except (OSError, UnicodeEncodeError):
+            return False
+    except OSError:
+        return False
+    return True
+
+
+def reset_terminal_title(was_configured):
+    """Release SANCHAY's title so the parent shell can restore its own title."""
+    if not was_configured:
+        return
+    try:
+        clear_title()
+    except OSError:
+        pass
+
+
 def welcome_content(columns=None):
     """Build the styled, platform-aware SANCHAY startup screen."""
     report_folder = str(downloads_directory())
@@ -296,8 +393,8 @@ def welcome_content(columns=None):
     else:
         banner, banner_width = _compact_banner_fragments()
     body = (
-        "Scans local storage, confirms duplicates, and identifies recoverable space.",
-        "Protects unique files and creates an auditable HTML report.",
+        "AI-powered: a local learned model recommends Keep, Cleanup, or Archive.",
+        "Confirms duplicates, protects unique files, and creates an auditable report.",
     )
     notes = (
         "Review before action",
@@ -350,7 +447,7 @@ def show_welcome_screen():
     return True
 
 
-def palette_key_bindings():
+def palette_key_bindings(shell=None):
     bindings = KeyBindings()
 
     @bindings.add("enter", eager=True)
@@ -372,6 +469,16 @@ def palette_key_bindings():
         else:
             buffer.validate_and_handle()
 
+    @bindings.add("escape")
+    def cancel_background_work(event):
+        """Esc cancels the latest cancellable job without closing the prompt."""
+        if shell is not None and shell.cancel_latest_background():
+            event.app.invalidate()
+            return
+        # With no background work, retain a useful local Escape behavior:
+        # dismiss a completion menu instead of turning Esc into a no-op.
+        event.current_buffer.cancel_completion()
+
     return bindings
 
 
@@ -390,32 +497,47 @@ def run_palette_loop(shell, intro=None):
     """Run a cmd.Cmd-compatible loop with a visible completion menu."""
     shell.preloop()
     stop = None
-    intro = shell.intro if intro is None else intro
-    if intro:
-        if not show_welcome_screen():
-            shell.postloop()
+    original_stdout = shell.stdout
+    title_configured = configure_terminal_title()
+    try:
+        intro = shell.intro if intro is None else intro
+        if intro and not show_welcome_screen():
             return
 
-    session = PromptSession(
-        completer=SlashCommandCompleter(),
-        complete_while_typing=True,
-        complete_style=CompleteStyle.COLUMN,
-        key_bindings=palette_key_bindings(),
-        reserve_space_for_menu=12,
-    )
-    while not stop:
-        try:
-            line = session.prompt(
-                [("class:prompt", shell.prompt)],
-                style=PALETTE_STYLE,
-                bottom_toolbar=lambda: shell.background_tasks.status_line(),
-            )
-        except EOFError:
-            line = "EOF"
-        except KeyboardInterrupt:
-            shell._write("^C")
-            continue
-        line = shell.precmd(line)
-        stop = shell.onecmd(line)
-        stop = shell.postcmd(stop, line)
-    shell.postloop()
+        session = PromptSession(
+            completer=SlashCommandCompleter(),
+            complete_while_typing=True,
+            complete_style=CompleteStyle.COLUMN,
+            key_bindings=palette_key_bindings(shell),
+            reserve_space_for_menu=12,
+        )
+        shell.background_work_enabled = True
+        shell._closing = False
+        # The proxy prints worker messages above the current prompt and asks
+        # prompt_toolkit to redraw the user's partially typed command.
+        with patch_stdout(raw=True):
+            shell.stdout = sys.stdout
+            while not stop:
+                working = any(task.cancellable
+                              for task in shell.background_tasks.active())
+                try:
+                    line = session.prompt(
+                        [("class:prompt", shell.prompt)],
+                        style=PALETTE_STYLE,
+                        bottom_toolbar=lambda: background_status_toolbar(shell),
+                        refresh_interval=(
+                            1.0 / TICKS_PER_SECOND if working else 1.0),
+                    )
+                except EOFError:
+                    line = "EOF"
+                except KeyboardInterrupt:
+                    shell._write("^C")
+                    continue
+                line = shell.precmd(line)
+                stop = shell.onecmd(line)
+                stop = shell.postcmd(stop, line)
+    finally:
+        shell.background_work_enabled = False
+        shell.stdout = original_stdout
+        shell.postloop()
+        reset_terminal_title(title_configured)

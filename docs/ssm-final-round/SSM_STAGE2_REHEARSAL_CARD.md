@@ -69,15 +69,18 @@ operator.
 
 **Where is the AI?**
 
-The AI capability is constrained decision intelligence: recoverability-aware
-ranking, bounded target selection, and evidence-gated capacity risk. Optional
-model narration cannot add candidates, change gates, or execute a cleanup.
+The AI capability has two recommendation stages: a local three-class logistic
+regression predicts Keep/Cleanup Review/Archive Review, then an optional Ollama
+or API model reviews only prefiltered, allowed choices. It can confirm a review
+or change it to Keep; it cannot add an unsafe candidate, change gates, or
+execute cleanup.
 
 **What data trained it?**
 
-No external training dataset and no trained decision classifier. SANCHAY
-analyzes local metadata at run time; demo data are synthetic and labelled.
-Optional narration is separately opt-in and cannot change or execute a
+No external training dataset. SANCHAY ships 38 disclosed synthetic
+expert-labelled profiles for its local classifier and explicitly makes no
+production-accuracy claim. The optional reasoning model is pre-trained by its
+provider and receives only bounded path-free records; it cannot execute a
 decision.
 
 **Why is this better than `du` or `ncdu`?**

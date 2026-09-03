@@ -1,5 +1,8 @@
 """Interactive slash-command shell for SANCHAY."""
 import cmd
+import copy
+from concurrent.futures import CancelledError
+from dataclasses import replace
 from functools import partial
 from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
 import os
@@ -9,11 +12,11 @@ import threading
 from urllib.parse import quote
 import webbrowser
 
-from . import actions, archive, dedup, plan
+from . import actions, advisor, archive, dedup, plan
 from .jobs import BackgroundTasks
 from .paths import report_destination
 from .session import ScanSession
-from .spinner import LoadingIndicator
+from .spinner import LoadingIndicator, format_elapsed
 
 
 HELP_ROWS = (
@@ -21,9 +24,11 @@ HELP_ROWS = (
     ("/run <path> [options]", "Short alias for /analyze"),
     ("/scan <path>", "Scan a folder and retain its evidence"),
     ("/refresh", "Rescan the active target after files change"),
+    ("/ai [status|auto|ollama|api|off]", "Inspect or configure hybrid AI reasoning"),
     ("/status", "Show active scan, artifact, and permission status"),
     ("/coverage", "Show whether the scan inspected its full scope"),
     ("/candidates [limit]", "List ranked review candidates"),
+    ("/archives [limit]", "List AI-ranked archive-review candidates"),
     ("/duplicates [limit]", "List byte-confirmed duplicate groups"),
     ("/target <size|clear>", "Set or clear a reclaim target"),
     ("/report [name.html]", "Write the active report into Downloads"),
@@ -108,10 +113,65 @@ class ReportServer:
         self.url = None
 
 
+class _BackgroundOperation:
+    """Cooperatively cancellable work owned by one interactive shell."""
+
+    def __init__(self, description):
+        self.description = description
+        self.cancel_event = threading.Event()
+        self.finished_event = threading.Event()
+        self.committed_event = threading.Event()
+        self.thread = None
+        self._phase = "queued"
+        self._lock = threading.Lock()
+
+    def set_phase(self, value):
+        with self._lock:
+            self._phase = str(value)
+        if value in {"cancelled", "failed", "complete"}:
+            self.finished_event.set()
+
+    def details(self):
+        with self._lock:
+            phase = self._phase
+        return f"{phase}: {self.description}"
+
+    def status(self):
+        if self.committed_event.is_set():
+            return "finishing"
+        return "cancelling" if self.cancel_event.is_set() else "running"
+
+    def cancel(self):
+        with self._lock:
+            if self.committed_event.is_set() or self.finished_event.is_set():
+                return False
+            already_requested = self.cancel_event.is_set()
+            self.cancel_event.set()
+            self._phase = "cancellation requested"
+            return not already_requested
+
+    def publish(self, callback):
+        """Serialize the final cancel check with publication of completed work."""
+        with self._lock:
+            if self.cancel_event.is_set():
+                raise CancelledError
+            callback()
+            self.committed_event.set()
+
+    def alive(self):
+        if self.finished_event.is_set():
+            return False
+        if self.thread is None:
+            return True
+        # A registered thread has a very small pre-start window where
+        # is_alive() is false.  Keep the task visible until start() runs.
+        return self.thread.ident is None or self.thread.is_alive()
+
+
 class SanchayShell(cmd.Cmd):
     intro = (
         "SANCHAY - evidence-first storage review and recovery assistant\n"
-        "It scans locally, finds recoverable space, protects unique files, and creates auditable HTML reports.\n"
+        "It uses local learned recommendations, protects unique files, and creates auditable HTML reports.\n"
         "Read-only commands are available immediately. File actions are disabled.\n"
         "Type / for the command menu, or run /help for full usage."
     )
@@ -126,6 +186,17 @@ class SanchayShell(cmd.Cmd):
         self.permission = actions.ActionPermission()
         self.report_server = report_server or ReportServer()
         self.background_tasks = BackgroundTasks()
+        self.background_work_enabled = False
+        self._output_lock = threading.RLock()
+        self._session_lock = threading.RLock()
+        self._closing = False
+        try:
+            self.advisor_config = advisor.config_from_environment(
+                default_provider="auto")
+            self.advisor_config_error = None
+        except ValueError as exc:
+            self.advisor_config = advisor.AdvisorConfig(provider="off")
+            self.advisor_config_error = str(exc)
 
     def parseline(self, line):
         self._raw_input_line = line.strip()
@@ -184,6 +255,8 @@ class SanchayShell(cmd.Cmd):
             "",
             "Analyze options: --report <filename.html> --limit <n> "
             "[--replace] [--cross-filesystems]",
+            "Interactive work: analyze, scan, and refresh run in the background; "
+            "use /ps, Esc, or /stop <id>.",
             "Reports: interactive HTML reports are always stored in Downloads.",
             "Safety: delete, move, and clean are previews until temporary permission, "
             "--execute, exact confirmation, and evidence checks all pass.",
@@ -198,14 +271,61 @@ class SanchayShell(cmd.Cmd):
             return
         self._write(
             "SANCHAY is a local, evidence-first storage review assistant.\n"
-            "It inventories allocated storage, confirms duplicate contents, identifies "
-            "regenerable output, and ranks review candidates while excluding unique and "
-            "hardlinked files from automatic cleanup recommendations.\n\n"
+            "It inventories allocated storage and runs a local learned classifier over "
+            "metadata and positive usage evidence to recommend Keep, Cleanup Review, or "
+            "Archive Review. Deterministic recovery gates prohibit unique and hardlinked "
+            "files from cleanup.\n"
+            "Usage model: sanchay_local_action_classifier v1 "
+            "(multiclass logistic regression, trained locally from the bundled disclosed "
+            "seed profiles). A constrained Ollama or OpenAI-compatible reasoning model "
+            "can keep or confirm the resulting Cleanup and Archive reviews.\n\n"
             "It creates an auditable HTML report in Downloads and can host that report "
             "on 127.0.0.1 as a managed background task. File actions are separate, "
             "disabled by default, and require temporary permission plus exact confirmation.\n\n"
+            "The AI records probabilities and top factors but has no file-action authority. "
             "SANCHAY does not upload scanned file paths or contents and does not elevate "
             "your operating-system permissions.")
+
+    def do_ai(self, argument):
+        """Inspect or configure the hybrid recommendation provider for future scans."""
+        try:
+            tokens = split_arguments(argument)
+        except ValueError as exc:
+            self._write(f"AI arguments are invalid: {exc}")
+            return
+        if not tokens or tokens == ["status"]:
+            self._write("\n".join(self._ai_status_lines()))
+            return
+        mode = advisor.PROVIDER_ALIASES.get(tokens[0].lower(), tokens[0].lower())
+        if mode not in advisor.PROVIDERS or len(tokens) > 2:
+            self._write(
+                "Usage: /ai [status|auto|ollama|api|off] [model]\n"
+                "  auto/hybrid: prefer local Ollama, then an explicitly configured API\n"
+                "  ollama/local: use only local Ollama\n"
+                "  api: use only SANCHAY_AI_API_* environment configuration\n"
+                "  off: use only the local usage classifier")
+            return
+        model = tokens[1] if len(tokens) == 2 else None
+        if mode == "api":
+            self.advisor_config = replace(
+                self.advisor_config,
+                provider=mode,
+                api_model=model or self.advisor_config.api_model,
+            )
+        elif mode in {"auto", "ollama"}:
+            self.advisor_config = replace(
+                self.advisor_config,
+                provider=mode,
+                ollama_model=model or self.advisor_config.ollama_model,
+            )
+        else:
+            if model is not None:
+                self._write("The off mode does not accept a model name.")
+                return
+            self.advisor_config = replace(self.advisor_config, provider="off")
+        self.advisor_config_error = None
+        self._write("\n".join(self._ai_status_lines()))
+        self._write("The setting applies to the next /analyze, /scan, or /refresh.")
 
     def do_analyze(self, argument):
         """Scan a location, show candidates, and generate its HTML report."""
@@ -230,6 +350,44 @@ class SanchayShell(cmd.Cmd):
             return
 
         self._write(f"Analysis target: {root}")
+        if self.background_work_enabled:
+            description = f"analyze {root}"
+
+            def analyze(operation):
+                working = copy.copy(self.session)
+                operation.set_phase("scanning and verifying recovery evidence")
+                summary = working.scan(
+                    root, cross_filesystems=cross_filesystems,
+                    cancel_event=operation.cancel_event,
+                    advisor_config=self.advisor_config)
+                operation.set_phase("building the HTML report")
+                if report_path.exists() and not replace:
+                    raise ValueError(
+                        "the report destination appeared while the scan was running; "
+                        "choose another name or use --replace")
+                written = working.write_report(
+                    str(report_path), cancel_event=operation.cancel_event)
+                operation.set_phase("publishing completed evidence")
+                self._publish_background_session(operation, working)
+                lines = self._summary_lines(summary, heading="Scan complete")
+                rows = working.candidates(limit)
+                if rows:
+                    lines.extend(("", *self._candidate_lines(rows)))
+                else:
+                    lines.extend(("", "The active plan contains no reviewable candidates."))
+                archive_rows = working.archive_candidates(limit)
+                if archive_rows:
+                    lines.extend(("", *self._archive_lines(archive_rows)))
+                lines.extend((
+                    "",
+                    "Analysis complete.",
+                    f"Report created: {written}",
+                    "When you want to host it, run /serve separately.",
+                ))
+                return "\n".join(lines)
+
+            self._start_background_operation("analysis", description, analyze)
+            return
         try:
             with LoadingIndicator(
                     self.stdout, "Scanning and verifying recovery evidence"):
@@ -238,11 +396,12 @@ class SanchayShell(cmd.Cmd):
         except KeyboardInterrupt:
             self._write("Analysis cancelled; the previous completed scan remains active.")
             return
-        except (OSError, ValueError) as exc:
+        except (OSError, RuntimeError, ValueError) as exc:
             self._write(f"Scan failed: {exc}")
             return
 
         self.permission.disable()
+        self._retire_report_server()
         self._print_summary(summary, heading="Scan complete")
         try:
             rows = self.session.candidates(limit)
@@ -253,6 +412,9 @@ class SanchayShell(cmd.Cmd):
             self._write("\n".join(self._candidate_lines(rows)))
         else:
             self._write("The active plan contains no reviewable candidates.")
+        archive_rows = self.session.archive_candidates(limit)
+        if isinstance(archive_rows, (list, tuple)) and archive_rows:
+            self._write("\n".join(self._archive_lines(archive_rows)))
 
         self._write("HTML report destination: " + str(report_path))
         try:
@@ -284,6 +446,23 @@ class SanchayShell(cmd.Cmd):
         if len(tokens) != 1:
             self._write("Usage: /scan <path> [--cross-filesystems]")
             return
+        if self.background_work_enabled:
+            target = tokens[0]
+
+            def scan_in_background(operation):
+                working = copy.copy(self.session)
+                operation.set_phase(f"scanning and verifying {target}")
+                summary = working.scan(
+                    target, cross_filesystems=cross_filesystems,
+                    cancel_event=operation.cancel_event,
+                    advisor_config=self.advisor_config)
+                operation.set_phase("publishing completed evidence")
+                self._publish_background_session(operation, working)
+                return "\n".join(self._summary_lines(summary, heading="Scan complete"))
+
+            self._start_background_operation(
+                "scan", f"scan {target}", scan_in_background)
+            return
         try:
             with LoadingIndicator(
                     self.stdout, f"Scanning and verifying {tokens[0]}"):
@@ -292,10 +471,11 @@ class SanchayShell(cmd.Cmd):
         except KeyboardInterrupt:
             self._write("Scan cancelled; the previous completed scan remains active.")
             return
-        except (OSError, ValueError) as exc:
+        except (OSError, RuntimeError, ValueError) as exc:
             self._write(f"Scan failed: {exc}")
             return
         self.permission.disable()
+        self._retire_report_server()
         self._print_summary(summary, heading="Scan complete")
 
     def do_refresh(self, argument):
@@ -307,6 +487,22 @@ class SanchayShell(cmd.Cmd):
             return
         root = self.session.root
         cross_filesystems = self.session.cross_filesystems
+        if self.background_work_enabled:
+
+            def refresh_in_background(operation):
+                working = copy.copy(self.session)
+                operation.set_phase(f"refreshing scan evidence for {root}")
+                summary = working.scan(
+                    root, cross_filesystems=cross_filesystems,
+                    cancel_event=operation.cancel_event,
+                    advisor_config=self.advisor_config)
+                operation.set_phase("publishing completed evidence")
+                self._publish_background_session(operation, working)
+                return "\n".join(self._summary_lines(summary, heading="Refresh complete"))
+
+            self._start_background_operation(
+                "refresh", f"refresh {root}", refresh_in_background)
+            return
         try:
             with LoadingIndicator(self.stdout, f"Refreshing scan evidence for {root}"):
                 summary = self.session.scan(
@@ -314,10 +510,11 @@ class SanchayShell(cmd.Cmd):
         except KeyboardInterrupt:
             self._write("Refresh cancelled; the previous completed scan remains active.")
             return
-        except (OSError, ValueError) as exc:
+        except (OSError, RuntimeError, ValueError) as exc:
             self._write(f"Refresh failed: {exc}")
             return
         self.permission.disable()
+        self._retire_report_server()
         self._print_summary(summary, heading="Refresh complete")
 
     def do_status(self, argument):
@@ -377,6 +574,24 @@ class SanchayShell(cmd.Cmd):
             return
         self._write("\n".join(self._candidate_lines(rows)))
 
+    def do_archives(self, argument):
+        """List AI-ranked archive reviews from the active verified plan."""
+        if not self._require_fresh_scan():
+            return
+        try:
+            tokens = split_arguments(argument)
+            if len(tokens) > 1:
+                raise ValueError
+            limit = int(tokens[0]) if tokens else 20
+            rows = self.session.archive_candidates(limit)
+        except (TypeError, ValueError):
+            self._write("Usage: /archives [positive-limit]")
+            return
+        if not rows:
+            self._write("The AI model produced no archive-review candidates.")
+            return
+        self._write("\n".join(self._archive_lines(rows)))
+
     def do_duplicates(self, argument):
         """Show digest-matched content groups from the active scan."""
         if not self._require_fresh_scan():
@@ -411,6 +626,8 @@ class SanchayShell(cmd.Cmd):
 
     def do_target(self, argument):
         """Build a target-aware active plan or restore the default plan."""
+        if not self._require_idle_storage_work("change the active reclaim target"):
+            return
         if not self._require_fresh_scan():
             return
         value = argument.strip()
@@ -438,6 +655,8 @@ class SanchayShell(cmd.Cmd):
 
     def do_report(self, argument):
         """Write an HTML report using the retained scan evidence."""
+        if not self._require_idle_storage_work("generate a report"):
+            return
         if not self._require_fresh_scan():
             return
         parsed = self._artifact_arguments(argument, self._timestamped("sanchay-report", ".html"))
@@ -519,8 +738,9 @@ class SanchayShell(cmd.Cmd):
         lines = [" ID  status   elapsed  kind           details", "-" * 78]
         for task in tasks:
             lines.append(
-                f"{task.id:>3}  running  {self._elapsed(task.elapsed_seconds):>7}  "
-                f"{task.kind:<13}  {task.description}")
+                f"{task.id:>3}  {task.status:<9} "
+                f"{self._elapsed(task.elapsed_seconds):>7}  "
+                f"{task.kind:<13}  {task.details}")
         self._write("\n".join(lines))
 
     def do_stop(self, argument):
@@ -529,7 +749,24 @@ class SanchayShell(cmd.Cmd):
         if value == "all":
             stopped = self.background_tasks.stop_all()
             if stopped:
-                self._write(f"Stopped {len(stopped)} background task(s).")
+                pending = sum(
+                    task.cancellable and task.alive_callback()
+                    and task.status != "finishing"
+                    for task in stopped)
+                finishing = sum(
+                    task.cancellable and task.alive_callback()
+                    and task.status == "finishing"
+                    for task in stopped)
+                if pending:
+                    self._write(
+                        f"Stop/cancellation requested for {len(stopped)} background "
+                        f"task(s); {pending} will stop at a safe checkpoint.")
+                elif finishing:
+                    self._write(
+                        f"Stopped stoppable services; {finishing} storage task(s) "
+                        "had already published and are finishing output.")
+                else:
+                    self._write(f"Stopped {len(stopped)} background task(s).")
             else:
                 self._write("No SANCHAY background tasks are running.")
             return
@@ -544,7 +781,17 @@ class SanchayShell(cmd.Cmd):
         if task is None:
             self._write(f"Background task {task_id} is not running. Use /ps to view tasks.")
         else:
-            self._write(f"Stopped background task {task.id}: {task.kind}.")
+            if (task.cancellable and task.alive_callback()
+                    and task.status == "finishing"):
+                self._write(
+                    f"Background task {task.id} is finishing; completed evidence "
+                    "has already been published.")
+            elif task.cancellable and task.alive_callback():
+                self._write(
+                    f"Cancellation requested for background task {task.id}: "
+                    f"{task.kind}. It will stop at the next safe checkpoint.")
+            else:
+                self._write(f"Stopped background task {task.id}: {task.kind}.")
 
     def do_open_report(self, argument):
         """Explicitly open the latest report in the default browser."""
@@ -562,6 +809,8 @@ class SanchayShell(cmd.Cmd):
 
     def do_plan(self, argument):
         """Write the active integrity-checked plan."""
+        if not self._require_idle_storage_work("write a plan"):
+            return
         if not self._require_fresh_scan():
             return
         parsed = self._artifact_arguments(argument, self._timestamped("sanchay-plan", ".json"))
@@ -631,6 +880,8 @@ class SanchayShell(cmd.Cmd):
             self._write("File actions disabled.")
             return
         if len(tokens) == 2 and tokens[0] == "enable":
+            if not self._require_idle_storage_work("authorize file actions"):
+                return
             if self.permission.enable(tokens[1]):
                 self._write(
                     "File actions authorized for one action command. "
@@ -643,6 +894,8 @@ class SanchayShell(cmd.Cmd):
 
     def do_delete(self, argument):
         """Preview or explicitly delete one active-plan candidate."""
+        if not self._require_idle_storage_work("change files"):
+            return
         if not self._require_fresh_scan():
             return
         try:
@@ -684,6 +937,8 @@ class SanchayShell(cmd.Cmd):
 
     def do_move(self, argument):
         """Preview or explicitly move one candidate without overwriting."""
+        if not self._require_idle_storage_work("change files"):
+            return
         if not self._require_fresh_scan():
             return
         try:
@@ -721,6 +976,8 @@ class SanchayShell(cmd.Cmd):
 
     def do_clean(self, argument):
         """Preview or explicitly remove disposable active-plan candidates."""
+        if not self._require_idle_storage_work("change files"):
+            return
         if not self._require_fresh_scan():
             return
         try:
@@ -761,14 +1018,16 @@ class SanchayShell(cmd.Cmd):
         if argument.strip():
             self._write("Usage: /clear")
             return
-        self.stdout.write("\033[2J\033[H")
-        self.stdout.flush()
+        with self._output_lock:
+            self.stdout.write("\033[2J\033[H")
+            self.stdout.flush()
 
     def do_exit(self, argument):
         """Exit SANCHAY and revoke temporary permissions."""
         if argument.strip():
             self._write("Usage: /exit")
             return False
+        self._closing = True
         self.permission.disable()
         self.background_tasks.stop_all()
         self.report_server.stop()
@@ -782,6 +1041,7 @@ class SanchayShell(cmd.Cmd):
         return self.do_exit(argument)
 
     def postloop(self):
+        self._closing = True
         self.permission.disable()
         self.background_tasks.stop_all()
         self.report_server.stop()
@@ -800,11 +1060,173 @@ class SanchayShell(cmd.Cmd):
             return False
         return True
 
+    def _ai_status_lines(self):
+        config = self.advisor_config.normalized()
+        lines = [
+            f"Hybrid AI mode: {config.provider}",
+            "  usage prediction: sanchay_local_action_classifier v1 (always local)",
+        ]
+        if self.advisor_config_error:
+            lines.append("  configuration warning: " + self.advisor_config_error)
+        runtime = advisor.runtime_status(config)
+        if runtime["ollama_available"]:
+            models = ", ".join(runtime["ollama_models"])
+            lines.append(
+                "  Ollama: available; selected "
+                + runtime["selected_ollama_model"]
+                + (f"; installed {models}" if models else ""))
+        else:
+            lines.append(
+                "  Ollama: unavailable; "
+                + runtime.get("ollama_error", "no compatible model found"))
+        api_state = "configured" if runtime["api_configured"] else "not configured"
+        lines.append(
+            f"  OpenAI-compatible API: {api_state}; API keys are never printed")
+        if self.session.ready:
+            last = self.session.active_plan.get("reasoning_model", {})
+            provider = last.get("provider") or "local classifier fallback"
+            model = f" {last['model']}" if last.get("model") else ""
+            lines.append(
+                f"  active scan reasoning: {last.get('status', 'unknown')} via "
+                f"{provider}{model}")
+        lines.append(
+            "  safety: reasoning may keep or confirm a review; it cannot delete, "
+            "promote an unsafe file, or bypass human approval")
+        return lines
+
+    def _require_idle_storage_work(self, purpose):
+        task = self.background_tasks.latest_cancellable()
+        if task is None:
+            return True
+        self._write(
+            f"Cannot {purpose} while background task {task.id} is {task.status}. "
+            f"Use /ps to inspect it or /stop {task.id} to cancel it.")
+        return False
+
+    def cancel_latest_background(self):
+        """Request cooperative cancellation for the newest storage job."""
+        task = self.background_tasks.latest_cancellable()
+        if task is None:
+            return False
+        requested = task.stop_callback()
+        if not requested:
+            return False
+        self._write(
+            f"Cancellation requested for background task {task.id}. "
+            + self._preserved_scan_message())
+        return True
+
+    def _preserved_scan_message(self):
+        return (
+            "The previous completed scan remains active."
+            if self.session.ready else
+            "No partial scan will be published."
+        )
+
+    def _publish_background_session(self, operation, working):
+        """Atomically expose a fully completed scan and revoke action rights."""
+        def publish():
+            with self._session_lock:
+                if self._closing:
+                    raise CancelledError
+                self.permission.disable()
+                self._retire_report_server()
+                self.session = working
+
+        operation.publish(publish)
+
+    def _retire_report_server(self):
+        """Stop a server tied to evidence that is being replaced."""
+        self.background_tasks.stop_kind("report-server")
+
+    def _start_background_operation(self, kind, description, worker):
+        """Start one interactive storage operation without blocking the prompt."""
+        active = self.background_tasks.latest_cancellable()
+        if active is not None:
+            self._write(
+                f"Background task {active.id} is already {active.status}. "
+                f"Use /ps to inspect it or /stop {active.id} to cancel it.")
+            return None
+
+        self.permission.disable()
+        operation = _BackgroundOperation(description)
+        task_holder = {}
+
+        def run_operation():
+            task = task_holder["task"]
+            try:
+                result = worker(operation)
+                if operation.cancel_event.is_set():
+                    raise CancelledError
+            except CancelledError:
+                operation.set_phase("cancelled")
+                if not self._closing:
+                    self._write(
+                        f"Background task {task.id} cancelled; "
+                        + self._preserved_scan_message().lower())
+            except ModuleNotFoundError:
+                operation.set_phase("failed")
+                if not self._closing:
+                    self._write(
+                        f"Background task {task.id} failed: report dependencies are "
+                        'unavailable; install with: pip install -e ".[viz]"')
+            except (OSError, RuntimeError, ValueError) as exc:
+                operation.set_phase("failed")
+                if not self._closing:
+                    self._write(f"Background task {task.id} failed: {exc}")
+            except Exception as exc:  # Keep an unexpected worker fault out of the prompt.
+                operation.set_phase("failed")
+                if not self._closing:
+                    self._write(
+                        f"Background task {task.id} failed unexpectedly: "
+                        f"{type(exc).__name__}: {exc}")
+            else:
+                operation.set_phase("complete")
+                if not self._closing:
+                    self._write(
+                        f"Background task {task.id} complete in "
+                        f"{format_elapsed(task.elapsed_seconds)}.\n{result}")
+            finally:
+                # Permission is always one-use and must not survive a scan,
+                # including a failed or cancelled one.
+                self.permission.disable()
+
+        thread = threading.Thread(
+            target=run_operation,
+            name=f"sanchay-{kind}",
+            daemon=True,
+        )
+        operation.thread = thread
+        task = self.background_tasks.add(
+            kind,
+            description,
+            stop_callback=operation.cancel,
+            alive_callback=operation.alive,
+            status_callback=operation.status,
+            details_callback=operation.details,
+            cancellable=True,
+        )
+        task_holder["task"] = task
+        self._write(f"Background task {task.id} started: {description}.")
+        try:
+            thread.start()
+        except RuntimeError as exc:
+            operation.set_phase("failed")
+            self.background_tasks.active()
+            self._write(f"Background task {task.id} could not start: {exc}")
+            return None
+        return task
+
     def _write(self, value):
-        self.stdout.write(str(value) + "\n")
-        self.stdout.flush()
+        with self._output_lock:
+            self.stdout.write(str(value) + "\n")
+            self.stdout.flush()
 
     def _print_summary(self, summary, heading):
+        self._write("\n".join(self._summary_lines(summary, heading)))
+
+    @staticmethod
+    def _summary_lines(summary, heading):
         lines = [f"{heading}: {summary['root']}"]
         lines.append(
             f"  {summary['file_entries']:,} entries; "
@@ -814,7 +1236,20 @@ class SanchayShell(cmd.Cmd):
             f"{human(summary['duplicate_reclaimable_bytes'])} potential reclaim")
         lines.append(
             f"  {summary['candidate_count']:,} reviewable; "
-            f"{summary['protected_unique_files']:,} unique files protected")
+            f"{summary.get('archive_candidate_count', 0):,} archive reviews; "
+            f"{summary['protected_unique_files']:,} unique files protected from cleanup")
+        reasoning = summary.get("reasoning_model", {})
+        if reasoning.get("status") == "completed":
+            lines.append(
+                f"  reasoning AI: {reasoning.get('provider')}/"
+                f"{reasoning.get('model')}; "
+                f"{reasoning.get('reviewed_candidate_count', 0):,} reviewed, "
+                f"{reasoning.get('kept_count', 0):,} changed to keep")
+        elif reasoning.get("status") == "unavailable":
+            lines.append(
+                "  reasoning AI: unavailable; safe local-classifier fallback used")
+        else:
+            lines.append("  reasoning AI: off; local usage classifier used")
         coverage = summary["coverage"]
         if coverage["complete"]:
             lines.append("  coverage: complete")
@@ -823,7 +1258,7 @@ class SanchayShell(cmd.Cmd):
                 "  coverage: incomplete; "
                 f"{coverage['unreadable_directories']:,} directories and "
                 f"{coverage['unreadable_files']:,} files unreadable")
-        self._write("\n".join(lines))
+        return lines
 
     @staticmethod
     def _pasted_path(raw):
@@ -866,14 +1301,32 @@ class SanchayShell(cmd.Cmd):
     def _candidate_lines(self, rows):
         lines = [
             f"Candidates from active scan: {self.session.root}",
-            " #  reclaim   kind         unchanged  relative path",
-            "-" * 78,
+            " #  reclaim   kind         AI clean  unchanged  relative path",
+            "-" * 90,
         ]
         for index, row in enumerate(rows, start=1):
             path = self._relative(row["path"])
+            confidence = row.get("ai_assessment", {}).get("probabilities", {}).get(
+                "cleanup_review", 0)
             lines.append(
                 f"{index:>2}  {human(row['size']):>8}  {row['kind']:<11} "
-                f"{row['staleness'] * 365:>8.1f}d  {path}")
+                f"{confidence:>7.0%}  {row['staleness'] * 365:>8.1f}d  {path}")
+        return lines
+
+    def _archive_lines(self, rows):
+        lines = [
+            f"AI archive reviews from active scan: {self.session.root}",
+            " #  allocated  confidence  unchanged  relative path",
+            "-" * 90,
+        ]
+        for index, row in enumerate(rows, start=1):
+            confidence = row["ai_assessment"]["probabilities"]["archive_review"]
+            lines.append(
+                f"{index:>2}  {human(row['size']):>9}  {confidence:>9.0%}  "
+                f"{row['staleness'] * 365:>8.1f}d  {self._relative(row['path'])}")
+        lines.append(
+            "Archive is a recommendation only: choose a destination, copy separately, "
+            "then verify it with /verify-archive.")
         return lines
 
     def _analyze_arguments(self, argument):

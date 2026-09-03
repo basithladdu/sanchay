@@ -19,7 +19,7 @@ Then demonstrate it. Do not lead with an AI buzzword or a dashboard.
 
 | Documented context | SANCHAY response the team can prove | Show this |
 | --- | --- | --- |
-| Secure BOSS is described for critical end nodes, with hardening, logging, monitoring, alerts, and intranet/standalone or ISOC-monitored use cases. | Local core, no cleanup executor, no daemon, no required network call, and an aggregate-only optional operator brief. | Slide 7, then `--operator-brief` only if asked. |
+| Secure BOSS is described for critical end nodes, with hardening, logging, monitoring, alerts, and intranet/standalone or ISOC-monitored use cases. | Local core, no autonomous cleanup, no daemon, no required network call, guarded interactive actions, and an aggregate-only optional operator brief. | Slide 7, then `--operator-brief` only if asked. |
 | Secure BOSS is described as installed on an LVM-encrypted disk. | It scopes capacity to the visible mount and labels device-mapper, Btrfs, overlay, reserved-block, inode, and accounting boundaries instead of inventing volume-pool headroom. | `--capacity-audit` explanation; do not run LVM commands. |
 | C-DAC's Secure OS tender treats local/distributed/secure storage, fault tolerance, redundancy, disaster recovery, AI/ML integration, autonomous management, and observability as relevant areas. | SANCHAY separates recoverable evidence from managed/system state, preserves duplicate evidence, measures snapshot history locally, and withholds weak forecasts. | Slides 3, 5, and the fail-closed proof. |
 | The tender asks domain experts to propose measurable KPIs, test frameworks, and validated PoCs rather than prescribing numeric storage benchmarks. | The repository contains a deterministic fixture, exact-target proof, checksum/identity verification, synthetic risk-gate proof, and automated tests. | `python -m sanchay.demo --prove`; test output; `--verify-plan`. |
@@ -33,7 +33,8 @@ eligible.**
 
 That distinction matters more than a generic storage graph:
 
-1. A large, unique file has no recovery proof, so it stays outside the plan.
+1. A large, unique file has no recovery proof, so it stays outside cleanup; an
+   old preservation-oriented file may appear only in separate archive review.
 2. A clean build/cache output or byte-confirmed duplicate can be put into a
    human-review plan, but is never deleted by SANCHAY.
 3. APT, journal, container, Flatpak, boot, configuration, package, log,
@@ -46,12 +47,13 @@ That distinction matters more than a generic storage graph:
 
 ## Why the AI is credible rather than decorative
 
-Do not claim a trained model where none exists. Say this instead:
+Say this precisely:
 
-> The AI capability is constrained decision intelligence: recoverability-aware
-> ranking, a bounded target-selection optimizer, and evidence-gated capacity
-> risk. A model can narrate opaque metadata, but deterministic code holds every
-> safety gate and no model receives cleanup authority.
+> SANCHAY runs a local three-class logistic-regression model in the real
+> recommendation path. It learns Keep, Cleanup Review, and Archive Review from
+> a disclosed synthetic expert-labelled seed set and records probabilities and
+> feature contributions. Deterministic recovery rules still hold every action
+> gate, so the model receives recommendation influence but no cleanup authority.
 
 The research rationale is strong: storage behaviour can be non-linear and
 discontinuous, so a single exact "full on Tuesday" prediction is unreliable.
@@ -66,7 +68,7 @@ Source: [Kumar and Chamness, *Stochastic Estimated Risk for Storage Capacity*](h
 
 | Moment | What the jury should infer | Exact proof |
 | --- | --- | --- |
-| Unique thesis absent from the plan | Size is not mistaken for safety. | `documents/capstone-thesis.txt` does not appear in the plan. |
+| Unique thesis absent from cleanup | Size is not mistaken for safety. | `documents/capstone-thesis.txt` cannot appear in cleanup; any model suggestion is archive-review only. |
 | Duplicate names its evidence peer | A recommendation has a specific recovery basis. | `downloads/boss-image-copy.iso` byte-matches `archive/boss-image.iso`; retention is still human-selected. |
 | Hardlink excluded | SANCHAY understands physical allocation, not merely file names. | The aliases share one `(device, inode)` and one unlink would free zero bytes. |
 | 600K target is met inside eligible evidence | Optimization never broadens scope into unique/protected files. | First select the low-risk cache; then use a bounded exact choice within the remaining eligible class. |
@@ -93,10 +95,13 @@ accounting gap, not a fake candidate list. SANCHAY reports visible
 deleted-open bytes and filesystem/topology boundaries as advisories, then does
 not kill processes, unmount paths, alter snapshots, or run filesystem tools.
 
-**"Where is the AI?"**  In the constrained, explainable decision layer and
-evidence-gated risk model—not a remote chatbot with deletion power. Optional
-Ollama narration is loopback-only and receives opaque metadata; it cannot
-change selection, verification, or cleanup authority.
+**"Where is the AI?"**  Stage 1 is the local learned classifier that directly
+selects and ranks Keep, Cleanup Review, and Archive Review from metadata and
+positive usage evidence. Stage 2 is an optional constrained Ollama or
+OpenAI-compatible model that reviews only prefiltered candidates and returns a
+structured action, confidence, reason codes, and explanation. The plan records
+both stages. The 38-row set is synthetic bootstrap data, not a production-
+accuracy claim. Deterministic gates and human approval retain cleanup authority.
 
 **"Does this integrate with Secure BOSS or ISOC?"**  No integration is
 claimed. It is a fit: local execution, no required cloud dependency,
