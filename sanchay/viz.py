@@ -48,7 +48,10 @@ def figure(files, dup_paths=frozenset(), limit=4000, root=None):
                      color="kind", color_discrete_map=COLOURS,
                      title="Disk usage by recoverability evidence")
     fig.update_traces(marker_line_width=0.5, marker_line_color="#fbfaf5")
-    fig.update_layout(margin=dict(t=10, l=0, r=0, b=0),
+    # Plotly renders the current treemap path in a narrow band above the
+    # rectangles. Keep enough breathing room so that band and its labels are
+    # not clipped against the top edge for any recoverability colour.
+    fig.update_layout(margin=dict(t=36, l=0, r=0, b=0),
                       paper_bgcolor="rgba(0,0,0,0)",
                       plot_bgcolor="rgba(0,0,0,0)",
                       font_color="#141713", title=None)

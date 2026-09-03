@@ -7,10 +7,12 @@ Application Level · AI-Powered Intelligent Storage Optimizer for Linux OS
 
 [Continuous integration](https://github.com/basithladdu/sanchay/actions)
 
-SANCHAY is a local, review-only storage decision layer. It does not delete or
-move files. Instead, it identifies candidates with explicit recovery evidence,
-writes an integrity-checked review plan, and rechecks the plan before a human
-performs any separate cleanup.
+SANCHAY is a local, review-first storage decision layer. Scans, reports, and
+plans do not change files. It identifies candidates with explicit recovery
+evidence and writes an integrity-checked review plan. An optional interactive
+action mode is disabled by default and can change only active-plan candidates
+after temporary permission, explicit execution, exact confirmation, and a
+fresh evidence recheck.
 
 ## Problem
 
@@ -49,8 +51,9 @@ Traditional systems ask the user to untick critical files from a massive list.
 SANCHAY excludes files classified as unique, untracked, and uncached before
 ranking, then writes a JSON plan with typed recovery evidence for every
 remaining candidate. Its SHA-256 integrity checksum detects accidental plan
-changes; it is not a digital signature. SANCHAY never deletes or moves files
-itself.
+changes; it is not a digital signature. Creating or verifying the plan never
+changes a candidate file; interactive file actions use a separate fail-closed
+permission gate.
 
 For a duplicate, SANCHAY names a deterministic byte-matched **evidence peer**
 so the relation can be independently rechecked. Matching bytes do not identify
@@ -348,12 +351,89 @@ pip install -e ".[tui]"
 # Optional: install self-contained HTML visualization support
 pip install -e ".[viz]"
 
+# Start the interactive slash-command shell
+sanchay
+
 # Run the unit and integration tests
 python -m unittest discover tests
 
 # Launch interactive UI
 sanchay-ui .
 ```
+
+### Interactive slash-command shell
+
+Running `sanchay` without arguments starts a persistent session. The expensive
+scan and duplicate-evidence pass run once; reports and plans reuse that retained
+point-in-time evidence.
+
+Type `/` at the prompt to open the command palette. Use Up/Down to move the blue
+highlight, press Enter to insert the selected command, complete any arguments,
+then press Enter again to run it. The palette works in Windows and Linux
+terminals; redirected scripts continue to use the plain non-interactive input
+loop.
+
+Interactive launches begin with a SANCHAY welcome screen that summarizes the
+local evidence model, safety boundaries, and the platform-specific Downloads
+report folder. Press Enter to continue to the slash-command prompt. Redirected
+and automated sessions skip this screen so they never block for input.
+The bold wordmark uses two offset terminal-block shades for a layered depth
+effect. Its compact database emblem has a white cap plus red, blue, and white
+tiers. Neither element requires terminal-specific inline-image support.
+
+Long foreground operations display an animated `Working (Ns)` indicator with
+the current phase and a Ctrl+C cancellation hint. This covers scanning,
+duplicate-evidence work, refreshes, report generation, saved-plan verification,
+and archive comparison. Animation is disabled automatically for redirected
+output and CI logs.
+
+`/help` displays a command-and-purpose table, while `/about` explains SANCHAY's
+local evidence model, report workflow, and guarded file-action boundary.
+
+```text
+sanchay> /analyze "/home/user" --report "home-report.html" --limit 20
+sanchay> /serve
+```
+
+`/analyze` performs the normal scan, displays the requested number of ranked
+candidates, and generates the HTML report in one operation. `/run` is a shorter
+alias. Report hosting remains a separate explicit step through `/serve`.
+
+The individual commands remain available when you want finer control:
+
+```text
+sanchay> /scan "/home/user"
+sanchay> /candidates 20
+sanchay> /duplicates 10
+sanchay> /report "home-report.html"
+sanchay> /serve
+sanchay> /plan "home-review.json"
+```
+
+`/serve` chooses an available loopback port and prints the exact URL for the
+active report. Use that complete URL, including its HTML filename; an older
+server root such as `http://127.0.0.1:8000/` may be serving the seeded demo.
+The report server appears as a background task in the bottom status bar. Use
+`/ps` to inspect it and `/stop <id>` (or `/stop all`) to close it.
+
+Interactive HTML reports are always written to the current user's Downloads
+folder on Windows and Linux. A supplied `--report` or `/report` path contributes
+its filename only, so `/report "review.html"` is saved as
+`~/Downloads/review.html`. SANCHAY prints the full HTML location before and
+after generation. Administrators and automated tests can override this folder
+with `SANCHAY_DOWNLOAD_DIR`.
+
+`/delete`, `/move`, and `/clean` are previews unless `--execute` is present.
+Execution additionally requires `/permissions enable I_UNDERSTAND_FILE_ACTIONS`,
+the command-specific confirmation token printed by the preview, and a valid
+identity-checked active plan from a complete, single-filesystem scan. This is
+an intent interlock, not an operating-system privilege elevation. Permission is
+held only in memory and is revoked after one attempted action command. `/clean` is limited to regenerable
+`disposable` candidates; `/move` refuses overwrites and cross-filesystem moves.
+After a successful action, `/refresh` is required before another action.
+Deleting a duplicate also requires `--retain` with the exact named evidence
+peer from the active plan; matching bytes alone do not choose the authoritative
+copy.
 
 ---
 

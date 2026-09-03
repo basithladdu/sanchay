@@ -23,6 +23,8 @@ font:14px/1.5 ui-sans-serif,system-ui,-apple-system,"Segoe UI",Roboto,sans-serif
 header{display:flex;justify-content:space-between;align-items:center;border-bottom:1px solid var(--line);padding-bottom:18px;margin-bottom:28px}
 h1{font-size:24px;margin:0 0 4px;letter-spacing:-.02em;display:flex;align-items:center;gap:10px}
 .badge-regret{background:linear-gradient(135deg,var(--green),var(--accent));color:#fff;font-size:11px;font-weight:600;padding:3px 9px;border-radius:99px;letter-spacing:.05em;text-transform:uppercase}
+.scan-target{font-size:14px;font-weight:600;margin-top:6px}
+.scan-target code{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:13px;overflow-wrap:anywhere}
 .sub{color:var(--mute);font-size:13px}
 .cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:16px;margin-bottom:28px}
 .card{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:18px 20px}
@@ -78,6 +80,7 @@ body{background:var(--bg);color:var(--ink);font:13px/1.55 ui-sans-serif,system-u
 header{align-items:flex-start;border-bottom:1px solid var(--line);border-top:4px solid var(--ink);margin-bottom:0;padding:14px 0 16px}
 h1{font-size:19px;letter-spacing:.06em}
 .badge-regret{background:transparent;border:1px solid var(--green);border-radius:0;color:var(--green);font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:9px;padding:3px 5px}
+.scan-target{font-size:12px;margin-top:7px}.scan-target code{font-size:11px}
 .sub{color:var(--mute);font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:10px;margin-top:4px}
 .cards{border-bottom:1px solid var(--line);gap:0;grid-template-columns:repeat(4,1fr);margin-bottom:28px}
 .card{background:transparent;border:0;border-bottom:0;border-radius:0;border-right:1px solid var(--line);padding:20px}
@@ -139,21 +142,27 @@ def _holder_summary(record):
 
 def build(files, root, free_bytes, out="sanchay-report.html", limit=50,
           target_reclaim_bytes=None, cross_filesystems=False, process_held=None,
-          filesystem_context=None, scan_coverage=None, capacity_accounting=None):
+          filesystem_context=None, scan_coverage=None, capacity_accounting=None,
+          duplicate_groups=None, cleanup_plan=None):
     from . import viz
 
-    groups = dedup.duplicates(managed.content_candidates(files), root=root)
-    cleanup_plan = plan.build(files, groups, root, limit=limit,
-                              target_reclaim_bytes=target_reclaim_bytes,
-                              cross_filesystems=cross_filesystems,
-                              filesystem_context=filesystem_context,
-                              scan_coverage=scan_coverage)
+    groups = (duplicate_groups if duplicate_groups is not None
+              else dedup.duplicates(managed.content_candidates(files), root=root))
+    if cleanup_plan is None:
+        cleanup_plan = plan.build(files, groups, root, limit=limit,
+                                  target_reclaim_bytes=target_reclaim_bytes,
+                                  cross_filesystems=cross_filesystems,
+                                  filesystem_context=filesystem_context,
+                                  scan_coverage=scan_coverage)
+    elif cleanup_plan.get("root") != str(Path(root).resolve()):
+        raise ValueError("Precomputed report plan does not match the selected scan root")
     rows = cleanup_plan["recommendations"]
     protected_count = cleanup_plan["safety"]["protected_unique_files"]
     credential_control_entries = cleanup_plan["safety"]["excluded_credential_control_entries"]
     managed_storage = cleanup_plan["safety"]["managed_operational_storage"]
     coverage = cleanup_plan["safety"]["scan_coverage"]
     dup_paths = plan.duplicate_evidence_paths(cleanup_plan)
+    scan_target = html.escape(str(Path(root).resolve()))
 
     physical = storage.physical_records(files)
     total = sum(storage.allocated_bytes(info) for info in physical)
@@ -374,6 +383,7 @@ def build(files, root, free_bytes, out="sanchay-report.html", limit=50,
   <header>
     <div>
       <h1>SANCHAY <span class="badge-regret">Regret-Aware Storage</span></h1>
+      <div class="scan-target">Scan target: <code>{scan_target}</code></div>
       <div class="sub">{header_scope} &middot; Generated {time.strftime('%d %b %Y, %H:%M')}</div>
     </div>
   </header>
@@ -393,7 +403,7 @@ def build(files, root, free_bytes, out="sanchay-report.html", limit=50,
 
   <div class="panel">
     <h2>Reviewable Storage Candidates</h2>
-    <p class="h">Ranked by the regret objective. This report makes recommendations; it does not execute cleanup.</p>
+    <p class="h">Ranked by the regret objective. This report never executes cleanup. Separate interactive file actions remain disabled unless an operator passes every permission and evidence gate.</p>
     
     <div class="formula-box">
       <span class="formula-tag">Objective:</span>
@@ -426,7 +436,7 @@ def build(files, root, free_bytes, out="sanchay-report.html", limit=50,
     <div class="guard">
       <b>{protected_count:,} unique files and {cleanup_plan["safety"]["excluded_hardlink_entries"]:,} hardlinked entries are excluded from this plan.</b><br>
       Integrity checksum (not a signature): <code>{cleanup_plan["fingerprint_sha256"]}</code><br>
-      {html.escape(cleanup_plan["safety"]["content_read_boundary"])}. A single hardlink removal releases no physical bytes. The active policy excludes known credential/control paths, unique, untracked, uncached, and hardlinked entries before ranking.{credential_boundary} SANCHAY never deletes or moves files.
+      {html.escape(cleanup_plan["safety"]["content_read_boundary"])}. A single hardlink removal releases no physical bytes. The active policy excludes known credential/control paths, unique, untracked, uncached, and hardlinked entries before ranking.{credential_boundary} Scanning, reports, and plans never change files. Interactive actions require temporary permission, explicit execution, exact confirmation, and a fresh plan recheck.
     </div>
   </div>
   {managed_panel}

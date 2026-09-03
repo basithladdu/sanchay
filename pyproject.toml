@@ -5,7 +5,7 @@ description = "Regret-aware storage intelligence for Linux"
 readme = "README.md"
 requires-python = ">=3.9"
 license = { text = "MIT" }
-dependencies = []
+dependencies = ["prompt-toolkit>=3.0,<4"]
 
 [project.optional-dependencies]
 tui = ["textual>=1.0"]

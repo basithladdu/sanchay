@@ -405,6 +405,7 @@ class TestSanchay(unittest.TestCase):
         self.assertIn('image.iso', labels)
         self.assertIn('bundle.bin', labels)
         self.assertNotIn('.', labels)
+        self.assertGreaterEqual(figure.layout.margin.t, 36)
 
     @unittest.skipUnless(importlib.util.find_spec('pandas'),
                          'requires the optional report dependencies')
@@ -423,6 +424,27 @@ class TestSanchay(unittest.TestCase):
         self.assertFalse(any(line.endswith((' ', '\t')) for line in page.splitlines()))
         self.assertIn('First-run orientation', page)
         self.assertIn('not a capacity forecast', page)
+
+    @unittest.skipUnless(importlib.util.find_spec('pandas')
+                         and importlib.util.find_spec('plotly'),
+                         'requires the optional report dependencies')
+    def test_report_header_identifies_selected_scan_target(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp) / 'selected-drive'
+            root.mkdir()
+            candidate = root / '.cache' / 'build.bin'
+            candidate.parent.mkdir()
+            candidate.write_bytes(b'x')
+            files = [
+                scan.FileInfo(str(candidate), 1, self.now,
+                              self.now - 86400, 803),
+            ]
+            output = Path(tmp) / 'report.html'
+            report.build(files, root, 1000000, output)
+            page = output.read_text(encoding='utf-8')
+
+        self.assertIn('Scan target:', page)
+        self.assertIn(str(root.resolve()), page)
 
     @unittest.skipUnless(importlib.util.find_spec('pandas'),
                          'requires the optional report dependencies')

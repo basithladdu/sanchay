@@ -3,6 +3,7 @@ import argparse
 import os
 import re
 import shutil
+import sys
 
 from . import (accounting, archive, brief, dedup, explain, forecast, managed, mounts, plan,
                processes, regret, scan, snapshot, storage)
@@ -99,6 +100,11 @@ def _invocation_artifact_paths(args):
 
 
 def main(argv=None):
+    command_args = list(sys.argv[1:] if argv is None else argv)
+    if not command_args:
+        from . import shell
+        return shell.run()
+
     ap = argparse.ArgumentParser(prog="sanchay", description=__doc__)
     ap.add_argument("root", nargs="?")
     ap.add_argument("--limit", type=int, default=20)
@@ -148,7 +154,7 @@ def main(argv=None):
     ap.add_argument("--verify-operator-brief", metavar="BRIEF.json",
                     help="verify an operator brief checksum; never transmits or changes files")
     ap.add_argument("--tui", action="store_true", help="open the terminal UI")
-    args = ap.parse_args(argv)
+    args = ap.parse_args(command_args)
 
     if args.cloud_narrative and not args.explain:
         ap.error("--cloud-narrative requires --explain")
@@ -610,7 +616,9 @@ def main(argv=None):
                 process_held=held_deleted,
                 filesystem_context=filesystem_context,
                 scan_coverage=scan_coverage,
-                capacity_accounting=capacity_accounting)
+                capacity_accounting=capacity_accounting,
+                duplicate_groups=groups,
+                cleanup_plan=cleanup_plan)
         except ModuleNotFoundError as exc:
             if _visualization_dependency_missing("report", exc):
                 return 2

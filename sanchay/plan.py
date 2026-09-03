@@ -317,7 +317,11 @@ def build(files, duplicate_groups, root, now=None, limit=25,
         "execution": {
             "automatic_deletion": False,
             "requires_human_review": True,
-            "boundary": "SANCHAY creates recommendations only; it never deletes or moves files.",
+            "boundary": (
+                "This plan creates recommendations only and never executes file changes. "
+                "A separate interactive action requires temporary permission, an explicit "
+                "execution flag, exact confirmation, and a fresh evidence recheck."
+            ),
         },
         "safety": {
             "protected_unique_files": protected_count,
@@ -497,8 +501,9 @@ def verify(document):
     """Recheck a review plan against the filesystem without changing it.
 
     A valid result means the plan checksum and each duplicate-peer
-    recovery-evidence check still match. It is a review gate, not an
-    authorization to delete anything.
+    recovery-evidence check still match. It is a review gate, not authorization
+    by itself: interactive file actions still require temporary permission,
+    explicit execution, and exact command confirmation.
     """
     result = {
         "valid": False,
