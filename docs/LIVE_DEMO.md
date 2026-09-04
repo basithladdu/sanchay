@@ -231,9 +231,11 @@ Duplicate retention confirmation required: --retain "/home/awaiz/sanchay-demo/ar
 > `--execute`, an exact confirmation token, and, because this is a duplicate, I
 > must name which copy survives. The tool refuses to choose that for me.
 >
-> I am not going to run it. There is no automatic executor in this product.
+> There is no automatic executor in this product. But let me show you that the
+> gate is real, and not just a message.
 
-**Never type `--execute` on stage.** The preview is the argument.
+Step 9 executes it. If you would rather not act on stage, say "I am not going to
+run it" here, skip step 9, and run `/refresh` instead.
 
 ## Step 8 — Fail closed (40s) — the strongest moment
 
@@ -278,7 +280,63 @@ Plan is not valid for review; 4 recommendations checked.
 > The plan is refused — not a warning, refused, **before** a human acts on it.
 > Evidence that is stale is not evidence.
 
-## Step 9 — Re-scan (15s)
+## Step 9 — Act on it, through the gate (60s)
+
+**This deletes for real. Only ever on the fixture.** Every output below is
+verified.
+
+Try it the way a hurried person would — with no permission:
+
+```
+/delete 1 --execute --confirm DELETE:1
+```
+
+```
+Delete refused: File actions are disabled; run /permissions enable I_UNDERSTAND_FILE_ACTIONS
+```
+
+> Refusal one. I never turned actions on.
+
+```
+/permissions enable I_UNDERSTAND_FILE_ACTIONS
+```
+
+```
+File actions authorized for one action command. Preview the command before adding --execute.
+```
+
+```
+/delete 1 --execute --confirm DELETE:1
+```
+
+```
+Delete refused: Duplicate deletion requires --retain with the named evidence peer
+```
+
+> Refusal two. It is a duplicate, and I have not said which copy survives. It
+> will not choose that for me.
+
+```
+/permissions enable I_UNDERSTAND_FILE_ACTIONS
+/delete 1 --execute --confirm DELETE:1 --retain "/home/awaiz/sanchay-demo/archive/boss-image.iso"
+```
+
+```
+Deleted verified candidate: /home/awaiz/sanchay-demo/downloads/boss-image-copy.iso
+The active scan is now stale; run /refresh before another action.
+```
+
+> Now it runs — and immediately locks itself.
+
+```
+/candidates
+```
+
+```
+The active scan is stale after a file action. Run /refresh first.
+```
+
+> I cannot take a second action on evidence I have just invalidated.
 
 ```
 /refresh
@@ -286,11 +344,31 @@ Plan is not valid for review; 4 recommendations checked.
 
 ```
 Refresh complete: /home/awaiz/sanchay-demo
-  6 entries; 1.3MB allocated storage
-  ...
+  5 entries; 800.0KB allocated storage
+  0 duplicate groups; 0.0B potential reclaim
+  1 reviewable; 2 archive reviews; 2 unique files protected from cleanup
 ```
 
-> One command puts us back on current evidence.
+> Six entries became five. 1.3 MB became 800 KB. The duplicate group is gone,
+> and the thesis is still protected.
+
+**Two things that will trip you up:**
+
+1. **A refused attempt consumes the permission.** That is why `/permissions
+   enable` appears twice above. One authorization covers one *attempt*, not one
+   *success*. If a command says "actions are disabled" when you think you just
+   enabled them, that is why — re-enable and continue.
+2. **Rebuild the fixture after rehearsing this**, or your live run starts with no
+   duplicate to delete:
+
+   ```bash
+   rm -rf ~/sanchay-demo && python3 -m sanchay.demo ~/sanchay-demo
+   ```
+
+**The batch form, if asked:** `/clean` previews only regenerable files, then
+`/permissions enable ...` and `/clean --execute --confirm CLEAN:1` reports
+`Deleted 1 verified regenerable candidates (200.0KB).` Duplicate, tracked,
+unique and hardlinked files are excluded by construction.
 
 ## Step 10 — The report (45s) — finish here
 
@@ -355,11 +433,12 @@ Then `/stop 1` if you want the port back.
 | 6 `/target 600K` | 25 | Yes |
 | 7 `/permissions` + `/delete` | 30 | No |
 | 8 mutate + verify | 40 | **Never** |
-| 9 `/refresh` | 15 | Yes — report still builds |
+| 9 action gate + `/refresh` | 60 | Yes — run `/refresh` alone (15s) |
 | 10 `/report` + `/serve` | 45 | No — this is the finish |
 
-Cutting steps 5, 6 and 9 gives a 3-minute 20-second run that keeps every safety
-claim and still ends on the report.
+Full run with the action gate is about 5 minutes 45 seconds. Cutting steps 5
+and 6, and reducing step 9 to a bare `/refresh`, gives a 3-minute 20-second run
+that keeps every safety claim and still ends on the report.
 
 ## Rules for the stage
 
@@ -368,7 +447,9 @@ claim and still ends on the report.
 2. **Type commands one at a time.** Pasting two lines sends them as a single
    input — `/refresh` plus `/delete 1` arrives as `/refresh /delete 1` and you
    get `Usage: /refresh`.
-3. **Never run an action command with `--execute`.**
+3. **Only ever run `--execute` against `~/sanchay-demo`.** It deletes for
+   real. Never point an action command at a personal folder, and rebuild the
+   fixture after any rehearsal that deletes from it.
 4. **Never debug live.** Ten seconds of trouble, then: "I have this captured on
    the slide."
 5. **Do not scan a personal folder** — your filenames go on the projector.
@@ -395,4 +476,5 @@ claim and still ends on the report.
 | `/report` says already exists | Add `--replace`, and say "artifacts are write-once by default." |
 | Browser tab will not load | Check the port matches `/serve 8123`; otherwise open `~/Downloads/demo.html` directly. |
 | Fixture missing | `python3 -m sanchay.demo ~/sanchay-demo` while you keep talking. |
+| "Actions are disabled" after enabling | A refused attempt consumed it. Re-run `/permissions enable I_UNDERSTAND_FILE_ACTIONS`. |
 | Anything else | Switch to the deck. The captures are already there. |
