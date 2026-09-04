@@ -78,8 +78,8 @@ Repository: https://github.com/basithladdu/sanchay
   mount-scoped accounting, identity/content revalidation, and local snapshot
   gates.
 - Security/scalability: credential/control path fencing, system-managed storage
-  deferral, no cleanup executor, one-filesystem default, and bounded optimizer
-  behaviour.
+  deferral, guarded user-invoked file actions rather than automatic cleanup,
+  one-filesystem default, and bounded optimizer behaviour.
 - Explainability: typed recovery evidence, frozen decision traces, a visible
   lower-risk-first selection trace, and a local deterministic explanation path.
 - Presentation: eight-slide evidence-console deck content and a 15-minute
@@ -111,8 +111,9 @@ standalone use; and installation on an LVM-encrypted disk.
 Use only this conclusion:
 
 > SANCHAY is a credible local decision-support fit for a hardened Linux
-> endpoint because it avoids a required cloud call, has no cleanup executor,
-> scopes capacity to the visible mount, and preserves review evidence.
+> endpoint because it avoids a required cloud call, uses guarded user-invoked
+> file actions rather than automatic cleanup, scopes capacity to the visible
+> mount, and preserves review evidence.
 
 Do not say that it is deployed, certified, approved, integrated with Secure
 BOSS, or connected to ISOC. Those claims require C-DAC interface, policy,

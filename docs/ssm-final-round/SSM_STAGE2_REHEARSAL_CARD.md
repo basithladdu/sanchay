@@ -38,7 +38,7 @@ by a C-DAC policy.
 | 0:30-1:25 | Explainability | Contrast an equally large regenerable cache with a unique thesis. State that SANCHAY ranks recovery evidence before it recommends anything. |
 | 1:25-2:20 | Technical Depth | Show the gate: local scan -> evidence class -> protected-file gate -> review-only plan -> human decision. Name the three evidence routes: byte-confirmed duplicate, clean Git HEAD, narrow cache/build path. |
 | 2:20-3:05 | Explainability | Show the 600K target: 204,800 B regenerable cache first, then 524,288 B byte-confirmed duplicate. Explain that the on-screen selection trace is lower-risk-first; the following table is review priority, not execution order. |
-| 3:05-4:00 | Scalability & Security | State the boundaries: credentials and system-managed stores are fenced; one filesystem by default; no cleanup executor; model narration cannot change a decision. |
+| 3:05-4:00 | Scalability & Security | State the boundaries: credentials and system-managed stores are fenced; one filesystem by default; guarded user-invoked actions with no automatic executor; model narration cannot change a decision. |
 | 4:00-6:40 | Live Demonstration | Run the deterministic fixture sequence from `sanchay/docs/FINAL_ROUND_RUNBOOK.md`. Point out the absent thesis, named duplicate peer, excluded hardlink, target trace, and valid plan. |
 | 6:40-7:25 | Live Demonstration | Mutate only the synthetic cache and run `--verify-plan`. Stop after the non-zero fail-closed result. Say explicitly that SANCHAY deleted, moved, and transmitted nothing. |
 | 7:25-8:20 | Technical Depth | Explain forecasting discipline: first scan is orientation only; runway and risk are withheld until local same-mount snapshot gates qualify. Do not volunteer the synthetic risk rehearsal unless asked. |
@@ -186,9 +186,9 @@ to the proof and wording to use in a jury answer.
 
 - Use the team slot in the organizer email, not a guessed time.
 - On the Linux presentation machine, run `bash SSM_LINUX_PREFLIGHT.sh
-  /path/to/sanchay` from this folder before the final. It verifies the 110-test
-  suite, disposable safety rehearsal, and synthetic capacity-risk gate without
-  modifying the repository.
+  /path/to/sanchay` from this folder before the final. It checks a clean tracked
+  Linux checkout, runs the current suite, and runs the disposable safety and
+  synthetic capacity-risk rehearsals without modifying repository files.
 - Run the disposable fixture once before the presentation and keep its terminal
   output in scrollback.
 - Use the exact final-runbook commands from a Linux/BOSS machine or a prepared

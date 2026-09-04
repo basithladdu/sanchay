@@ -235,8 +235,8 @@ accidental plan changes but is not a digital signature. `sanchay --verify-plan
 cleanup-plan.json` rechecks the checksum, file identity, duplicate evidence peer,
 and clean Git HEAD state where applicable. It also rechecks every archive-
 candidate identity and destination-safety boundary. A changed link count invalidates the
-plan, because it changes whether a path can release physical storage. SANCHAY
-never deletes or moves files.
+plan, because it changes whether a path can release physical storage. Plan
+verification itself never deletes or moves files.
 
 The plan also freezes the decision trace for every recommendation: model
 provenance and data checksum, three-class probabilities, top contributing
@@ -304,8 +304,9 @@ Keep/Cleanup/Archive recommendations, but it runs inside a deterministic action
 space. Credential and system-managed paths and hardlinks are excluded first;
 only files with recovery evidence can enter Cleanup Review; unique files can
 enter only Keep or Archive Review. A model error cannot promote a unique file
-into cleanup. SANCHAY itself creates a review-only plan and does not delete or
-move user files.
+into cleanup. SANCHAY creates a review-only plan; `/delete`, `/move`, and
+`/clean` are previews by default and execute only after one-use authorization,
+`--execute`, exact confirmation, and plan revalidation.
 
 This matters beyond storage. Any AI tool that acts on a user's system faces the
 same question, and "prompt the model to be careful" is a weaker answer than

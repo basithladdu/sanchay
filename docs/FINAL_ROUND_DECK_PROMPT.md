@@ -281,8 +281,9 @@ proof -> PASS; no file was deleted, moved, or transmitted
 **Visual:** one real terminal capture from the fixture — never a mockup.
 
 **Notes:** `python -m sanchay.demo --prove` from the repository root; disposable
-fixture only. Do not attempt to demonstrate cleanup — there is no cleanup
-executor, and that is the argument.
+fixture only. Do not attempt cleanup in this proof run. The product’s
+`/delete`, `/move`, and `/clean` actions are guarded and user-invoked; there
+is no automatic executor.
 
 ---
 

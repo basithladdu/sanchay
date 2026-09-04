@@ -19,13 +19,13 @@ or joining the call.
 | 0:45–1:45 | The safety architecture: protected-file gate, duplicate survivor, review-only plan. | Architecture slide or CLI plan fields. |
 | 1:45–4:45 | Live, deterministic fixture scan. | Terminal: candidate classes and unique-file exclusion. |
 | 4:45–6:15 | Plan integrity checksum and verification pass. | JSON plan plus `--verify-plan` output. |
-| 6:15–7:00 | Change only the synthetic fixture and show verification fail closed. | Non-zero verification result; no deletion action exists. |
+| 6:15–7:00 | Change only the synthetic fixture and show verification fail closed. | Non-zero verification result; no file action occurs in this demonstration. |
 | 7:00–10:00 | Forecast model, local-only boundary, and BOSS/C-DAC fit. | One concise slide and screenshot of the local dashboard. |
 | 10:00–15:00 | Jury questions. | Keep terminal and plan open. |
 
-Do not try to demonstrate cleanup. SANCHAY intentionally has no cleanup
-executor; the winning argument is the evidence and control boundary before a
-human acts.
+Do not try to demonstrate cleanup in this rehearsal. SANCHAY’s `/delete`,
+`/move`, and `/clean` actions are guarded and user-invoked; the winning
+argument is the evidence and control boundary before an irreversible action.
 
 ## Pre-flight
 
@@ -34,8 +34,10 @@ human acts.
    without installing console scripts. `python -m pip install -e .` is optional
    if the team prefers the shorter `sanchay` and `sanchay-demo` commands.
 3. For the terminal dashboard only, run `python -m pip install -e ".[tui]"`.
-4. Run `python -m unittest discover tests` and keep the passing output in the
-   terminal scrollback.
+4. From a clean tracked checkout, run
+   `bash docs/ssm-final-round/SSM_LINUX_PREFLIGHT.sh "$PWD"`. It checks the
+   Linux/Python/checkout guard, then runs the current suite and both disposable
+   proof commands.
 5. Open the public page only as a seeded explanatory walkthrough. State that it
    does not scan the visitor's filesystem.
 6. The page renders embedded offline chart summaries first. During rehearsal,

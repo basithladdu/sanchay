@@ -35,8 +35,8 @@ That distinction matters more than a generic storage graph:
 
 1. A large, unique file has no recovery proof, so it stays outside cleanup; an
    old preservation-oriented file may appear only in separate archive review.
-2. A clean build/cache output or byte-confirmed duplicate can be put into a
-   human-review plan, but is never deleted by SANCHAY.
+2. A clean build/cache output or byte-confirmed duplicate can enter a
+   human-review plan; a file action requires explicit guarded operator intent.
 3. APT, journal, container, Flatpak, boot, configuration, package, log,
    backup, credential, and service paths remain tool-owned or protected
    boundaries.

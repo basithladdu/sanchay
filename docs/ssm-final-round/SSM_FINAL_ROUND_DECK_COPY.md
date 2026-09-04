@@ -174,7 +174,7 @@ jury a reliable audit point.
 ## Slide 7 — A credible fit for a hardened Linux endpoint
 
 Local core  
-No required cloud call or cleanup executor
+No required cloud call; guarded user-invoked file actions
 
 Mount-aware capacity  
 One filesystem by default; no false shared-capacity claim across mounts
