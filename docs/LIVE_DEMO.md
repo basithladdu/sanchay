@@ -1,47 +1,61 @@
 # SANCHAY live demonstration — stage script
 
-Every keystroke, in order, with what to say while it runs and the output you
-should see. Core demo runs **3 to 4 minutes**. An extended set at the end covers
-whatever the jury asks for.
+Ten steps through the interactive shell, ending on the HTML report in a browser.
+Every keystroke, what to say while it runs, and the output you will see.
 
-All output below is real, captured from the bundled fixture.
+**Core run: about 4 minutes 45 seconds.** Every output below was captured from a
+real run on the WSL machine this demo is presented from.
 
 ---
 
-## Before you start
+## Step 0 — Setup, before the jury walks in
 
 **Two terminals.** Terminal A runs SANCHAY. Terminal B stays at a plain shell —
-you need it once, to change a file while SANCHAY is watching.
+you need it once, in step 8.
 
 ```bash
-# both terminals: same directory
-cd ~/sanchay
-
-# terminal A only: build the fixture
-rm -rf ~/sanchay-demo
-python -m sanchay.demo ~/sanchay-demo
+cd ~
+deactivate 2>/dev/null
+which sanchay
 ```
 
-Font size 18+, dark background, terminal maximised. Then launch:
+`which sanchay` **must** print `/home/awaiz/.local/bin/sanchay`.
+
+> **Never run the demo from `/mnt/e/sanchay`.** That directory has a `.venv`
+> whose pandas C extension is not built. The report command crashes the whole
+> shell with a traceback. Running from `~` uses the working install, prints
+> clean `/home/awaiz/...` paths on the projector, and writes plans to your home
+> directory.
+
+Build the fixture and pre-warm the browser:
+
+```bash
+rm -rf ~/sanchay-demo
+python3 -m sanchay.demo ~/sanchay-demo
+sanchay ~/sanchay-demo --report ~/Downloads/demo.html
+```
+
+Open a browser tab at `http://127.0.0.1:8123/demo.html`. It will not load yet —
+that is fine. The tab is now pre-typed, so in step 10 you only press refresh.
+
+Then launch and stop at the prompt:
 
 ```bash
 sanchay
 ```
 
-Press Enter past the splash screen. Leave it sitting at `sanchay>`.
-
-**What the fixture holds** — know this cold, because every claim points at it:
+**What the fixture holds** — know this cold:
 
 | File | Why it is there |
 | --- | --- |
 | `documents/capstone-thesis.txt` | Unique. Must never appear in cleanup. |
 | `archive/boss-image.iso` + `downloads/boss-image-copy.iso` | Byte-identical pair. |
 | `workspace/node_modules/.cache/bundle.bin` | Regenerable cache. |
-| `hardlinks/source.bin` + `alias.bin` | One physical file, two names. |
+| `hardlinks/source.bin` + `alias.bin` | One inode, two names. |
 
 ---
 
-## Step 1 — Show where the AI is (20s)
+## Step 1 — Where the AI is (20s)
 
 ```
 /ai status
@@ -55,42 +69,59 @@ Hybrid AI mode: auto
   safety: reasoning may keep or confirm a review; it cannot delete, promote an unsafe file, or bypass human approval
 ```
 
-> Before I scan anything — this is the AI. Stage one is a local classifier that
-> always runs. Stage two is an optional local model, here Qwen 2.5 running
-> through Ollama on this machine. No API key, nothing leaves the laptop.
+> Before I scan anything — this is the AI, and there are two stages. Stage one
+> is a local classifier that always runs. Stage two is an optional local model,
+> Qwen 2.5 through Ollama, on this laptop. No API key. Nothing leaves the
+> machine.
 >
-> Read the last line. The reasoning model may keep or confirm a review. It
+> Read the last line: the reasoning model may keep or confirm a review. It
 > cannot delete, cannot promote an unsafe file, cannot bypass approval.
 
-*If it says `Ollama: unavailable`* — keep going and say: "The reasoning stage is
-optional; it falls back to the local classifier and records why. You will see
-that recorded in the plan."
+*If it says unavailable:* "The reasoning stage is optional — it falls back to
+the local classifier and records why in the plan." Then continue.
 
-## Step 2 — Scan (30s)
+## Step 2 — Scan (35s)
 
 ```
 /scan ~/sanchay-demo
 ```
 
-The prompt returns immediately and an animated `Working` strip reports progress.
+```
+Background task 1 started: scan ~/sanchay-demo.
+```
 
-> Notice the prompt came straight back. Scans run in the background — on a real
-> filesystem this takes minutes, and you can keep working. Esc interrupts it.
+> The prompt came straight back. Scans run in the background — on a real
+> filesystem this takes minutes and you keep working. Escape interrupts it.
 
-Then the result:
+While it runs, show that:
 
 ```
-Scan complete: ~/sanchay-demo
+/ps
+```
+
+```
+ ID  status   elapsed  kind           details
+------------------------------------------------------------------------------
+  1  running        3s  scan           scanning and verifying ~/sanchay-demo: scan ~/sanchay-demo
+```
+
+Then the result arrives on its own:
+
+```
+Background task 1 complete in 10s.
+Scan complete: /home/awaiz/sanchay-demo
   6 entries; 1.3MB allocated storage
   1 duplicate groups; 512.0KB potential reclaim
   2 reviewable; 2 archive reviews; 2 unique files protected from cleanup
-  reasoning AI: ollama qwen2.5-coder:7b
+  reasoning AI: ollama/qwen2.5-coder:7b; 4 reviewed, 0 changed to keep
   coverage: complete
 ```
 
-> Six files. One duplicate group. And the line that matters — **two unique files
-> protected from cleanup**. They were excluded before ranking, not filtered out
-> afterwards.
+> Six files, one duplicate group. Both AI stages ran — four candidates reviewed
+> by the local model, none overridden by the reasoner.
+>
+> And the line that matters: **two unique files protected from cleanup.** They
+> were excluded before ranking, not filtered out afterwards.
 
 ## Step 3 — The cleanup list (30s)
 
@@ -99,20 +130,20 @@ Scan complete: ~/sanchay-demo
 ```
 
 ```
-Candidates from active scan: ~/sanchay-demo
+Candidates from active scan: /home/awaiz/sanchay-demo
  #  reclaim   kind         AI clean  unchanged  relative path
 ------------------------------------------------------------------------------------------
  1   512.0KB  duplicate       95%     120.1d  downloads/boss-image-copy.iso
  2   200.0KB  disposable      93%      44.9d  workspace/node_modules/.cache/bundle.bin
 ```
 
-> Two candidates. A byte-confirmed duplicate and a build cache.
+> Two candidates: a byte-confirmed duplicate and a build cache.
 >
-> Now look at what is **not** here. The thesis file is not in this list. Neither
-> is the hardlink alias. This is a review list, ranked by priority — not an
+> Now look at what is **not** here. The thesis is not in this list. Neither is
+> the hardlink alias. This is a review list ranked by priority — not an
 > execution order.
 
-**This is the moment the demo is built around. Do not rush it.**
+**Do not rush this slide of the demo. It is the one they remember.**
 
 ## Step 4 — Where the protected file went (25s)
 
@@ -121,27 +152,27 @@ Candidates from active scan: ~/sanchay-demo
 ```
 
 ```
-AI archive reviews from active scan: ~/sanchay-demo
+AI archive reviews from active scan: /home/awaiz/sanchay-demo
  #  allocated  confidence  unchanged  relative path
 ------------------------------------------------------------------------------------------
  1    512.0KB        76%     120.1d  archive/boss-image.iso
- 2      41.0B        81%     300.0d  documents/capstone-thesis.txt
+ 2      4.0KB        83%     300.0d  documents/capstone-thesis.txt
 Archive is a recommendation only: choose a destination, copy separately, then verify it with /verify-archive.
 ```
 
-> There is the thesis. Untouched for 300 days, so the model suggests you may
+> There is the thesis. Unchanged for 300 days, so the model suggests you might
 > want to archive it — but archive is a *separate list* with a different
 > boundary. A unique file can be suggested for archive. It can never be
 > suggested for cleanup.
 
-## Step 5 — Why the duplicate is safe to review (25s)
+## Step 5 — Why the duplicate is safe to review (20s)
 
 ```
 /duplicates
 ```
 
 ```
-Duplicates from active scan: ~/sanchay-demo
+Duplicates from active scan: /home/awaiz/sanchay-demo
 1 groups; 512.0KB potential allocated reclaim.
 1. 2 physical copies; about 512.0KB reviewable
      archive/boss-image.iso
@@ -149,13 +180,13 @@ Duplicates from active scan: ~/sanchay-demo
 Every duplicate recommendation is byte-confirmed again when its plan is built.
 ```
 
-> Two physical copies — and note it says physical. The hardlink pair is not
-> here, because unlinking one name frees zero bytes.
+> Two **physical** copies. The hardlink pair is not here, because unlinking one
+> name frees zero bytes.
 >
-> We do not stop at a hash. Same size, then a 64 KB prefix, then BLAKE2b, then a
-> full byte-for-byte compare. And it is confirmed again when the plan is built.
+> We never stop at a hash: same size, then a 64 KB prefix, then BLAKE2b, then a
+> full byte-for-byte compare — and it is confirmed again when the plan is built.
 
-## Step 6 — Ask it for a specific amount (30s)
+## Step 6 — Ask for a specific amount (25s)
 
 ```
 /target 600K
@@ -166,24 +197,52 @@ Target 600.0KB: 712.0KB selected (met).
 Run /candidates to review the selection before any action.
 ```
 
-> I asked for 600 KB. It found 712 and told me the target is met.
+> I asked for 600 KB and it found 712.
 >
-> The order matters: it takes the regenerable cache first — regret 0.02 — and
-> only then the duplicate at 0.10. Lowest consequence first. And it will never
-> reach into the protected files to hit a number. Ask for 9 GB and it says
-> "short by" rather than touching the thesis.
+> The order matters: the regenerable cache first at regret 0.02, then the
+> duplicate at 0.10. Lowest consequence first. And it will never reach into
+> protected files to hit a number — ask for 9 GB and it reports "short by"
+> rather than touching the thesis.
 
-*Optional, if you want to prove that:* `/target 9G` →
-`Target 9.0GB: 712.0KB selected (short by 9.0GB).` Then `/target clear`.
+## Step 7 — The action gate (30s)
 
-## Step 7 — Write the evidence (25s)
+```
+/permissions status
+```
+
+```
+File actions are disabled.
+Enable for one action command with: /permissions enable I_UNDERSTAND_FILE_ACTIONS
+```
+
+```
+/delete 1
+```
+
+```
+PREVIEW only: permanently delete candidate 1, 512.0KB duplicate: downloads/boss-image-copy.iso
+To execute: authorize actions, then rerun with --execute --confirm DELETE:1
+Duplicate retention confirmation required: --retain "/home/awaiz/sanchay-demo/archive/boss-image.iso"
+```
+
+> This is what deleting looks like: a preview.
+>
+> To actually run it I need four more things — one-use permission, an explicit
+> `--execute`, an exact confirmation token, and, because this is a duplicate, I
+> must name which copy survives. The tool refuses to choose that for me.
+>
+> I am not going to run it. There is no automatic executor in this product.
+
+**Never type `--execute` on stage.** The preview is the argument.
+
+## Step 8 — Fail closed (40s) — the strongest moment
 
 ```
 /plan review.json
 ```
 
 ```
-Review plan created: ~/sanchay/review.json
+Review plan created: /home/awaiz/review.json
 ```
 
 ```
@@ -194,11 +253,8 @@ Review plan created: ~/sanchay/review.json
 Plan is valid for human review; 4 recommendations checked.
 ```
 
-> The plan is JSON with typed evidence for every candidate and a SHA-256
-> checksum. It records the model version, the probabilities, and the training
-> data checksum — so a reviewer can audit the recommendation, not just accept it.
-
-## Step 8 — Fail closed (35s) — the strongest moment
+> The plan is JSON: typed evidence for every candidate, a SHA-256 checksum, the
+> model version, and the checksum of the training data.
 
 **Switch to terminal B** and change one byte of a file the plan recorded:
 
@@ -219,113 +275,124 @@ printf 'x' >> ~/sanchay-demo/workspace/node_modules/.cache/bundle.bin
 Plan is not valid for review; 4 recommendations checked.
 ```
 
-> The plan is refused. Not a warning — refused, **before** a human acts on it.
+> The plan is refused — not a warning, refused, **before** a human acts on it.
 > Evidence that is stale is not evidence.
 
-## Step 9 — The action gate (30s)
-
-```
-/permissions status
-```
-
-```
-File actions are disabled.
-Enable for one action command with: /permissions enable I_UNDERSTAND_FILE_ACTIONS
-```
+## Step 9 — Re-scan (15s)
 
 ```
 /refresh
-/delete 1
 ```
 
 ```
-PREVIEW only: permanently delete candidate 1, 512.0KB duplicate: downloads/boss-image-copy.iso
-To execute: authorize actions, then rerun with --execute --confirm DELETE:1
-Duplicate retention confirmation required: --retain "~/sanchay-demo/archive/boss-image.iso"
+Refresh complete: /home/awaiz/sanchay-demo
+  6 entries; 1.3MB allocated storage
+  ...
 ```
 
-> This is what deleting looks like. A preview.
+> One command puts us back on current evidence.
+
+## Step 10 — The report (45s) — finish here
+
+```
+/report demo.html --replace
+```
+
+```
+HTML report destination: /home/awaiz/Downloads/demo.html
+Report created: /home/awaiz/Downloads/demo.html
+This report uses the active scan shown by /status. Run /open-report, or /serve for its exact browser URL.
+```
+
+```
+/serve 8123
+```
+
+```
+Exact URL for the active scan report: http://127.0.0.1:8123/demo.html
+The filename at the end matters; do not open an older server root URL.
+Background task 1 is hosting the report. Use /ps to view it or /stop 1 to close it.
+```
+
+**Switch to the browser tab you pre-opened and press refresh.**
+
+> Everything you just watched is also an artifact you can hand to someone else.
 >
-> To actually run it I need four more things: one-use permission, an explicit
-> `--execute`, an exact confirmation token, and — because this is a duplicate —
-> I must name which copy survives. The tool refuses to choose that for me.
+> This is served on loopback only — 127.0.0.1, no external interface. And the
+> page is completely self-contained: the charting library is inlined, so there
+> is no CDN call and it opens on an air-gapped machine.
+
+Walk three things on the page, then stop:
+
+> The treemap shows where the storage actually sits — allocated bytes, so a
+> hardlink is counted once.
 >
-> I am not going to run it. There is no automatic executor in this product.
+> The candidate table is the same review list from the terminal, with the
+> evidence attached to each row.
+>
+> And at the bottom, the plan's integrity checksum, labelled *not a signature* —
+> because it detects accidental change, not forgery. What actually protects you
+> is that verification rechecks every file's identity on disk, which you saw
+> fail a minute ago.
 
-**Do not execute a delete on stage.** The preview is the argument.
+Close on:
 
-## Step 10 — Close with the rehearsal (20s)
+> No file was deleted, moved, or transmitted during any of that.
 
-**Terminal B:**
-
-```bash
-python -m sanchay.demo --prove
-```
-
-```
-protected unique -> documents/capstone-thesis.txt stayed out of the review plan
-duplicate proof   -> downloads/boss-image-copy.iso matched archive/boss-image.iso as a named evidence peer
-retention boundary -> matching bytes do not identify the authoritative copy
-hardlink boundary -> 2 entries excluded
-reclaim evidence  -> 729,088 bytes selected for review
-target optimizer -> lower-risk candidates first; exact minimum-excess subset used for the remaining target
-fail-closed check -> a synthetic cache mutation invalidated the plan
-proof -> PASS; no file was deleted, moved, or transmitted
-```
-
-> Everything you just watched me do by hand runs in CI on every push, on four
-> Python versions. That is the last line: no file was deleted, moved, or
-> transmitted.
+Then `/stop 1` if you want the port back.
 
 ---
 
 ## Timing
 
-| Step | Seconds | Cut if short on time? |
+| Step | Seconds | Cut if short? |
 | --- | ---: | --- |
 | 1 `/ai status` | 20 | No — this is Track 2 |
-| 2 `/scan` | 30 | No |
+| 2 `/scan` + `/ps` | 35 | Drop `/ps` only |
 | 3 `/candidates` | 30 | **Never** |
 | 4 `/archives` | 25 | **Never** |
-| 5 `/duplicates` | 25 | Yes |
-| 6 `/target 600K` | 30 | Yes |
-| 7 `/plan` + `/verify-plan` | 25 | No |
-| 8 mutate + verify | 35 | **Never** |
-| 9 `/delete` preview | 30 | No |
-| 10 `--prove` | 20 | Yes, if step 8 landed |
+| 5 `/duplicates` | 20 | Yes |
+| 6 `/target 600K` | 25 | Yes |
+| 7 `/permissions` + `/delete` | 30 | No |
+| 8 mutate + verify | 40 | **Never** |
+| 9 `/refresh` | 15 | Yes — report still builds |
+| 10 `/report` + `/serve` | 45 | No — this is the finish |
 
-Full run ~4:30. Cutting steps 5, 6 and 10 gives a 3-minute version that keeps
-every safety claim.
-
-## Extended — only if the jury asks
-
-| They ask | You run |
-| --- | --- |
-| "Show me the report" | `/report demo.html` then `/serve`, open the printed URL |
-| "What did it not scan?" | `/coverage` |
-| "Prove those two files are identical" | `/verify-archive <copy> <original>` |
-| "What is running?" | `/ps`, then `/stop <id>` |
-| "Can it use a cloud model?" | `/ai api` — explain the env vars; do not configure a key on stage |
-| "What does it consider unsafe?" | `/about` |
-| "Full command list" | `/help` |
+Cutting steps 5, 6 and 9 gives a 3-minute 20-second run that keeps every safety
+claim and still ends on the report.
 
 ## Rules for the stage
 
-1. **Never run an action command with `--execute`.** Preview only.
-2. **Never debug live.** Ten seconds of trouble, then: "I have this captured on
+1. **Run from `~`, never `/mnt/e/sanchay`.** The venv there has a broken pandas
+   and `/report` will crash the shell.
+2. **Type commands one at a time.** Pasting two lines sends them as a single
+   input — `/refresh` plus `/delete 1` arrives as `/refresh /delete 1` and you
+   get `Usage: /refresh`.
+3. **Never run an action command with `--execute`.**
+4. **Never debug live.** Ten seconds of trouble, then: "I have this captured on
    the slide."
-3. **Do not scan a real personal folder** — someone will read your file names
-   off the projector. Use the fixture.
-4. **Do not clear the screen between steps.** The accumulated output *is* the
-   evidence trail; let it build.
-5. If a command is refused, say so plainly — a refusal is the product working.
+5. **Do not scan a personal folder** — your filenames go on the projector.
+6. **Do not clear the screen.** The accumulated output is the evidence trail.
+7. A refusal is the product working. Say so plainly when one appears.
+
+## If the jury asks for more
+
+| They ask | You run |
+| --- | --- |
+| "What did it not scan?" | `/coverage` |
+| "Prove those two are identical" | `/verify-archive <copy> <original>` |
+| "Show the hardlink" | In terminal B: `ls -li ~/sanchay-demo/hardlinks/` — same inode, link count 2 |
+| "What is running?" | `/ps`, then `/stop <id>` |
+| "Can it use a cloud model?" | `/ai api` — explain the env vars, do not configure a key on stage |
+| "What does it consider unsafe?" | `/about` |
+| "Full command list" | `/help` |
 
 ## One-line recovery
 
 | Problem | Say |
 | --- | --- |
-| Ollama unavailable | "Optional stage, falls back to the local classifier, and records why in the plan." |
-| Fixture missing | `python -m sanchay.demo ~/sanchay-demo` while you keep talking. |
-| Plan already exists | Add `--replace`, and say "plans are write-once by default." |
-| Scan looks stuck | "It runs in the background — Esc interrupts it." Then move to the slide. |
+| Ollama unavailable | "Optional stage — it falls back to the local classifier and records why in the plan." |
+| `/report` says already exists | Add `--replace`, and say "artifacts are write-once by default." |
+| Browser tab will not load | Check the port matches `/serve 8123`; otherwise open `~/Downloads/demo.html` directly. |
+| Fixture missing | `python3 -m sanchay.demo ~/sanchay-demo` while you keep talking. |
 | Anything else | Switch to the deck. The captures are already there. |
