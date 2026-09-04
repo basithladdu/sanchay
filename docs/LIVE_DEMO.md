@@ -32,8 +32,13 @@ Build the fixture and pre-warm the browser:
 ```bash
 rm -rf ~/sanchay-demo
 python3 -m sanchay.demo ~/sanchay-demo
-sanchay ~/sanchay-demo --report ~/Downloads/demo.html
+sanchay ~/sanchay-demo --ai-provider ollama --report ~/Downloads/demo.html
 ```
+
+The `--ai-provider ollama` matters: without it the pre-warmed report records
+`reasoning AI: off`, which contradicts the `/ai status` you show in step 1. With
+it, the report header reads `ollama / qwen2.5-coder:7b; 4 reviewed, 4 confirmed,
+0 changed to keep`.
 
 Open a browser tab at `http://127.0.0.1:8123/demo.html`. It will not load yet —
 that is fine. The tab is now pre-typed, so in step 10 you only press refresh.
